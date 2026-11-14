@@ -6,7 +6,7 @@
 //   'moonhover' and 'moonclick', detail = { lat, lon, altM, feature }
 //   feature = null | { name, type, diameterKm, lat, lon, distanceKm }
 
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { getCelestialState } from "../api/celestial";
 import { ScaleBar } from "../components/ScaleBar";
@@ -468,10 +468,11 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
   }, [playing, active, spanMin]);
 
   // Compass disc lies on the site's horizon as seen by the camera: rotated to the on-screen north,
-  // tilted by how obliquely the site is viewed (CSS 3D, no React re-render).
+  // tilted by how obliquely the site is viewed (CSS 3D, no React re-render). In the ground view it
+  // lies flat and turns with the observer instead (onGroundHeading).
   const hasSky = sky !== null;
   useEffect(() => {
-    if (!globe || !hasSky) return;
+    if (!globe || !hasSky || groundOn) return;
     const update = () => {
       const el = diskRef.current;
       if (!el) return;
@@ -482,7 +483,15 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
     };
     update();
     return globe.onCameraChange(update);
-  }, [globe, hasSky, siteLat, siteLon]);
+  }, [globe, hasSky, siteLat, siteLon, groundOn]);
+
+  /** Ground view: flat compass, top = where the observer looks. */
+  const onGroundHeading = useCallback((az: number) => {
+    const el = diskRef.current;
+    if (!el) return;
+    el.style.transform = `rotate(${(-az).toFixed(1)}deg)`;
+    el.style.opacity = "1";
+  }, []);
 
   // Scale bar: re-read on every camera move; React only re-renders when the scale changes by > 1 %.
   useEffect(() => {
@@ -588,6 +597,7 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
           demVersion={demVersion}
           active={active}
           onExit={() => setGroundOn(false)}
+          onHeading={onGroundHeading}
         />
       )}
       {sky && !groundOn && (

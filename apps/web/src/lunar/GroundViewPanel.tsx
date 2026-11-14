@@ -18,6 +18,8 @@ interface Props {
   demVersion: number;
   active: boolean;
   onExit: () => void;
+  /** view azimuth (degrees), e.g. to turn the compass so its top is where the observer looks */
+  onHeading?: (azimuthDeg: number) => void;
 }
 
 const wrap180 = (d: number) => ((((d + 180) % 360) + 360) % 360) - 180;
@@ -71,7 +73,7 @@ function HeadingTape({ view, sun, earth }: { view: GroundViewState; sun?: AzEl; 
   );
 }
 
-export function GroundViewPanel({ heightmap, siteLat, siteLon, observerHeightM, sky, demVersion, active, onExit }: Props) {
+export function GroundViewPanel({ heightmap, siteLat, siteLon, observerHeightM, sky, demVersion, active, onExit, onHeading }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<GroundView | null>(null);
   const [state, setState] = useState<GroundViewState>({ azimuthDeg: 0, elevationDeg: 5, hfovDeg: 90 });
@@ -90,6 +92,7 @@ export function GroundViewPanel({ heightmap, siteLat, siteLon, observerHeightM, 
   }, []);
 
   useEffect(() => view?.setActive(active), [view, active]);
+  useEffect(() => onHeading?.(state.azimuthDeg), [onHeading, state.azimuthDeg]);
 
   // Terrain: debounce rebuilds (each streamed band bumps demVersion).
   useEffect(() => {
@@ -124,6 +127,11 @@ export function GroundViewPanel({ heightmap, siteLat, siteLon, observerHeightM, 
           View az {state.azimuthDeg.toFixed(0)}° · el {state.elevationDeg.toFixed(0)}° · FOV {state.hfovDeg.toFixed(0)}°
           {siteElevationM != null && ` · ground ${Math.round(siteElevationM).toLocaleString("en-US")} m, eye +${observerHeightM} m`}
         </div>
+        <div className="ground-note">
+          Terrain: LOLA {heightmap?.label ?? "—"} at true scale (≈ {heightmap ? heightmap.kmPerPixel.toFixed(1) : "—"} km/px, smoothed up
+          close), out to 400 km with curvature · uniform albedo, no cast shadows, constant fill light (no earthshine model) ·
+          dashed line = ideal horizon 0° · drag to look, wheel to zoom
+        </div>
       </div>
       <div className="ground-buttons">
         <button type="button" onClick={() => lookAt(sky?.sun)} disabled={!sky}>
@@ -135,10 +143,6 @@ export function GroundViewPanel({ heightmap, siteLat, siteLon, observerHeightM, 
         <button type="button" onClick={onExit}>
           Back to orbit
         </button>
-      </div>
-      <div className="ground-note">
-        Terrain: LOLA {heightmap?.label ?? "—"} at true scale (≈ {heightmap ? heightmap.kmPerPixel.toFixed(1) : "—"} km/px, smooth up close),
-        out to 400 km with curvature; uniform albedo; no cast shadows. Dashed line = ideal horizon (0°). Drag to look, wheel to zoom.
       </div>
     </div>
   );

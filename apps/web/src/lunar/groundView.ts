@@ -67,7 +67,9 @@ export class GroundView {
     this.camera = new THREE.PerspectiveCamera(60, container.clientWidth / Math.max(1, container.clientHeight), 0.3, 2 * SKY_DIST);
 
     this.scene.add(this.sunLight);
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.025)); // no earthshine model: just keeps shadows readable
+    // Not physical (no earthshine model): a little fill light so terrain facing away from the Sun
+    // keeps a readable shape. Stated in the panel note.
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.12));
 
     this.sunBody = makeSun(SKY_DIST * Math.tan(SUN_ANG_RADIUS), this.textures);
     this.sunBody.visible = false;
