@@ -68,6 +68,62 @@ export async function loadHeightmap(url: string, label: string, onProgress?: Pro
   return new Heightmap(band, width, height, label);
 }
 
+/** Manifest written by scripts/split_ldem.py next to the band files. */
+export interface BandManifest {
+  source: string;
+  width: number;
+  height: number;
+  dtype: "float32le";
+  bands: { file: string; row0: number; rows: number; bytes: number }[];
+}
+
+/**
+ * Streams the bands of a split raster into `target` (row-major, south-first, already sized
+ * manifest.width × manifest.height), `concurrency` downloads at a time, in the given order.
+ * `onBand(row0, rows)` runs after each band is written in place. Resolves with the number of
+ * bands loaded; a failed band is skipped (its rows keep their previous values).
+ */
+export async function streamBands(
+  base: string,
+  manifest: BandManifest,
+  target: Float32Array,
+  order: number[],
+  onBand: (row0: number, rows: number) => void,
+  concurrency = 3,
+  signal?: { cancelled: boolean },
+): Promise<number> {
+  if (manifest.dtype !== "float32le") throw new Error(`unsupported band dtype ${manifest.dtype}`);
+  const littleEndian = new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
+  if (!littleEndian) throw new Error("big-endian platform: float32le bands not supported");
+  let next = 0;
+  let loaded = 0;
+  const worker = async () => {
+    while (next < order.length && !signal?.cancelled) {
+      const band = manifest.bands[order[next++]];
+      try {
+        const res = await fetch(`${base}${band.file}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const buf = await res.arrayBuffer();
+        if (buf.byteLength !== band.rows * manifest.width * 4) throw new Error("unexpected size");
+        if (signal?.cancelled) return;
+        target.set(new Float32Array(buf), band.row0 * manifest.width);
+        loaded++;
+        onBand(band.row0, band.rows);
+      } catch (e) {
+        console.warn(`elevation band ${band.file} skipped:`, e);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: concurrency }, worker));
+  return loaded;
+}
+
+/** Band indices sorted by distance of their centre latitude to `lat` (nearest first). */
+export function bandOrderNear(manifest: BandManifest, lat: number): number[] {
+  const centre = (b: { row0: number; rows: number }) => ((b.row0 + b.rows / 2) / manifest.height) * 180 - 90;
+  return manifest.bands.map((_, i) => i).sort((a, b) => Math.abs(centre(manifest.bands[a]) - lat) - Math.abs(centre(manifest.bands[b]) - lat));
+}
+
 /** Loads an image (JPEG/PNG) with progress and returns a decoded HTMLImageElement. */
 export async function loadImage(url: string, onProgress?: Progress): Promise<HTMLImageElement> {
   const buf = await fetchWithProgress(url, onProgress);
