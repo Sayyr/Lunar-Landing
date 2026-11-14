@@ -95,3 +95,17 @@ describe("terrain horizon profile", () => {
     expect(horizonAt(t, 180)).toBeLessThan(0);
   });
 });
+
+describe("visual exaggeration", () => {
+  it("scales heights about the site and leaves the observer on the ground", () => {
+    const W = 360;
+    const H = 180;
+    const hm = new Heightmap(new Float32Array(W * H), W, H);
+    for (let r = 0; r < H; r++) if ((r + 0.5) * (180 / H) - 90 > 12) hm.data.fill(5, r * W, (r + 1) * W);
+    const a = buildGroundTerrain(hm, 10, 0, 2, opt);
+    const b = buildGroundTerrain(hm, 10, 0, 2, opt, undefined, 3);
+    expect(b.positions[1]).toBe(-2); // still 2 m above the ground under the eye
+    expect(horizonAt(b, 0)).toBeGreaterThan(horizonAt(a, 0) * 2); // the northern wall looks taller
+    expect(b.siteElevationM).toBe(a.siteElevationM);
+  });
+});

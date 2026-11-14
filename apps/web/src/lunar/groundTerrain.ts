@@ -70,12 +70,16 @@ export function buildGroundTerrain(
   observerHeightM: number,
   opt: GroundTerrainOptions = DEFAULT_GROUND,
   color?: ColorSource,
+  /** VISUAL vertical exaggeration of heights relative to the ground under the observer (1 = true) */
+  exaggeration = 1,
 ): GroundTerrain {
   const { east, north, up } = enuBasis(latDeg, lonDeg);
   // Bicubic: continuous slopes, so the shading does not show the raster's pixel edges.
   const elevM: (lat: number, lon: number, d: number) => number =
     typeof source === "function" ? source : source ? (lat, lon) => source.sampleKmSmooth(lat, lon) * 1000 : () => 0;
   const siteElevationM = elevM(latDeg, lonDeg, 0);
+  // Exaggerate relative to the site, so the observer stays standing on the ground.
+  const shownM = (lat: number, lon: number, d: number) => siteElevationM + exaggeration * (elevM(lat, lon, d) - siteElevationM);
   const eyeR = MOON_RADIUS_M + siteElevationM + observerHeightM;
 
   const B = opt.bearings;
@@ -102,7 +106,7 @@ export function buildGroundTerrain(
       for (let k = 0; k < 3; k++) dir[k] = cd * up[k] + sd * (cb * north[k] + sb * east[k]);
       const lat = (Math.asin(Math.max(-1, Math.min(1, dir[2]))) * 180) / Math.PI;
       const lon = (Math.atan2(dir[1], dir[0]) * 180) / Math.PI;
-      const r = MOON_RADIUS_M + elevM(lat, lon, dist);
+      const r = MOON_RADIUS_M + shownM(lat, lon, dist);
       // Position relative to the eye, in ENU (eye = eyeR · up).
       const px = dir[0] * r - up[0] * eyeR;
       const py = dir[1] * r - up[1] * eyeR;
