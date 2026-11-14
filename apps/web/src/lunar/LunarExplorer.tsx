@@ -196,6 +196,7 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
   const [tMin, setTMin] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [sky, setSky] = useState<{ sun: AzEl; earth: AzEl; synthetic: boolean } | null>(null);
+  const roseRef = useRef<SVGGElement>(null);
 
   useEffect(() => {
     onPickRef.current = onPick;
@@ -390,6 +391,19 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
     return () => cancelAnimationFrame(raf);
   }, [playing, active, spanMin]);
 
+  // Compass rose follows the on-screen direction of north at the site.
+  const hasSky = sky !== null;
+  useEffect(() => {
+    if (!globe || !hasSky) return;
+    const update = () => {
+      const a = globe.northScreenAngle(siteLat, siteLon);
+      roseRef.current?.setAttribute("transform", `rotate(${a ?? 0} 50 50)`);
+      roseRef.current?.setAttribute("opacity", a == null ? "0.45" : "1"); // dimmed: site behind the camera plane
+    };
+    update();
+    return globe.onCameraChange(update);
+  }, [globe, hasSky, siteLat, siteLon]);
+
   const skyUtc = Number.isNaN(startMs) ? "—" : new Date(startMs + tMin * 60_000).toISOString().slice(0, 16).replace("T", " ") + " UTC";
 
   const results = useMemo(() => index?.search(query, 12) ?? [], [index, query]);
@@ -441,7 +455,7 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
 
       {sky && (
         <div className="sky-overlay">
-          <SkyCompass sun={sky.sun} earth={sky.earth} />
+          <SkyCompass sun={sky.sun} earth={sky.earth} roseRef={roseRef} />
           <div className="sky-time">
             <button type="button" onClick={() => setPlaying((p) => !p)} aria-label={playing ? "Pause" : "Play"}>
               {playing ? "❚❚" : "▶"}

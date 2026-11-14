@@ -1,6 +1,8 @@
 // Local compass at the scenario site: N arrow, Sun (yellow) and Earth (blue) on the horizon circle at
 // their azimuth. Filled dot = centre above the ideal horizon, hollow = below. Geometric only.
 
+import type { Ref } from "react";
+
 import type { AzEl } from "./skyGeometry";
 
 const R = 38;
@@ -29,11 +31,15 @@ function Dot({ v, color, label }: { v: AzEl; color: string; label: string }) {
 const az = (v: AzEl, digits: number) => (Number(v.azimuthDeg.toFixed(digits)) % 360).toFixed(digits);
 const fmt = (v: AzEl) => `az ${az(v, 0)}° · el ${v.elevationDeg >= 0 ? "+" : ""}${v.elevationDeg.toFixed(1)}°`;
 
-export function SkyCompass({ sun, earth }: { sun: AzEl; earth: AzEl }) {
+/**
+ * `roseRef` receives the rotating group: the parent sets its transform to the on-screen direction
+ * of local north (every camera move, without re-rendering React).
+ */
+export function SkyCompass({ sun, earth, roseRef }: { sun: AzEl; earth: AzEl; roseRef?: Ref<SVGGElement> }) {
   return (
     <div className="sky-compass">
       <svg viewBox="0 0 100 100" width={100} height={100} role="img" aria-label="Sun and Earth azimuth at the site">
-        <g>
+        <g ref={roseRef}>
           <circle cx={C} cy={C} r={R} fill="none" stroke="#fff" strokeWidth={2} />
           <text x={C} y={12} textAnchor="middle" fill="#ddd" fontSize={13} fontWeight={700}>
             N
