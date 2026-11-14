@@ -9,6 +9,7 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import { getCelestialState } from "../api/celestial";
+import { ScaleBar } from "../components/ScaleBar";
 
 import { type Feature, FeatureIndex, type FeaturesJson, type PublicFeature, publicFeature } from "./features";
 import { formatAltM, formatLat, formatLon, roundLon } from "./geo";
@@ -201,6 +202,7 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
   const roseRef = useRef<SVGGElement>(null);
   const sunPtrRef = useRef<HTMLDivElement>(null);
   const earthPtrRef = useRef<HTMLDivElement>(null);
+  const [kmPerPx, setKmPerPx] = useState<number | null>(null);
 
   useEffect(() => {
     onPickRef.current = onPick;
@@ -408,6 +410,22 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
     return globe.onCameraChange(update);
   }, [globe, hasSky, siteLat, siteLon]);
 
+  // Scale bar: re-read on every camera move; React only re-renders when the scale changes by > 1 %.
+  useEffect(() => {
+    if (!globe) return;
+    const update = () => {
+      const k = globe.kmPerPixelAtCentre();
+      setKmPerPx((old) => (old != null && Math.abs(k / old - 1) < 0.01 ? old : k));
+    };
+    update();
+    const off = globe.onCameraChange(update);
+    window.addEventListener("resize", update);
+    return () => {
+      off();
+      window.removeEventListener("resize", update);
+    };
+  }, [globe]);
+
   // Edge pointers "Sun this way / Earth this way", shown only while the body is off-screen.
   useEffect(() => {
     if (!globe || !sky) return;
@@ -526,6 +544,8 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
           )}
         </div>
       )}
+
+      {loaded && <ScaleBar kmPerPx={kmPerPx} note="at view centre, reference sphere" />}
 
       <aside className="lunar-panel">
         {children && <div className="lunar-scenario">{children}</div>}

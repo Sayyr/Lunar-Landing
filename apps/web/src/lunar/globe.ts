@@ -430,6 +430,16 @@ export class Globe {
     return { x: ((nx + 1) / 2) * w, y: ((1 - ny) / 2) * h, angle, onScreen };
   }
 
+  /**
+   * Ground distance per screen pixel (km) at the view centre, on the reference sphere. The camera
+   * always looks at the Moon's centre, so the centre ray meets the surface at |camera| − 1 radii.
+   */
+  kmPerPixelAtCentre(): number {
+    const d = Math.max(1e-6, this.camera.position.length() - 1);
+    const h = this.renderer.domElement.clientHeight || 1;
+    return ((2 * d * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2))) / h) * MOON_RADIUS_KM;
+  }
+
   /** Called whenever the camera moves (orbit, damping, fly-to). Returns an unsubscribe function. */
   onCameraChange(cb: () => void): () => void {
     this.controls.addEventListener("change", cb);

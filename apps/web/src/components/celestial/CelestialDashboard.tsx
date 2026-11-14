@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { getCelestialState } from "../../api/celestial";
 import type { CelestialStateResponse } from "../../api/celestialTypes";
 import { AU_M, EARTH_MEAN_RADIUS_M } from "../../lib/constants";
+import { ScaleBar } from "../ScaleBar";
 import { BODY_ENLARGEMENT, CelestialScene, type SceneView } from "./CelestialScene";
 import { MoonPhaseIcon } from "./MoonPhaseIcon";
 
@@ -50,6 +51,7 @@ export function CelestialDashboard({ active }: { active: boolean }) {
   const [state, setState] = useState<CelestialStateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(false); // opened from the "⋯" button
+  const [kmPerPx, setKmPerPx] = useState<number | null>(null);
 
   useEffect(() => {
     let current = true;
@@ -84,7 +86,7 @@ export function CelestialDashboard({ active }: { active: boolean }) {
   return (
     <div className={`dash${panelOpen ? "" : " panel-collapsed"}`}>
       {state ? (
-        <CelestialScene state={state} view={view} enlargeBodies={enlargeBodies} active={active} />
+        <CelestialScene state={state} view={view} enlargeBodies={enlargeBodies} active={active} onScale={setKmPerPx} />
       ) : (
         <div className="celestial-canvas placeholder">Loading…</div>
       )}
@@ -166,6 +168,12 @@ export function CelestialDashboard({ active }: { active: boolean }) {
         )}
         {error && <div className="error" role="alert">{error}</div>}
       </div>
+
+      <ScaleBar
+        kmPerPx={view === "earth-moon" ? kmPerPx : null}
+        note={`distances at Earth's centre${enlargeBodies ? `; radii ×${BODY_ENLARGEMENT}` : ""}`}
+        fallback="Schematic — not to scale"
+      />
 
       <button
         className="dash-panel-toggle"

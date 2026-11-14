@@ -1,7 +1,7 @@
 import { Html, Line, OrbitControls } from "@react-three/drei";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
 import { memo, useMemo } from "react";
-import type { Matrix4, Texture } from "three";
+import { type Matrix4, type PerspectiveCamera, type Texture } from "three";
 
 import { getMoonTrack, getSunTrack } from "../../api/celestial";
 import type { CelestialStateResponse } from "../../api/celestialTypes";
@@ -30,6 +30,26 @@ interface Props {
   enlargeBodies: boolean;
   /** false while the tab is hidden: the render loop is paused. */
   active: boolean;
+  /** km per pixel at the orbit target (Earth–Moon view); null in the schematic view. Must be stable. */
+  onScale?: (kmPerPx: number | null) => void;
+}
+
+/**
+ * Reports km per pixel at the orbit target (the Earth's centre), Earth–Moon view only.
+ * Reported when it changes by more than 1 %, so React does not re-render every frame.
+ */
+function ScaleProbe({ onScale }: { onScale: (kmPerPx: number) => void }) {
+  let last = 0;
+  useFrame(({ camera, size }) => {
+    const cam = camera as PerspectiveCamera;
+    const unitsPerPx = (2 * cam.position.length() * Math.tan(((cam.fov / 2) * Math.PI) / 180)) / size.height;
+    const k = (unitsPerPx * EARTH_MEAN_RADIUS_M) / 1000; // 1 unit = 1 Earth radius
+    if (Math.abs(k / (last || 1) - 1) > 0.01) {
+      last = k;
+      onScale(k);
+    }
+  });
+  return null;
 }
 
 interface ViewProps {
@@ -115,7 +135,7 @@ function SolarView({ state, earthTex, moonTex, earthOrientation, moonOrientation
 }
 
 // memo: the dashboard re-renders on every date change before the new state arrives.
-export const CelestialScene = memo(function CelestialScene({ state, view, enlargeBodies, active }: Props) {
+export const CelestialScene = memo(function CelestialScene({ state, view, enlargeBodies, active, onScale }: Props) {
   const earthTex = useOptionalTexture(`${DATA_BASE}earth_bluemarble_2048.png`);
   const moonTex = useOptionalTexture(`${DATA_BASE}moon_color.jpg`);
   const earthOrientation = useMemo(() => bodyRotationToThree(state.earth_orientation), [state.earth_orientation]);
@@ -140,7 +160,10 @@ export const CelestialScene = memo(function CelestialScene({ state, view, enlarg
       >
         <color attach="background" args={["#000000"]} />
         {view === "earth-moon" ? (
-          <EarthMoonView {...viewProps} bodyScale={enlargeBodies ? BODY_ENLARGEMENT : 1} />
+          <>
+            <EarthMoonView {...viewProps} bodyScale={enlargeBodies ? BODY_ENLARGEMENT : 1} />
+            {onScale && <ScaleProbe onScale={onScale} />}
+          </>
         ) : (
           <SolarView {...viewProps} />
         )}
