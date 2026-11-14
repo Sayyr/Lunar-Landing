@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildGroundTerrain, MOON_RADIUS_M, vertexElevationDeg } from "./groundTerrain";
+import { buildGroundTerrain, horizonAt, MOON_RADIUS_M, vertexElevationDeg } from "./groundTerrain";
 import { Heightmap } from "./heightmap";
 
 const opt = { bearings: 36, rings: 40, minDistanceM: 5, maxDistanceM: 400_000 };
@@ -73,5 +73,25 @@ describe("buildGroundTerrain winding", () => {
       if (uz * vx - ux * vz <= 0) down++;
     }
     expect(down).toBe(0);
+  });
+});
+
+describe("terrain horizon profile", () => {
+  it("smooth sphere: horizon is the dip of the nearest ring (just below 0°)", () => {
+    const t = buildGroundTerrain(null, 10, 20, 2, opt);
+    for (const az of [0, 90, 123.4, 359]) {
+      expect(horizonAt(t, az)).toBeLessThan(0);
+      expect(horizonAt(t, az)).toBeGreaterThan(-25); // nearest ring 5 m away, eye 2 m up: atan(2/5) ≈ 21.8°
+    }
+  });
+
+  it("a raised region raises the horizon only in its direction", () => {
+    const W = 360;
+    const H = 180;
+    const hm = new Heightmap(new Float32Array(W * H), W, H);
+    for (let r = 0; r < H; r++) if ((r + 0.5) * (180 / H) - 90 > 12) hm.data.fill(5, r * W, (r + 1) * W);
+    const t = buildGroundTerrain(hm, 10, 0, 2, opt);
+    expect(horizonAt(t, 0)).toBeGreaterThan(0.5); // 5 km wall ~2° of latitude north
+    expect(horizonAt(t, 180)).toBeLessThan(0);
   });
 });

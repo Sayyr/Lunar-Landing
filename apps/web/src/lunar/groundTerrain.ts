@@ -37,6 +37,21 @@ export interface GroundTerrain {
   /** surface elevation under the observer, metres relative to 1737.4 km (0 without raster) */
   siteElevationM: number;
   observerHeightM: number;
+  /**
+   * Terrain horizon of the BUILT mesh, degrees per bearing (index j ↔ j·360/bearings° from north):
+   * highest elevation angle of any vertex in that direction. A visual estimate at mesh sampling,
+   * not the science service's DEM horizon.
+   */
+  horizonDeg: Float32Array;
+}
+
+/** Terrain horizon (degrees) in the direction `azimuthDeg`, linear between mesh bearings. */
+export function horizonAt(t: GroundTerrain, azimuthDeg: number): number {
+  const B = t.horizonDeg.length;
+  const x = ((((azimuthDeg % 360) + 360) % 360) / 360) * B;
+  const j = Math.floor(x) % B;
+  const f = x - Math.floor(x);
+  return t.horizonDeg[j] * (1 - f) + t.horizonDeg[(j + 1) % B] * f;
 }
 
 export function buildGroundTerrain(
@@ -55,6 +70,7 @@ export function buildGroundTerrain(
 
   const B = opt.bearings;
   const N = opt.rings;
+  const horizonDeg = new Float32Array(B).fill(-90);
   const positions = new Float32Array((1 + N * B) * 3);
   // Vertex 0: ground point under the eye.
   positions[1] = -observerHeightM;
@@ -85,6 +101,8 @@ export function buildGroundTerrain(
       positions[3 * v] = e;
       positions[3 * v + 1] = u;
       positions[3 * v + 2] = -n;
+      const elev = (Math.atan2(u, Math.hypot(e, n)) * 180) / Math.PI;
+      if (elev > horizonDeg[j]) horizonDeg[j] = elev;
     }
   }
 
@@ -100,7 +118,7 @@ export function buildGroundTerrain(
       tris.push(a, b2, c, b2, d, c);
     }
   }
-  return { positions, indices: Uint32Array.from(tris), siteElevationM, observerHeightM };
+  return { positions, indices: Uint32Array.from(tris), siteElevationM, observerHeightM, horizonDeg };
 }
 
 /** Elevation angle (degrees) of a terrain vertex seen from the eye. */
