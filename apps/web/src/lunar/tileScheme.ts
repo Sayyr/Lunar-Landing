@@ -37,6 +37,21 @@ export function tileBounds({ z, row, col }: TileId): TileBounds {
   return { west, east: west + s, south: north - s, north };
 }
 
+/**
+ * Affine map from a tile's local UV (0..1, v = 0 at its south edge) to the global equirectangular
+ * UV of the LOLA raster texture (u = (lon + 180) / 360, v = (lat + 90) / 180, rows south → north):
+ * global = offset + local × scale.
+ */
+export function tileToGlobalUv(id: TileId): { scaleU: number; scaleV: number; offsetU: number; offsetV: number } {
+  const b = tileBounds(id);
+  return {
+    scaleU: (b.east - b.west) / 360,
+    scaleV: (b.north - b.south) / 180,
+    offsetU: (b.west + 180) / 360,
+    offsetV: (b.south + 90) / 180,
+  };
+}
+
 export function tileUrl({ z, row, col }: TileId): string {
   return `${TREK_TILE_URL}/${z}/${row}/${col}.jpg`;
 }

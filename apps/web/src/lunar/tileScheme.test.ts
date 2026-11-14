@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { childTiles, firstUsefulLevel, levelPxPerDeg, rootTiles, tileBounds, tileKey, tileUrl } from "./tileScheme";
+import { childTiles, firstUsefulLevel, levelPxPerDeg, rootTiles, tileBounds, tileKey, tileToGlobalUv, tileUrl } from "./tileScheme";
 
 describe("Moon Trek tile scheme", () => {
   it("level 0 is two 180° tiles from −180° and +90°", () => {
@@ -35,5 +35,17 @@ describe("Moon Trek tile scheme", () => {
     const z = firstUsefulLevel(4096);
     expect(levelPxPerDeg(z)).toBeGreaterThan(4096 / 360);
     expect(levelPxPerDeg(z - 1)).toBeLessThanOrEqual(4096 / 360);
+  });
+
+  it("tile UV → global raster UV: corners land on the tile's lon/lat bounds", () => {
+    const id = { z: 5, row: 7, col: 40 };
+    const b = tileBounds(id);
+    const t = tileToGlobalUv(id);
+    const lonOf = (u: number) => u * 360 - 180;
+    const latOf = (v: number) => v * 180 - 90;
+    expect(lonOf(t.offsetU)).toBeCloseTo(b.west);
+    expect(latOf(t.offsetV)).toBeCloseTo(b.south);
+    expect(lonOf(t.offsetU + t.scaleU)).toBeCloseTo(b.east);
+    expect(latOf(t.offsetV + t.scaleV)).toBeCloseTo(b.north);
   });
 });
