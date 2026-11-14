@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { PolarDem, polarLevelFor, type PolarManifest, polarPixel, toLevel } from "./polarDem";
+import { PolarDem, polarLevelFor, type PolarManifest, polarPixel, SITE_PLAN, toLevel } from "./polarDem";
 
 // Projection of LDEM_85S_20M as written by scripts/tile_polar_dem.py (signs validated there).
 const real: PolarManifest = {
@@ -82,5 +82,11 @@ describe("polarLevelFor", () => {
     expect(polarLevelFor(50_000)).toBe(2);
     expect(polarLevelFor(120_000)).toBe(3);
     expect(polarLevelFor(300_000)).toBe(-1);
+  });
+
+  it("site plan: 5 m up to 3 km, 10 m to 8 km, then none (the 20 m product takes over)", () => {
+    expect(polarLevelFor(2_000, SITE_PLAN)).toBe(0);
+    expect(polarLevelFor(5_000, SITE_PLAN)).toBe(1);
+    expect(polarLevelFor(9_000, SITE_PLAN)).toBe(-1);
   });
 });

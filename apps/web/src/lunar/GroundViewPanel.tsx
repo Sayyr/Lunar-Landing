@@ -8,7 +8,7 @@ import { buildGroundTerrain, type ColorSource, DEFAULT_GROUND, type GroundTerrai
 import { type GroundSky, GroundView, type GroundViewState } from "./groundView";
 import type { Heightmap } from "./heightmap";
 import { DATA_BASE, loadJson } from "./loaders";
-import { POLAR_PLAN, PolarDem, polarLevelFor, type PolarManifest } from "./polarDem";
+import { POLAR_PLAN, PolarDem, polarLevelFor, type PolarManifest, SITE_PLAN } from "./polarDem";
 import type { AzEl } from "./skyGeometry";
 
 // High-resolution south-polar DEM (scripts/setup-polar-dem.sh), shared by every ground view of the
@@ -20,13 +20,29 @@ const loadPolar = () =>
     .then((m) => new PolarDem(m, POLAR_BASE))
     .catch(() => null));
 
-/** Polar DEM near the observer (finest level allowed by the distance), global raster elsewhere. */
-function terrainSource(hm: Heightmap | null, polar: PolarDem | null): TerrainSource {
-  if (!polar) return hm;
+// PGDA 5 m site DEMs (same tile format and reader as the polar product), listed in sites.json.
+let sitesPromise: Promise<PolarDem[]> | null = null;
+const loadSites = () =>
+  (sitesPromise ??= loadJson<{ sites: string[] }>(`${POLAR_BASE}sites.json`)
+    .then((ix) =>
+      Promise.all(ix.sites.map(async (name) => new PolarDem(await loadJson<PolarManifest>(`${POLAR_BASE}sites/${name}/manifest.json`), `${POLAR_BASE}sites/${name}/`))),
+    )
+    .catch(() => []));
+
+/**
+ * Finest data first, by distance from the observer: 5 m site DEM (if the site has one), 20 m polar
+ * DEM pyramid, then the global raster. A product is skipped where it has no data.
+ */
+function terrainSource(hm: Heightmap | null, polar: PolarDem | null, site: PolarDem | null): TerrainSource {
+  if (!polar && !site) return hm;
+  const layers: [PolarDem, typeof POLAR_PLAN][] = [];
+  if (site) layers.push([site, SITE_PLAN]);
+  if (polar) layers.push([polar, POLAR_PLAN]);
   return (lat, lon, d) => {
-    const lv = polarLevelFor(d);
-    if (lv >= 0) {
-      const v = polar.sampleKm(lat, lon, lv);
+    for (const [dem, plan] of layers) {
+      const lv = polarLevelFor(d, plan);
+      if (lv < 0) continue;
+      const v = dem.sampleKm(lat, lon, lv);
       if (Number.isFinite(v)) return v * 1000;
     }
     return hm ? hm.sampleKmSmooth(lat, lon) * 1000 : 0;
@@ -157,7 +173,7 @@ export function GroundViewPanel(props: Props) {
   useEffect(() => setGps({ lat: String(siteLat), lon: String(siteLon) }), [siteLat, siteLon]);
   const [fill, setFill] = useState(true);
   /** null: polar DEM not used here; otherwise its loading state for this site */
-  const [polar, setPolar] = useState<{ dem: PolarDem; done: number; total: number; ready: boolean } | null>(null);
+  const [polar, setPolar] = useState<{ dem: PolarDem; site: PolarDem | null; done: number; total: number; ready: boolean } | null>(null);
   const firstSky = useRef(true);
 
   useEffect(() => {
@@ -178,12 +194,20 @@ export function GroundViewPanel(props: Props) {
   useEffect(() => {
     let stale = false;
     setPolar(null);
-    loadPolar().then((dem) => {
+    Promise.all([loadPolar(), loadSites()]).then(([dem, sites]) => {
       if (stale || !dem || !dem.covers(siteLat, siteLon)) return;
-      setPolar({ dem, done: 0, total: 0, ready: false });
-      dem
-        .loadAround(siteLat, siteLon, POLAR_PLAN, (done, total) => !stale && setPolar({ dem, done, total, ready: false }))
-        .then(() => !stale && setPolar((p) => (p ? { ...p, ready: true } : p)));
+      const site = sites.find((s) => s.covers(siteLat, siteLon)) ?? null;
+      const progress = { polar: [0, 0], site: [0, 0] };
+      const report = () => {
+        if (stale) return;
+        const done = progress.polar[0] + progress.site[0];
+        setPolar({ dem, site, done, total: progress.polar[1] + progress.site[1], ready: false });
+      };
+      report();
+      Promise.all([
+        dem.loadAround(siteLat, siteLon, POLAR_PLAN, (d, t) => ((progress.polar = [d, t]), report())),
+        site?.loadAround(siteLat, siteLon, SITE_PLAN, (d, t) => ((progress.site = [d, t]), report())),
+      ]).then(() => !stale && setPolar((p) => (p ? { ...p, ready: true } : p)));
     });
     return () => {
       stale = true;
@@ -192,16 +216,17 @@ export function GroundViewPanel(props: Props) {
 
   // Terrain: debounce rebuilds (each streamed band bumps demVersion; polar tiles arrive once).
   const polarReady = polar?.ready ? polar.dem : null;
+  const siteReady = polar?.ready ? polar.site : null;
   useEffect(() => {
     if (!view) return;
     const id = setTimeout(() => {
-      const t = buildGroundTerrain(terrainSource(heightmap, polarReady), siteLat, siteLon, observerHeightM, DEFAULT_GROUND, colorSourceFrom(colorImage));
+      const t = buildGroundTerrain(terrainSource(heightmap, polarReady, siteReady), siteLat, siteLon, observerHeightM, DEFAULT_GROUND, colorSourceFrom(colorImage));
       view.setTerrain(t);
       setTerrain({ t, lat: siteLat, lon: siteLon });
       setSiteElevationM(heightmap || polarReady ? t.siteElevationM : null);
     }, 150);
     return () => clearTimeout(id);
-  }, [view, heightmap, colorImage, polarReady, siteLat, siteLon, observerHeightM, demVersion]);
+  }, [view, heightmap, colorImage, polarReady, siteReady, siteLat, siteLon, observerHeightM, demVersion]);
 
   useEffect(() => {
     if (!view) return;
@@ -270,13 +295,18 @@ export function GroundViewPanel(props: Props) {
           </div>
         )}
         <div className="ground-note">
+          {polar?.ready && polar.site && (
+            <>
+              LOLA 5 m site DEM ({polar.site.manifest.source}, PGDA) — 5 m to 3 km, 10 m to 8 km · then{" "}
+            </>
+          )}
           {polar?.ready ? (
             <>
               Terrain: LOLA 20 m polar DEM ({polar.dem.manifest.source}, {polar.dem.manifest.frame}) — 20 m to 6 km, 40 m to 25 km,
               80 m to 80 km, 160 m to 150 km — then {heightmap?.label ?? "—"} to 400 km, true scale with curvature
             </>
           ) : polar ? (
-            <>Loading 20 m polar relief around the site: {polar.done}/{polar.total} tiles… (meanwhile {heightmap?.label ?? "—"}, ≈ 1.9 km/px)</>
+            <>Loading {polar.site ? "5 m + 20 m" : "20 m"} polar relief around the site: {polar.done}/{polar.total} tiles… (meanwhile {heightmap?.label ?? "—"}, ≈ 1.9 km/px)</>
           ) : (
             <>
               Terrain: LOLA {heightmap?.label ?? "—"} at true scale (≈ {heightmap ? heightmap.kmPerPixel.toFixed(1) : "—"} km/px, smoothed up

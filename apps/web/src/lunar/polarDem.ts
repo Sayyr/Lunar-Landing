@@ -158,8 +158,14 @@ export const POLAR_PLAN = [
   { level: 3, radiusM: 150_000 },
 ];
 
+/** PGDA 5 m site DEMs (scripts/setup-polar-dem.sh): 5 m near the observer, 10 m further. */
+export const SITE_PLAN = [
+  { level: 0, radiusM: 3_000 },
+  { level: 1, radiusM: 8_000 },
+];
+
 /** Level to use for a terrain vertex at `distanceM` from the observer (−1 = beyond the plan). */
-export function polarLevelFor(distanceM: number): number {
-  for (const p of POLAR_PLAN) if (distanceM <= p.radiusM) return p.level;
+export function polarLevelFor(distanceM: number, plan = POLAR_PLAN): number {
+  for (const p of plan) if (distanceM <= p.radiusM) return p.level;
   return -1;
 }

@@ -7,6 +7,10 @@
 # The tiler first checks its projection against ldem_16 and refuses to write tiles if they
 # disagree; the result is recorded in public/data/polar_s/manifest.json ("validation").
 #
+# Then, for a few well-surveyed sites, the PGDA LOLA 5 m DEMs (https://pgda.gsfc.nasa.gov/products/78,
+# ~41 MB each; PGDA_SITES="Site01 Site04" by default: connecting ridge, Shackleton rim), tiled by
+# scripts/tile_site_dem.py after validation against the 20 m product, listed in sites.json.
+#
 # Not run by setup-data.sh nor the Docker build (size). Without it, the ground view uses ldem_16.
 # Needs Python 3.11+ with numpy: PYTHON=… (default: services/science/.venv/bin/python, then python3).
 set -euo pipefail
@@ -47,5 +51,21 @@ if [[ ! -f "$OUT/manifest.json" ]]; then
   echo "⚙ tiling (validates the projection against ldem_16 first)"
   "$PYTHON" "$HERE/scripts/tile_polar_dem.py" "$RAW/$NAME.img" "$RAW/$NAME.lbl" "$OUT" --check "$CHECK"
 fi
+# PGDA 5 m site DEMs.
+PGDA="$HERE/data-raw/pgda"
+mkdir -p "$PGDA"
+SITES_DONE=()
+for S in ${PGDA_SITES:-Site01 Site04}; do
+  TIF="$PGDA/${S}_final_adj_5mpp_surf.tif"
+  [[ -f "$TIF" ]] || { echo "↓ PGDA $S (5 m)"; fetch "https://pgda.gsfc.nasa.gov/data/LOLA_5mpp/$S/${S}_final_adj_5mpp_surf.tif" "$TIF"; }
+  if [[ ! -f "$OUT/sites/$S/manifest.json" ]]; then
+    echo "⚙ tiling $S (validated against the 20 m product)"
+    "$PYTHON" "$HERE/scripts/tile_site_dem.py" "$TIF" "$RAW/$NAME.img" "$RAW/$NAME.lbl" "$OUT/manifest.json" "$OUT/sites/$S"
+  fi
+  SITES_DONE+=("\"$S\"")
+done
+( IFS=,; echo "{\"sites\": [${SITES_DONE[*]}]}" > "$OUT/sites.json" )
+
 ( cd "$RAW" && shasum -a 256 "$NAME.img" "$NAME.lbl" > SHA256SUMS )
+( cd "$PGDA" && shasum -a 256 ./*.tif > SHA256SUMS 2>/dev/null || true )
 echo "Done: $(du -sh "$OUT" | cut -f1) in $OUT"
