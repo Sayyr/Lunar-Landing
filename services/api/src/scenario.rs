@@ -99,7 +99,7 @@ impl ScenarioRequest {
 
 fn is_utc_z(s: &str) -> bool {
     // RFC 3339 parse rejects impossible dates; the 'Z' check rejects offsets like +02:00.
-    s.ends_with('Z') && s.len() >= 20 && chrono::DateTime::parse_from_rfc3339(s).is_ok()
+    s.ends_with('Z') && s.as_bytes().get(10) == Some(&b'T') && chrono::DateTime::parse_from_rfc3339(s).is_ok()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -213,6 +213,8 @@ mod tests {
             "2026-11-15T00:00:00+02:00",
             "2026-02-30T00:00:00Z",
             "2026-11-15",
+            "2026-11-15 00:00:00Z",
+            "2026-11-15t00:00:00Z",
             "",
         ] {
             let mut r = req();

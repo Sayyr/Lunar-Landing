@@ -68,6 +68,7 @@ fn validate(query: &SiteQuery) -> Result<Coordinates, AppError> {
         NorthSouth::S => -query.lat,
     };
     let lon = match query.ew {
+        EastWest::E if query.lon == 180.0 => -180.0,
         EastWest::E => query.lon,
         EastWest::W => -query.lon,
     };

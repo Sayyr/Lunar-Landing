@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildGroundTerrain, type GroundTerrain, heightmapSource, horizonAt, MOON_RADIUS_M } from "./groundTerrain";
+import { buildGroundTerrain, type GroundTerrain, groundSignature, heightmapSource, horizonAt, MOON_RADIUS_M } from "./groundTerrain";
 import { Heightmap } from "./heightmap";
 
 /** Elevation angle (degrees) of a terrain vertex seen from the eye. */
@@ -100,5 +100,35 @@ describe("terrain horizon profile", () => {
     const t = buildGroundTerrain(heightmapSource(hm), 10, 0, 2, opt);
     expect(horizonAt(t, 0)).toBeGreaterThan(0.5); // 5 km wall ~2° of latitude north
     expect(horizonAt(t, 180)).toBeLessThan(0);
+  });
+});
+
+describe("groundSignature (rows of the raster the terrain can sample)", () => {
+  const W = 360;
+  const H = 180;
+  const signatureAfter = (lat: number, row: number, col: number) => {
+    const hm = new Heightmap(new Float32Array(W * H), W, H);
+    const before = groundSignature(hm, lat, opt.maxDistanceM);
+    hm.data[row * W + col] = 1;
+    return [before, groundSignature(hm, lat, opt.maxDistanceM)];
+  };
+
+  it("ignores a band outside the terrain's latitude extent", () => {
+    const [before, after] = signatureAfter(10, 150, 0);
+    expect(after).toBe(before);
+  });
+
+  it("changes when a band inside the extent is overwritten", () => {
+    const [before, after] = signatureAfter(10, 100, 0);
+    expect(after).not.toBe(before);
+  });
+
+  it("near a pole: reaches the pole row at every longitude, not beyond the extent", () => {
+    const [b0, a0] = signatureAfter(-89.5, 0, 200);
+    expect(a0).not.toBe(b0);
+    const [b1, a1] = signatureAfter(-89.5, 20, 200);
+    expect(a1).toBe(b1);
+    const [b2, a2] = signatureAfter(90, H - 1, 5);
+    expect(a2).not.toBe(b2);
   });
 });

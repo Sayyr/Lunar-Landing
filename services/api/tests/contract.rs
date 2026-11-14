@@ -156,6 +156,25 @@ async fn call(app: Router, method: &str, uri: &str, body: Option<Value>) -> (Sta
 }
 
 #[tokio::test]
+async fn health_ok_with_upstream() {
+    let url = mock_science().await;
+    let (status, body) = call(app(&url), "GET", "/api/v1/health", None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["status"], "ok");
+    assert_eq!(body["upstream"]["ephemeris"]["ready"], false);
+    assert_valid("health.schema.json", &body);
+}
+
+#[tokio::test]
+async fn health_degraded_when_science_down() {
+    let (status, body) = call(app("http://127.0.0.1:9"), "GET", "/api/v1/health", None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["status"], "degraded");
+    assert!(body["upstream"].is_null());
+    assert_valid("health.schema.json", &body);
+}
+
+#[tokio::test]
 async fn evaluate_forwards_not_ready() {
     let url = mock_science().await;
     let req = load("fixtures/scenario-request.valid.json");

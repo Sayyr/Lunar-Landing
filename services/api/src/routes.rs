@@ -11,13 +11,13 @@ use crate::{
 
 pub fn site_router(service: SiteService) -> Router {
     Router::new()
-        .route("/health", get(handler::health))
         .route("/calcule", post(handler::site))
         .with_state(service)
 }
 
 pub fn gateway_router(state: AppState) -> Router {
     Router::new()
+        .route("/health", get(gateway::health))
         .route("/sites", get(gateway::sites))
         .route("/scenarios/evaluate", post(gateway::evaluate_real))
         .route(

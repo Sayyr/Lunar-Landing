@@ -1,7 +1,7 @@
 # packages/contracts
 
-JSON Schema (draft 2020-12) contracts shared by `services/api` (Rust), `services/science` (Python) and `apps/web` (TypeScript).
-**The schemas are the source of truth.** The Pydantic models, the Rust serde types and `apps/web/src/api/types.ts` mirror them by hand.
+JSON Schema (draft 2020-12) contracts shared by `services/api` (Rust), `services/science` (C++) and `apps/web` (TypeScript).
+**The schemas are the source of truth.** The C++ models (`services/science/src/models.cpp`), the Rust serde types and `apps/web/src/api/types.ts` mirror them by hand.
 
 | Schema | Used by |
 |---|---|

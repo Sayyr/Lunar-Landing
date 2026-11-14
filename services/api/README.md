@@ -68,8 +68,10 @@ Contrat entre le back et un programme :
 ### `GET /api/v1/health`
 
 ```json
-{"status":"ok"}
+{"service":"api","status":"ok","version":"0.1.0","upstream":{...},"upstream_error":null}
 ```
+
+`status` vaut `degraded`, `upstream` `null` et `upstream_error` la cause quand le service science est injoignable (toujours HTTP 200). Schéma : `packages/contracts/schemas/health.schema.json`.
 
 ### `POST /api/v1/calcule`
 

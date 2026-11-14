@@ -20,16 +20,21 @@ export function ServiceStatus() {
   const [state, setState] = useState<State>({ kind: "loading" });
 
   useEffect(() => {
-    let alive = true;
-    const poll = () =>
+    const ctrl = new AbortController();
+    let pending = false;
+    const poll = () => {
+      if (pending) return;
+      pending = true;
       api
-        .health()
-        .then((health) => alive && setState({ kind: "ok", health }))
-        .catch((e: Error) => alive && setState({ kind: "down", error: e.message }));
+        .health(ctrl.signal)
+        .then((health) => ctrl.signal.aborted || setState({ kind: "ok", health }))
+        .catch((e: Error) => ctrl.signal.aborted || setState({ kind: "down", error: e.message }))
+        .finally(() => (pending = false));
+    };
     poll();
     const id = setInterval(poll, POLL_MS);
     return () => {
-      alive = false;
+      ctrl.abort();
       clearInterval(id);
     };
   }, []);

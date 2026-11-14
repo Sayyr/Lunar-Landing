@@ -136,6 +136,18 @@ export function buildGroundTerrain(
   return { positions, indices: gridIndices(B, N), siteElevationM, horizonDeg, uvs, colors };
 }
 
+export function groundSignature(hm: Heightmap | null, latDeg: number, maxDistanceM: number): number {
+  if (!hm) return 0;
+  const reachDeg = maxDistanceM / MOON_RADIUS_M / DEG;
+  const row = (lat: number) => Math.floor(((lat + 90) / 180) * hm.height - 0.5);
+  const first = Math.max(0, row(latDeg - reachDeg) - 2);
+  const end = Math.min(hm.height, row(latDeg + reachDeg) + 4);
+  const bits = new Uint32Array(hm.data.buffer, hm.data.byteOffset + first * hm.width * 4, (end - first) * hm.width);
+  let h = 2166136261;
+  for (let i = 0; i < bits.length; i++) h = Math.imul(h ^ bits[i], 16777619);
+  return h;
+}
+
 /** Triangle indices depend only on bearings × rings: built once per shape. */
 const indexCache = new Map<string, Uint32Array>();
 function gridIndices(B: number, N: number): Uint32Array {

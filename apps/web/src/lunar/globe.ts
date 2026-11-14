@@ -28,6 +28,7 @@ const SUN_ANG_RADIUS = Math.atan(695_700 / 149_597_871); // ≈ 0.27°
 // Sun–Moon–camera angle i on load: lit fraction of the disc k = (1 + cos i) / 2 = 0.8 → i ≈ 53.1°
 // (formula for a distant viewer; from 3.2 radii it is within a few percent).
 const LOAD_PHASE_ANGLE = Math.acos(2 * 0.8 - 1);
+const CAMERA_MOVE_EPS_SQ = 1e-18;
 // Moon body frame (x lon 0, y lon 90° E, z north) → three.js (x, z, −y), as lunar/geo.ts.
 const bodyToThree = (v: Vec3) => new THREE.Vector3(v[0], v[2], -v[1]);
 
@@ -74,6 +75,13 @@ export class Globe {
   private framedOnSun = false;
   private readonly tiles: TileLayer;
   private readonly heightTex: THREE.DataTexture | null;
+  private active = true;
+  private dragging = false;
+  private frameId = 0;
+  private readonly requestRender = (): void => {
+    if (!this.active || this.frameId) return;
+    this.frameId = requestAnimationFrame((t) => this.frame(t));
+  };
 
   constructor(container: HTMLElement, { colorImage, heightmap, segments, initialView }: GlobeOptions) {
     this.container = container;
@@ -111,6 +119,15 @@ export class Globe {
       controls.rotateSpeed = Math.min(0.5, Math.max(0.02, alt * 0.8));
       controls.zoomSpeed = Math.min(1, Math.max(0.3, alt * 2));
     });
+    controls.addEventListener("change", this.requestRender);
+    controls.addEventListener("start", () => {
+      this.dragging = true;
+      this.requestRender();
+    });
+    controls.addEventListener("end", () => {
+      this.dragging = false;
+    });
+    renderer.domElement.addEventListener("webglcontextrestored", this.requestRender);
 
     // --- Lighting: directional "Sun". Fixed illustrative direction until setSky() is called. -----
     const sun = new THREE.DirectionalLight(0xffffff, 3.0);
@@ -143,6 +160,7 @@ export class Globe {
       m.emissive.set(0xffffff);
       m.emissiveIntensity = 0.12;
       m.needsUpdate = true;
+      this.requestRender();
     });
 
     // --- Textures -------------------------------------------------------------------------------
@@ -212,18 +230,20 @@ export class Globe {
 
     // --- Streaming high-resolution imagery (NASA Moon Trek), over the base mesh ------------------
     this.tiles = new TileLayer(heightmap, heightTex, renderer.capabilities.getMaxAnisotropy(), colorImage?.width ?? 0);
+    this.tiles.onChange = this.requestRender;
     scene.add(this.tiles.group);
 
     this.setExaggeration(this.exaggeration);
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(container);
-    renderer.setAnimationLoop((t) => this.frame(t));
+    this.requestRender();
   }
 
   /** Stops rendering while the view is hidden (another tab); resumes when shown. */
   setActive(active: boolean): void {
-    this.renderer.setAnimationLoop(active ? (t) => this.frame(t) : null);
+    this.active = active;
+    this.requestRender();
   }
 
   resize(): void {
@@ -233,6 +253,7 @@ export class Globe {
     this.renderer.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    this.requestRender();
   }
 
   /** km → scene units, exaggeration included. */
@@ -257,6 +278,7 @@ export class Globe {
     if (this.siteMarker.visible) this.placeOnSurface(this.siteMarker, this.siteMarker.userData.lat, this.siteMarker.userData.lon);
     if (this.ring) this.placeRing(this.ring);
     if (this.landings) this.placeLandings(this.landings);
+    this.requestRender();
   }
 
   /** Radius of the displayed surface (scene units) at lat/lon. */
@@ -334,6 +356,7 @@ export class Globe {
 
   setGridVisible(v: boolean): void {
     this.grid.visible = v;
+    this.requestRender();
   }
 
   addMarker(lat: number, lon: number): void {
@@ -341,6 +364,7 @@ export class Globe {
     mk.userData = { lat, lon };
     this.placeOnSurface(mk, lat, lon);
     this.markers.add(mk);
+    this.requestRender();
   }
 
   clearMarkers(): void {
@@ -349,6 +373,7 @@ export class Globe {
       mk.material.dispose();
       this.markers.remove(mk);
     }
+    this.requestRender();
   }
 
   /**
@@ -359,6 +384,7 @@ export class Globe {
     if (this.landings) {
       this.scene.remove(this.landings);
       this.landings.geometry.dispose();
+      this.landings.material.map?.dispose();
       this.landings.material.dispose();
     }
     const geo = new THREE.BufferGeometry();
@@ -377,6 +403,7 @@ export class Globe {
     );
     this.placeLandings(this.landings);
     this.scene.add(this.landings);
+    this.requestRender();
   }
 
   /** The scenario's selected site (red marker). */
@@ -384,6 +411,7 @@ export class Globe {
     this.siteMarker.userData = { lat, lon };
     this.siteMarker.visible = true;
     this.placeOnSurface(this.siteMarker, lat, lon);
+    this.requestRender();
   }
 
   /**
@@ -393,6 +421,7 @@ export class Globe {
    */
   setSky(sky: MoonSky | null): void {
     this.sunBody.visible = this.earthBody.visible = sky !== null;
+    this.requestRender();
     if (!sky) {
       this.sky = null;
       this.sunLight.position.set(5, 1.5, 3);
@@ -419,6 +448,7 @@ export class Globe {
     const to = this.viewDirection(this.sky[which], Math.PI - THREE.MathUtils.degToRad(24));
     const from = this.camera.position.clone();
     this.flight = { from, to, d0: from.length(), d1: 4.5, t0: performance.now(), dur: 1600 };
+    this.requestRender();
   }
 
   /** Unit vector at `angle` from `dir`, turned horizontally (about the Y axis side vector). */
@@ -506,11 +536,13 @@ export class Globe {
     this.setExaggeration(this.exaggeration); // grid, markers, ring, closest approach
     const south = (row0 / hm.height) * 180 - 90;
     this.tiles.refreshHeights(south, south + (rows / hm.height) * 180);
+    this.requestRender();
   }
 
   /** Streaming imagery on/off (the base mesh always stays as the offline fallback). */
   setTilesEnabled(on: boolean): void {
     this.tiles.setEnabled(on);
+    this.requestRender();
   }
 
   /** Tile download status: "loading", "ok", "offline" (3 failures in a row) or "off". */
@@ -543,6 +575,7 @@ export class Globe {
     this.ring = ring;
     this.placeRing(ring);
     this.scene.add(ring);
+    this.requestRender();
   }
 
   /** Turns the camera toward lat/lon (spherical interpolation; distance kept or reduced). */
@@ -553,10 +586,13 @@ export class Globe {
     // Target distance: the feature fills about a third of the field of view.
     const want = THREE.MathUtils.clamp(1 + (radiusKm / MOON_RADIUS_KM) * 6, 1.25, 4);
     this.flight = { from, to, d0: from.length(), d1: want, t0: performance.now(), dur: 1400 };
+    this.requestRender();
   }
 
   dispose(): void {
-    this.renderer.setAnimationLoop(null);
+    this.active = false;
+    cancelAnimationFrame(this.frameId);
+    this.controls.removeEventListener("change", this.requestRender);
     this.resizeObserver.disconnect();
     this.controls.dispose();
     this.clearMarkers();
@@ -576,6 +612,9 @@ export class Globe {
   }
 
   private frame(now: number): void {
+    this.frameId = 0;
+    if (!this.active) return;
+    const before = this.camera.position.clone();
     if (this.flight) {
       const { from, to, d0, d1, t0, dur } = this.flight;
       const k = Math.min(1, (now - t0) / dur);
@@ -599,6 +638,7 @@ export class Globe {
       this.earthBody.matrixWorldNeedsUpdate = true; // matrixAutoUpdate is off: refresh matrixWorld
     }
     this.renderer.render(this.scene, this.camera);
+    if (this.flight || this.ring || this.dragging || this.camera.position.distanceToSquared(before) > CAMERA_MOVE_EPS_SQ) this.requestRender();
   }
 
   private placeOnSurface(obj: THREE.Object3D, lat: number, lon: number): void {

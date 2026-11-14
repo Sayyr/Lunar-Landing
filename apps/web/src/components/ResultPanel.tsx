@@ -1,3 +1,5 @@
+import { memo } from "react";
+
 import type { ScenarioResponse, VisibilityWindow } from "../api/types";
 import { Timeline } from "./Timeline";
 
@@ -36,7 +38,7 @@ function Notes({ title, items }: { title: string; items: string[] }) {
   );
 }
 
-export function ResultPanel({ result }: { result: ScenarioResponse }) {
+export const ResultPanel = memo(function ResultPanel({ result }: { result: ScenarioResponse }) {
   const { status, synthetic, model } = result;
   return (
     <section className={synthetic ? "result synthetic" : "result"}>
@@ -86,4 +88,4 @@ export function ResultPanel({ result }: { result: ScenarioResponse }) {
       <Notes title="Data provenance" items={result.data_provenance.map((p) => `${p.name} [${p.kind}] — ${p.source}. ${p.notes}`)} />
     </section>
   );
-}
+});
