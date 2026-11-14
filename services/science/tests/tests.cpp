@@ -1,7 +1,9 @@
 // Unit, API and contract tests for the science service. Run via `ctest` or directly.
 // Ported from the former Python test suite (services/sciencepy/tests).
 
+#include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -171,6 +173,35 @@ static void test_intervals() {
 // ---------- time ----------
 
 // ---------- radio link (engineering tier) ----------
+
+// Fixture comparison that survives a change of platform libm: numbers within a RELATIVE 1e-9
+// (ranges are ~4e8 m, so an absolute bound would demand bit-identical sin/cos), UTC timestamps
+// within 1 ms (an interpolated window edge can round to the neighbouring millisecond).
+static bool radio_near(const json& a, const json& b) {
+    if (a.is_number() && b.is_number()) {
+        const double x = a.get<double>(), y = b.get<double>();
+        return std::fabs(x - y) <= 1e-9 * std::max({1.0, std::fabs(x), std::fabs(y)});
+    }
+    if (a.is_string() && b.is_string() && a != b) {
+        try {
+            return std::llabs(parse_utc(a.get<std::string>()) - parse_utc(b.get<std::string>())) <= 1000;
+        } catch (const std::invalid_argument&) {
+            return false;
+        }
+    }
+    if (a.type() != b.type() || a.size() != b.size()) return false;
+    if (a.is_object()) {
+        for (auto it = a.begin(); it != a.end(); ++it)
+            if (!b.contains(it.key()) || !radio_near(it.value(), b.at(it.key()))) return false;
+        return true;
+    }
+    if (a.is_array()) {
+        for (size_t i = 0; i < a.size(); ++i)
+            if (!radio_near(a[i], b[i])) return false;
+        return true;
+    }
+    return a == b;
+}
 
 static void test_link() {
     // The parameter values below are arbitrary test inputs, not a real radio system.
@@ -415,7 +446,7 @@ static void test_radio_link() {
     CHECK(n_invalid >= 10);
 
     // Live output still matches the generated contract fixture.
-    CHECK(json_near(run(valid).body, load(CONTRACTS / "fixtures/radio-link-response.computed.json"), 1e-6));
+    CHECK(radio_near(run(valid).body, load(CONTRACTS / "fixtures/radio-link-response.computed.json")));
 }
 
 static void test_time() {
