@@ -14,9 +14,9 @@
 /data/ldem_16/*.f32
   Cache-Control: public, max-age=31536000, immutable
   Content-Type: application/octet-stream
-/data/polar_s/*
+/data/polar_s/*.u16
   Cache-Control: public, max-age=31536000, immutable
-/data/polar_s/manifest.json
+/data/polar_s/*.json
   Cache-Control: public, max-age=86400
 /data/ldem_16/manifest.json
   Cache-Control: public, max-age=86400
