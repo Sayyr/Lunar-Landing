@@ -134,7 +134,7 @@ export function mockCelestialState(date: Date): CelestialStateResponse {
 /** Earth→Moon positions (metres, frame of each epoch) over a window, for drawing an orbit trace. */
 export function mockMoonTrack(center: Date, halfSpanDays: number, stepHours: number): [number, number, number][] {
   const pts: [number, number, number][] = [];
-  const n = Math.floor((2 * halfSpanDays * 24) / stepHours);
+  const n = Math.round((2 * halfSpanDays * 24) / stepHours); // round: span/step is often meant to be exact
   const t0 = center.getTime() - halfSpanDays * 86_400_000;
   for (let i = 0; i <= n; i++) {
     const v = eclipticToCartesian(moonGeocentric(julianDateTt(new Date(t0 + i * stepHours * 3_600_000))));

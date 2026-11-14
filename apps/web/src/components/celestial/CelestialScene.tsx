@@ -6,7 +6,7 @@ import type { Matrix4, Texture } from "three";
 import { getMoonTrack, getSunTrack } from "../../api/celestial";
 import type { CelestialStateResponse } from "../../api/celestialTypes";
 import { AU_M, EARTH_MEAN_RADIUS_M, MOON_RADIUS_KM, SUN_RADIUS_M } from "../../lib/constants";
-import { bodyRotationToThree, eclToThree, normalize, type V3 } from "../../lib/sceneFrame";
+import { bodyRotationToThree, closeLoop, eclToThree, normalize, type V3 } from "../../lib/sceneFrame";
 import { DATA_BASE, SETUP_HINT } from "../../lunar/loaders";
 import { Earth, Moon, Sun } from "./Bodies";
 import { useOptionalTexture } from "./useOptionalTexture";
@@ -63,7 +63,7 @@ function EarthMoonView({ state, earthTex, moonTex, earthOrientation, moonOrienta
   const moonPos = eclToThree(state.moon_from_earth.position_m, s);
   const sunDir = normalize(eclToThree(state.sun_from_earth.position_m));
   const sunRadius = (SUN_PROXY_DIST * SUN_RADIUS_M) / state.sun_from_earth.distance_m;
-  const track = useMemo(() => scaleTrack(getMoonTrack(new Date(day * DAY_MS)), s), [day, s]);
+  const track = useMemo(() => closeLoop(scaleTrack(getMoonTrack(new Date(day * DAY_MS)), s)), [day, s]);
 
   return (
     <>
@@ -92,7 +92,7 @@ function SolarView({ state, earthTex, moonTex, earthOrientation, moonOrientation
   const moonPos: V3 = [earthPos[0] + moonRel[0], earthPos[1] + moonRel[1], earthPos[2] + moonRel[2]];
   // Earth's orbit = −(Earth→Sun track).
   const earthOrbit = useMemo(() => scaleTrack(getSunTrack(new Date(day * DAY_MS)), -earthScale), [day, earthScale]);
-  const moonTrack = useMemo(() => scaleTrack(getMoonTrack(new Date(day * DAY_MS)), moonScale), [day, moonScale]);
+  const moonTrack = useMemo(() => closeLoop(scaleTrack(getMoonTrack(new Date(day * DAY_MS)), moonScale)), [day, moonScale]);
 
   return (
     <>
@@ -150,7 +150,7 @@ export const CelestialScene = memo(function CelestialScene({ state, view, enlarg
           <>
             <b>Earth–Moon, distances to scale</b> (1 unit = 1 Earth radius);{" "}
             {enlargeBodies ? <b className="warn-text">Earth &amp; Moon radii enlarged ×{BODY_ENLARGEMENT}.</b> : <>Earth &amp; Moon at true size.</>} The Sun is drawn at a compressed distance with its true
-            angular size; lighting follows the mock Sun direction. Grey trace: mock Moon path over ±13.7 days.
+            angular size; lighting follows the mock Sun direction. Grey trace: mock Moon path over one sidereal month (27.3 d); the real path does not quite close (solar perturbations), the small residual is spread along the trace for display.
           </>
         ) : (
           <>
