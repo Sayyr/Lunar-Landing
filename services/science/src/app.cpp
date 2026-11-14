@@ -49,6 +49,10 @@ HttpResponse App::evaluate_with(const EphemerisProvider& provider, const std::st
         return validation_error({{"step_minutes", std::to_string(req.sample_count()) +
                                                       " samples exceeds the maximum of " +
                                                       std::to_string(MAX_SAMPLES)}});
+    // Output timestamps are 4-digit-year ISO 8601; refuse grids that run past year 9999.
+    static const int64_t LAST_US = parse_utc("9999-12-31T23:59:59.999999Z");
+    if (sample_times(req).back() > LAST_US)
+        return validation_error({{"duration_hours", "scenario would end after 9999-12-31T23:59:59Z"}});
     return {200, evaluate(req, provider)};
 }
 

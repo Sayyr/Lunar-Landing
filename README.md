@@ -84,6 +84,8 @@ cd services/api     && cargo fmt --check && cargo clippy --all-targets -- -D war
 cd apps/web         && npm run typecheck && npm test && npm run build
 ```
 
+Science memory-safety checks: `-DSELENE_SANITIZE=ON` builds the tests with AddressSanitizer + UBSan (also run in CI); `-DSELENE_FUZZ=ON` (clang) builds the libFuzzer target `fuzz-handler` (see `services/science/tests/fuzz.cpp`).
+
 Contract tests run inside both backend suites. The Rust suite validates the shared fixtures and the gateway output against `packages/contracts/schemas`; the C++ suite checks that live science output still matches those fixtures.
 CI (`.github/workflows/ci.yml`) runs the same commands.
 

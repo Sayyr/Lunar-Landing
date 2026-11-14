@@ -14,6 +14,11 @@ jobs:
       - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - run: cmake --build build -j
       - run: ctest --test-dir build --output-on-failure
+      - name: Tests under AddressSanitizer + UBSan
+        run: |
+          cmake -S . -B build-asan -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSELENE_SANITIZE=ON
+          cmake --build build-asan -j
+          ctest --test-dir build-asan --output-on-failure
 
   api:
     runs-on: ubuntu-latest

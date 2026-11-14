@@ -30,7 +30,7 @@ __pycache__/
 .ruff_cache/
 
 # C++
-services/science/build/
+services/science/build*/
 
 # Rust
 services/api/target/
