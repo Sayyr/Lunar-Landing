@@ -485,6 +485,17 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
     return globe.onCameraChange(update);
   }, [globe, hasSky, siteLat, siteLon, groundOn]);
 
+  const setGroundTime = useCallback((m: number) => {
+    setPlaying(false);
+    setTMin(m);
+  }, []);
+  const sunAt = useCallback(
+    async (m: number, lat: number, lon: number) =>
+      localAzEl(moonSky(await getCelestialState(new Date(startMs + m * 60_000))).sun, lat, lon),
+    [startMs],
+  );
+  const moveSite = useCallback((lat: number, lon: number) => onPickRef.current(lat, lon), []);
+
   /** Ground view: flat compass, top = where the observer looks. */
   const onGroundHeading = useCallback((az: number) => {
     const el = diskRef.current;
@@ -598,6 +609,12 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
           active={active}
           onExit={() => setGroundOn(false)}
           onHeading={onGroundHeading}
+          tMin={tMin}
+          spanMin={spanMin}
+          stepMinutes={stepMinutes}
+          setTime={setGroundTime}
+          sunAt={sunAt}
+          onMoveSite={moveSite}
         />
       )}
       {sky && !groundOn && (

@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { findHighGround, sunClearsTerrain } from "./groundAuto";
 import { buildGroundTerrain, type GroundTerrain, horizonAt, type TerrainSource } from "./groundTerrain";
 import { type GroundSky, GroundView, type GroundViewState } from "./groundView";
 import type { Heightmap } from "./heightmap";
@@ -44,6 +45,29 @@ interface Props {
   onExit: () => void;
   /** view azimuth (degrees), e.g. to turn the compass so its top is where the observer looks */
   onHeading?: (azimuthDeg: number) => void;
+  /** Scenario time (minutes from start), its span and step, and a setter (stops playback). */
+  tMin: number;
+  spanMin: number;
+  stepMinutes: number;
+  setTime: (tMin: number) => void;
+  /** Sun azimuth/elevation at a scenario time for a site (same source as the sky). */
+  sunAt: (tMin: number, lat: number, lon: number) => Promise<AzEl>;
+  /** Moves the scenario site (as a click on the globe would). */
+  onMoveSite: (lat: number, lon: number) => void;
+}
+
+/**
+ * Opening placement, so the view starts on a sunlit landscape:
+ *  1. Sun clears the rendered terrain now → keep everything;
+ *  2. else first scenario time when it does → move the time bar;
+ *  3. else highest ground within 30 km (once) → move the site, then 1–2 again.
+ * Every change is reported with an Undo.
+ */
+interface AutoPlace {
+  phase: "check" | "done";
+  moved: boolean;
+  notes: string[];
+  undo?: { lat: number; lon: number; tMin: number };
 }
 
 const wrap180 = (d: number) => ((((d + 180) % 360) + 360) % 360) - 180;
@@ -97,12 +121,15 @@ function HeadingTape({ view, sun, earth }: { view: GroundViewState; sun?: AzEl; 
   );
 }
 
-export function GroundViewPanel({ heightmap, siteLat, siteLon, observerHeightM, sky, demVersion, active, onExit, onHeading }: Props) {
+export function GroundViewPanel(props: Props) {
+  const { heightmap, siteLat, siteLon, observerHeightM, sky, demVersion, active, onExit, onHeading } = props;
+  const { tMin, spanMin, stepMinutes, setTime, sunAt, onMoveSite } = props;
   const hostRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<GroundView | null>(null);
   const [state, setState] = useState<GroundViewState>({ azimuthDeg: 0, elevationDeg: 5, hfovDeg: 90 });
   const [siteElevationM, setSiteElevationM] = useState<number | null>(null);
-  const [terrain, setTerrain] = useState<GroundTerrain | null>(null);
+  const [terrain, setTerrain] = useState<{ t: GroundTerrain; lat: number; lon: number } | null>(null);
+  const [auto, setAuto] = useState<AutoPlace>({ phase: "check", moved: false, notes: [] });
   const [fill, setFill] = useState(true);
   /** null: polar DEM not used here; otherwise its loading state for this site */
   const [polar, setPolar] = useState<{ dem: PolarDem; done: number; total: number; ready: boolean } | null>(null);
@@ -145,7 +172,7 @@ export function GroundViewPanel({ heightmap, siteLat, siteLon, observerHeightM, 
     const id = setTimeout(() => {
       const t = buildGroundTerrain(terrainSource(heightmap, polarReady), siteLat, siteLon, observerHeightM);
       view.setTerrain(t);
-      setTerrain(t);
+      setTerrain({ t, lat: siteLat, lon: siteLon });
       setSiteElevationM(heightmap || polarReady ? t.siteElevationM : null);
     }, 150);
     return () => clearTimeout(id);
@@ -164,10 +191,64 @@ export function GroundViewPanel({ heightmap, siteLat, siteLon, observerHeightM, 
 
   useEffect(() => view?.setFill(fill), [view, fill]);
 
+  // Opening placement (see AutoPlace). Waits for the terrain of the current site, 20 m data included.
+  useEffect(() => {
+    if (auto.phase !== "check" || !terrain || terrain.lat !== siteLat || terrain.lon !== siteLon) return;
+    if (polar && !polar.ready) return;
+    let stale = false;
+    const t = terrain.t;
+    const clears = async (m: number) => sunClearsTerrain(await sunAt(m, siteLat, siteLon), t);
+    (async () => {
+      if (await clears(tMin)) return !stale && setAuto((a) => ({ ...a, phase: "done" }));
+      const step = Math.max(1, stepMinutes);
+      for (let m = 0; m <= spanMin; m += step) {
+        if (stale) return;
+        if (await clears(m)) {
+          if (stale) return;
+          setTime(m);
+          return setAuto((a) => ({
+            ...a,
+            phase: "done",
+            undo: a.undo ?? { lat: siteLat, lon: siteLon, tMin },
+            notes: [...a.notes, `time moved to +${(m / 60).toFixed(1)} h, when the Sun clears the terrain`],
+          }));
+        }
+      }
+      const high = auto.moved ? null : findHighGround(terrainSource(heightmap, polarReady), siteLat, siteLon);
+      if (stale) return;
+      if (high && high.distanceM > 100) {
+        setAuto((a) => ({
+          phase: "check",
+          moved: true,
+          undo: a.undo ?? { lat: siteLat, lon: siteLon, tMin },
+          notes: [
+            ...a.notes,
+            `Sun never clears the terrain here during the scenario: site moved ${(high.distanceM / 1000).toFixed(1)} km to the highest ground nearby (${Math.round(high.elevationM)} m)`,
+          ],
+        }));
+        onMoveSite(+high.lat.toFixed(4), +(((high.lon + 540) % 360) - 180).toFixed(4));
+      } else {
+        setAuto((a) => ({ ...a, phase: "done", notes: [...a.notes, "the Sun never clears the terrain from here during the scenario"] }));
+      }
+    })();
+    return () => {
+      stale = true;
+    };
+    // tMin is read once per check on purpose: playback must not restart the search.
+  }, [auto.phase, auto.moved, terrain, polar, siteLat, siteLon]);
+
+  const undoAuto = () => {
+    const u = auto.undo;
+    if (!u) return;
+    setAuto({ phase: "done", moved: true, notes: [] });
+    onMoveSite(u.lat, u.lon);
+    setTime(u.tMin);
+  };
+
   /** "visible / hidden by terrain" from the rendered terrain's horizon in the body's direction. */
   const status = (name: string, v?: AzEl) => {
     if (!v) return null;
-    const h = terrain ? horizonAt(terrain, v.azimuthDeg) : 0;
+    const h = terrain ? horizonAt(terrain.t, v.azimuthDeg) : 0;
     const margin = v.elevationDeg - h;
     const verdict = margin > 0 ? `visible, ${margin.toFixed(1)}° above the terrain` : `hidden by terrain (${(-margin).toFixed(1)}° below it)`;
     return `${name} el ${v.elevationDeg.toFixed(1)}° · terrain horizon ${h.toFixed(1)}° at az ${v.azimuthDeg.toFixed(0)}° → ${verdict}`;
@@ -184,6 +265,17 @@ export function GroundViewPanel({ heightmap, siteLat, siteLon, observerHeightM, 
           View az {state.azimuthDeg.toFixed(0)}° · el {state.elevationDeg.toFixed(0)}° · FOV {state.hfovDeg.toFixed(0)}°
           {siteElevationM != null && ` · ground ${Math.round(siteElevationM).toLocaleString("en-US")} m, eye +${observerHeightM} m`}
         </div>
+        {auto.notes.length > 0 && (
+          <div className="ground-auto">
+            Opened on a sunlit view: {auto.notes.join("; ")}.{" "}
+            {auto.undo && (
+              <button type="button" onClick={undoAuto}>
+                Undo
+              </button>
+            )}
+          </div>
+        )}
+        {auto.phase === "check" && <div className="ground-auto muted">Looking for a sunlit view…</div>}
         {sky && terrain && (
           <div className="ground-visibility">
             <span className="sun">{status("Sun", sky.sun)}</span>
