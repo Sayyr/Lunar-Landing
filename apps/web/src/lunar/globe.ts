@@ -360,6 +360,17 @@ export class Globe {
     this.earthBody.userData.rotation = bodyRotationToThree(sky.earthToBody);
   }
 
+  /**
+   * Flies the camera behind the Moon so the Sun or Earth shows just past the limb, about 24° from
+   * the view centre, horizontally (fits any landscape aspect).
+   */
+  viewBody(which: "sun" | "earth"): void {
+    if (!this.sky) return;
+    const to = this.viewDirection(this.sky[which], Math.PI - THREE.MathUtils.degToRad(24));
+    const from = this.camera.position.clone();
+    this.flight = { from, to, d0: from.length(), d1: 4.5, t0: performance.now(), dur: 1600 };
+  }
+
   /** Unit vector at `angle` from `dir`, turned horizontally (about the Y axis side vector). */
   private viewDirection(dir: THREE.Vector3, angle: number): THREE.Vector3 {
     let side = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0));
