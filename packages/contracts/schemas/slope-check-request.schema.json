@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://selene.local/contracts/slope-check-request.schema.json",
+  "title": "SlopeCheckRequest",
+  "description": "Server-side confirmation that a circular zone satisfies a maximum terrain slope. The web front previews the threshold on pre-computed slope tiles; this request asks the science service to re-check the zone on the full-resolution DEM. Public units: degrees, meters. Latitude is planetocentric; longitude is east-positive in [-180, 180). Slope is computed on the DEM grid (20 m baseline for LOLA ldem_85s_20m), NOT at lander-footprint scale.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["zone", "max_slope_deg"],
+  "properties": {
+    "zone": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["center_latitude_deg", "center_longitude_deg", "radius_m"],
+      "properties": {
+        "center_latitude_deg": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90,
+          "description": "Planetocentric latitude of the zone centre, degrees. Must lie inside the DEM coverage (currently 85S-90S), otherwise status = out_of_coverage."
+        },
+        "center_longitude_deg": {
+          "type": "number",
+          "minimum": -180,
+          "exclusiveMaximum": 180,
+          "description": "East-positive longitude of the zone centre, degrees, in [-180, 180). Ignored-but-valid at the exact pole."
+        },
+        "radius_m": {
+          "type": "number",
+          "minimum": 20,
+          "maximum": 10000,
+          "description": "Zone radius on the surface, meters. Lower bound = one DEM pixel; upper bound keeps the request cheap."
+        }
+      }
+    },
+    "max_slope_deg": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 90,
+      "description": "Maximum acceptable slope, degrees from local horizontal."
+    },
+    "required_fraction": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 1.0,
+      "description": "Fraction of valid DEM pixels in the zone that must be at or below max_slope_deg for verdict = pass. 1.0 = every pixel."
+    },
+    "max_nodata_fraction": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.0,
+      "description": "Largest acceptable fraction of no-data pixels in the zone. Above it, verdict = insufficient_data (never silently treated as flat)."
+    }
+  }
+}

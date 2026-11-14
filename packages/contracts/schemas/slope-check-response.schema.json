@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://selene.local/contracts/slope-check-response.schema.json",
+  "title": "SlopeCheckResponse",
+  "description": "Result of a server-side slope check on the full-resolution DEM. A 'pass' means the DEM-scale slope criterion holds; it is NOT a validated landing site (boulders and sub-pixel craters are invisible at 20 m).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "verdict", "request", "stats", "model", "data_provenance", "assumptions", "warnings"],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["computed", "out_of_coverage", "dem_unavailable"],
+      "description": "'computed' = stats are real. 'out_of_coverage' = zone not fully inside the DEM. 'dem_unavailable' = the service has no DEM loaded."
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["pass", "fail", "insufficient_data", "not_evaluated"],
+      "description": "'pass'/'fail' only when status = computed. 'insufficient_data' when no-data fraction exceeds max_nodata_fraction."
+    },
+    "request": {
+      "$ref": "slope-check-request.schema.json",
+      "description": "Echo of the validated request, with defaults filled in."
+    },
+    "stats": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["pixel_count", "nodata_count", "fraction_ok", "slope_max_deg", "slope_mean_deg", "slope_p95_deg"],
+      "properties": {
+        "pixel_count": {"type": "integer", "minimum": 0, "description": "DEM pixels whose centre lies inside the zone."},
+        "nodata_count": {"type": "integer", "minimum": 0, "description": "Pixels without a valid slope (DEM no-data or no-data neighbour)."},
+        "fraction_ok": {"type": "number", "minimum": 0, "maximum": 1, "description": "Fraction of valid pixels with slope <= max_slope_deg."},
+        "slope_max_deg": {"type": ["number", "null"]},
+        "slope_mean_deg": {"type": ["number", "null"]},
+        "slope_p95_deg": {"type": ["number", "null"]},
+        "worst_pixel": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["latitude_deg", "longitude_deg", "slope_deg"],
+          "properties": {
+            "latitude_deg": {"type": "number"},
+            "longitude_deg": {"type": "number"},
+            "slope_deg": {"type": "number"}
+          },
+          "description": "Location of the steepest valid pixel, to highlight in the UI."
+        }
+      }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "baseline_m", "body_fixed_frame", "projection"],
+      "properties": {
+        "method": {"type": "string", "description": "e.g. 'horn_3x3_native_grid'."},
+        "baseline_m": {"type": ["number", "null"], "description": "Horizontal scale of the slope estimate, meters. null only when status = dem_unavailable (no DEM to describe)."},
+        "body_fixed_frame": {"type": ["string", "null"], "description": "DEM label COORDINATE_SYSTEM_NAME. null only when status = dem_unavailable."},
+        "projection": {"type": ["string", "null"], "description": "null only when status = dem_unavailable."}
+      }
+    },
+    "data_provenance": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["dem_product"],
+      "properties": {
+        "dem_product": {"type": "string"},
+        "dem_sha256": {"type": ["string", "null"]}
+      }
+    },
+    "assumptions": {"type": "array", "items": {"type": "string"}},
+    "warnings": {"type": "array", "items": {"type": "string"}}
+  }
+}

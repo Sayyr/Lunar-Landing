@@ -19,6 +19,9 @@ import { Heightmap } from "./heightmap";
 import { type BandManifest, bandOrderNear, DATA_BASE, loadHeightmap, loadImage, loadJson, type Progress, SETUP_HINT, streamBands } from "./loaders";
 import { GroundViewBoundary } from "./GroundViewBoundary";
 import { GroundViewPanel } from "./GroundViewPanel";
+import { SlopeMap } from "./SlopeMap";
+import { type ScopeInfo, type SlopeProductInfo, SlopeScope } from "./slopeOverlay";
+import { loadSlopeProduct } from "./slopeProduct";
 import { LANDING_SITES, LANDING_SOURCE, landingLabel, nearestLandingSite, type LandingSite } from "./landingSites";
 import { SkyCompass } from "./SkyCompass";
 import { TREK_LAYER } from "./tileScheme";
@@ -262,6 +265,15 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
   const earthPtrRef = useRef<HTMLDivElement>(null);
   const [kmPerPx, setKmPerPx] = useState<number | null>(null);
   const [tilesOn, setTilesOn] = useState(true);
+  const [slopeOn, setSlopeOn] = useState(false);
+  const [slopeMax, setSlopeMax] = useState(10);
+  const [slopeState, setSlopeState] = useState<
+    | { kind: "off" }
+    | { kind: "loading" }
+    | { kind: "ready"; info: SlopeProductInfo | null; scope: ScopeInfo | null }
+  >({ kind: "off" });
+  const [slopeProgress, setSlopeProgress] = useState<{ done: number; total: number } | null>(null);
+  const slopeLayer = useRef<{ overlay: SlopeScope; remove: () => void } | null>(null);
   const [tileStatus, setTileStatus] = useState<TileStatus>("loading");
 
   useEffect(() => {
@@ -441,6 +453,69 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
     if (globe) globe.refinePick = refine;
   }, [globe, refine]);
   useEffect(() => globe?.setSite(siteLat, siteLon), [globe, siteLat, siteLon]);
+
+  // Slope scope draped on the globe, centred on the selected site: the shared slope product is
+  // opened the first time the filter is switched on; the disc is rebuilt when the site changes or
+  // the zoom settles; the threshold is a shader uniform.
+  useEffect(() => {
+    if (!globe || !slopeOn || slopeLayer.current) return;
+    let stale = false;
+    setSlopeState({ kind: "loading" });
+    void loadSlopeProduct().then((product) => {
+      if (stale) return;
+      const overlay = new SlopeScope(product, globe.heightTexture);
+      slopeLayer.current = { overlay, remove: globe.addSurfaceOverlay(overlay) };
+      overlay.setMaxSlope(slopeMax);
+      setSlopeState({ kind: "ready", info: overlay.info, scope: null });
+    });
+    return () => {
+      stale = true;
+    };
+    // slopeMax is applied by its own effect; reloading on every slider move would defeat the point
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [globe, slopeOn]);
+  const slopeReady = slopeState.kind === "ready";
+  useEffect(() => {
+    const layer = slopeLayer.current;
+    if (!globe || !layer || !slopeReady || !slopeOn) return;
+    let timer = 0;
+    let lastRadius = 0;
+    const place = () => {
+      // Disc centred on the selected site (the clicked point); radius ~35 % of the visible
+      // half-height measured AT THE SITE (follows the zoom), 1–150 km. Small zoom changes keep the
+      // current disc.
+      const halfKm = (globe.kmPerPixelAt(siteLat, siteLon) * globe.renderer.domElement.clientHeight) / 2;
+      const radiusKm = Math.min(150, Math.max(1, 0.35 * halfKm));
+      if (lastRadius && Math.abs(Math.log(radiusKm / lastRadius)) < 0.25) return;
+      lastRadius = radiusKm;
+      void layer.overlay
+        .update(siteLat, siteLon, radiusKm, heightmap, (done, total) => total > 0 && done < total && setSlopeProgress({ done, total }))
+        .then((scope) => {
+          setSlopeProgress(null);
+          if (scope) setSlopeState((s) => (s.kind === "ready" ? { ...s, scope } : s));
+        });
+    };
+    place();
+    const off = globe.onCameraChange(() => {
+      clearTimeout(timer);
+      timer = window.setTimeout(place, 250); // rebuild once the camera settles
+    });
+    return () => {
+      clearTimeout(timer);
+      off();
+      // Switching off (or moving the site) mid-load: a pending update must not re-show the disc.
+      layer.overlay.cancel();
+    };
+  }, [globe, slopeOn, slopeReady, siteLat, siteLon, heightmap]);
+  useEffect(() => slopeLayer.current?.overlay.setMaxSlope(slopeMax), [slopeMax, slopeReady]);
+  // A new globe (relief quality change) starts without the layer.
+  useEffect(
+    () => () => {
+      slopeLayer.current?.remove();
+      slopeLayer.current = null;
+    },
+    [globe],
+  );
   // The orbit globe pauses while the ground view covers it.
   useEffect(() => globe?.setActive(active && !groundOn), [globe, active, groundOn]);
   useEffect(() => globe?.setTilesEnabled(tilesOn), [globe, tilesOn]);
@@ -683,6 +758,61 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
           <button type="button" onClick={() => setGroundOn(true)} title="Stand at the selected site and look around">
             Ground view
           </button>
+          <button
+            type="button"
+            aria-pressed={slopeOn}
+            className={slopeOn ? "on" : undefined}
+            onClick={() => setSlopeOn((on) => !on)}
+            title="Colour a disc around the selected site by terrain slope (click the Moon to move it)"
+          >
+            Slope filter
+          </button>
+        </div>
+      )}
+      {slopeOn && !groundOn && (
+        <div className="slope-filter">
+          {slopeState.kind === "loading" && <div className="muted small">Opening the slope product…</div>}
+          {slopeState.kind === "ready" && (
+            <>
+              <label className="slider">
+                Max slope <output>{slopeMax.toFixed(1)}°</output>
+                <input type="range" min={0.5} max={45} step={0.5} value={slopeMax} onChange={(e) => setSlopeMax(Number(e.target.value))} />
+              </label>
+              <div className="small">
+                <span className="slope-ok">■</span> ≤ {slopeMax.toFixed(1)}° · <span className="slope-bad">■</span> steeper ·{" "}
+                <span className="slope-nodata">■</span> no data
+              </div>
+              {(() => {
+                const sc = slopeState.scope;
+                const info = slopeState.info;
+                if (!sc) return <div className="muted small">Click the Moon to place the disc on a site…</div>;
+                const where = `Disc Ø ${(2 * sc.radiusKm).toFixed(sc.radiusKm < 5 ? 1 : 0)} km around the site (${sc.centreLat.toFixed(2)}°, ${sc.centreLon.toFixed(2)}°)`;
+                if (sc.source === "none") return <div className="warn small">{where}: no relief loaded, no slope available.</div>;
+                if (sc.source === "polar")
+                  return (
+                    <div className="small">
+                      {where} · <strong>{info?.productId} 20 m</strong> slope shown at {sc.pixelM} m/px
+                      {sc.level > 0 ? " (max of the 20 m pixels: conservative)" : ""} — zoom in for finer pixels
+                      {slopeProgress && <> · loading {slopeProgress.done}/{slopeProgress.total}…</>}
+                    </div>
+                  );
+                return (
+                  <div className="warn small">
+                    {where} · <strong>COARSE overview</strong> (orange dashed rim): slope of the global {sc.coarseLabel} raster, ≈{" "}
+                    {(sc.pixelM / 1000).toFixed(1)} km pixels. A km-scale baseline smooths the terrain: these slopes are much lower than real
+                    landing-scale slopes and NOT comparable to the 20 m product
+                    {info ? ` (available from the pole to ${Math.abs(info.fullCoverageLatDeg).toFixed(0)}°S)` : ""}.
+                  </div>
+                );
+              })()}
+              <div className="muted small">
+                {slopeState.info
+                  ? `${slopeState.info.productId}: slope on a ${slopeState.info.baselineM} m baseline (${slopeState.info.status}). `
+                  : "20 m polar slope tiles not installed (slope-tiles, POLAR_DATA.md): coarse overview only. "}
+                Green = slope criterion at the data's scale only, NOT a validated landing site.
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -735,6 +865,11 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
               {formatLat(found.lat)}, {formatLon(found.lon, found.lat)} · Ø {found.diameterKm.toFixed(1)} km
             </div>
           )}
+        </section>
+
+        <section>
+          <h2>Terrain slope around the site</h2>
+          {panelOpen && <SlopeMap siteLat={siteLat} siteLon={siteLon} maxSlope={slopeMax} onMaxSlope={setSlopeMax} />}
         </section>
 
         <section>

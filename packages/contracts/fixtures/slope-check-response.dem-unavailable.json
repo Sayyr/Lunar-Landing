@@ -1,0 +1,30 @@
+{
+  "status": "dem_unavailable",
+  "verdict": "not_evaluated",
+  "request": {
+    "zone": {
+      "center_latitude_deg": -89.5,
+      "center_longitude_deg": 0.0,
+      "radius_m": 500.0
+    },
+    "max_slope_deg": 10.0,
+    "required_fraction": 0.95,
+    "max_nodata_fraction": 0.0
+  },
+  "stats": null,
+  "model": {
+    "method": "horn_3x3_native_grid",
+    "baseline_m": null,
+    "body_fixed_frame": null,
+    "projection": null
+  },
+  "data_provenance": {
+    "dem_product": "none",
+    "dem_sha256": null,
+    "reason": "SELENE_DEM_PATH not set"
+  },
+  "assumptions": [],
+  "warnings": [
+    "No DEM loaded in the science service: SELENE_DEM_PATH not set. No slope was computed."
+  ]
+}

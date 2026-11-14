@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstdint>
+#include <initializer_list>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -59,6 +60,21 @@ json to_json(const ScenarioRequest& req);
 int64_t parse_utc(const std::string& value);
 // ISO 8601 UTC with millisecond precision (truncated) and a 'Z' suffix.
 std::string format_utc(int64_t us);
+
+// Field validators shared by every request parser. Error texts match the former Pydantic models.
+namespace validate {
+struct Limit {
+    enum Op { GE, GT, LE, LT } op;
+    double value;
+};
+extern const char* const NOT_OBJECT;
+// Strict JSON number at obj[key] satisfying every limit, else one ErrorDetail at `path`.
+void read_number(const json& obj, const char* key, const std::string& path, std::initializer_list<Limit> limits,
+                 double& out, std::vector<ErrorDetail>& errs);
+// One "Extra inputs are not permitted" ErrorDetail per key of obj not in `known`.
+void reject_extra(const json& obj, std::initializer_list<const char*> known, const std::string& prefix,
+                  std::vector<ErrorDetail>& errs);
+}  // namespace validate
 
 json error_response(const std::string& code, const std::string& message,
                     const std::vector<ErrorDetail>& details = {});

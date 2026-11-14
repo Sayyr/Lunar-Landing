@@ -97,6 +97,7 @@ CI (`.github/workflows/ci.yml`) runs the same commands.
 | `GET /sites` | preset sites. Currently **synthetic test points only** (not landing sites). |
 | `POST /scenarios/evaluate` | real evaluation → currently `status: "not_ready"`, no samples |
 | `POST /demo/synthetic/evaluate` | **SYNTHETIC** demo data (`status: "synthetic"`, `synthetic: true`) |
+| `POST /terrain/slope/check` | max-slope pass/fail of a circular zone, recomputed by the science service on the raw LOLA 20 m DEM (`SELENE_DEM_PATH`, see `data/README.md`); `dem_unavailable` without it |
 
 ```bash
 curl -s -X POST localhost:8080/scenarios/evaluate -H 'content-type: application/json' \

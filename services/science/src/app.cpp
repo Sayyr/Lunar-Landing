@@ -8,8 +8,8 @@ namespace {
 
 const char* INVALID = "Scenario request is invalid.";
 
-HttpResponse validation_error(std::vector<ErrorDetail> details) {
-    return {422, error_response("validation_error", INVALID, details)};
+HttpResponse validation_error(std::vector<ErrorDetail> details, const char* message = INVALID) {
+    return {422, error_response("validation_error", message, details)};
 }
 
 }  // namespace
@@ -31,7 +31,34 @@ HttpResponse App::handle(const std::string& method, const std::string& path,
                                                  : synthetic_,
                              body);
     }
+    if (path == "/terrain/slope/check") {
+        if (method != "POST") return {405, error_response("not_found", "Method Not Allowed")};
+        return slope_check_route(body);
+    }
     return {404, error_response("not_found", "Not Found")};
+}
+
+HttpResponse App::slope_check_route(const std::string& body) const {
+    static const char* SLOPE_INVALID = "Slope check request is invalid.";
+    if (body.empty()) return validation_error({{"", "Field required"}}, SLOPE_INVALID);
+    json parsed = json::parse(body, nullptr, /*allow_exceptions=*/false);
+    if (parsed.is_discarded()) return validation_error({{"", "JSON decode error"}}, SLOPE_INVALID);
+    SlopeCheckRequest req;
+    try {
+        req = parse_slope_check_request(parsed);
+    } catch (const ValidationError& e) {
+        return validation_error(e.details, SLOPE_INVALID);
+    }
+    if (!dem_) return {200, slope_check(req, nullptr, dem_reason_)};  // cheap, not cached
+    const std::string key = slope_cache_key(req, dem_->info());
+    if (auto hit = slope_cache_->get(key)) return {200, std::move(*hit)};
+    try {
+        json out = slope_check(req, dem_.get(), dem_reason_);
+        slope_cache_->put(key, out);
+        return {200, std::move(out)};
+    } catch (const std::exception& e) {  // DEM I/O failure: never a fabricated verdict
+        return {500, error_response("internal_error", std::string("Slope check failed: ") + e.what())};
+    }
 }
 
 HttpResponse App::evaluate_with(const EphemerisProvider& provider, const std::string& body) const {

@@ -5,10 +5,12 @@ use std::time::Duration;
 
 use axum::http::StatusCode;
 use serde::de::DeserializeOwned;
+use serde::Serialize;
 use serde_json::Value;
 
 use crate::envelope::{ApiError, ErrorCode, ErrorResponse};
 use crate::scenario::{ScenarioRequest, ScenarioResponse};
+use crate::terrain::{SlopeCheckRequest, SlopeCheckResponse};
 
 #[derive(Clone)]
 pub struct ScienceClient {
@@ -63,6 +65,21 @@ impl ScienceClient {
             Provider::Real => "/evaluate",
             Provider::Synthetic => "/evaluate/synthetic",
         };
+        self.post(path, req).await
+    }
+
+    pub async fn slope_check(
+        &self,
+        req: &SlopeCheckRequest,
+    ) -> Result<SlopeCheckResponse, ApiError> {
+        self.post("/terrain/slope/check", req).await
+    }
+
+    async fn post<Req: Serialize, Resp: DeserializeOwned>(
+        &self,
+        path: &str,
+        req: &Req,
+    ) -> Result<Resp, ApiError> {
         let resp = self
             .http
             .post(format!("{}{path}", self.base_url))

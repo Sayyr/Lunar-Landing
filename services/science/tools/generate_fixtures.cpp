@@ -1,13 +1,15 @@
-// Regenerate packages/contracts/fixtures/scenario-response.*.json from the service code.
+// Regenerate packages/contracts/fixtures/{scenario,slope-check}-response.*.json from the service code.
 //
 // Build and run from services/science:
 //   cmake --build build --target generate-fixtures && ./build/generate-fixtures
-// The synthetic fixture uses a coarse 6 h step to stay small; it is SYNTHETIC data.
+// The synthetic scenario fixture uses a coarse 6 h step to stay small; it is SYNTHETIC data. The
+// slope-check synthetic-dem fixture runs on a SYNTHETIC tilted plane (tests/synthetic_dem.hpp).
 
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
 
+#include "../tests/synthetic_dem.hpp"
 #include "app.hpp"
 
 namespace fs = std::filesystem;
@@ -28,5 +30,10 @@ int main() {
     request["step_minutes"] = 360;
     write("scenario-response.synthetic.json",
           app.handle("POST", "/evaluate/synthetic", request.dump()).body);
+    json slope = json::parse(std::ifstream(FIXTURES / "slope-check-request.valid.json"));
+    write("slope-check-response.dem-unavailable.json", app.handle("POST", "/terrain/slope/check", slope.dump()).body);
+    const selene::App tilted(std::nullopt, selene::testing::tilted_plane_dem(8.0));
+    write("slope-check-response.synthetic-dem.json",
+          tilted.handle("POST", "/terrain/slope/check", selene::testing::synthetic_fixture_request().dump()).body);
     return 0;
 }
