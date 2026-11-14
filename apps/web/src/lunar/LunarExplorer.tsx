@@ -159,11 +159,16 @@ interface Props {
   siteLon: number;
   /** Called when the user clicks (long-press on touch) a surface point. */
   onPick: (lat: number, lon: number) => void;
-  /** Scenario start: the sky (Sun, Earth, compass) is shown for this time. */
+  /** Scenario time range: the sky (Sun, Earth, compass) can be scrubbed across it. */
   startUtc: string;
+  durationHours: number;
+  stepMinutes: number;
 }
 
-export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc }: Props) {
+/** Full scenario range played in about this many seconds. */
+const PLAY_SECONDS = 20;
+
+export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, durationHours, stepMinutes }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const tipRef = useRef<HTMLDivElement>(null);
@@ -187,6 +192,9 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc }: Pr
   const [found, setFound] = useState<Feature | null>(null);
   const [copyLabel, setCopyLabel] = useState("Copy lat, lon");
   const [copyFallback, setCopyFallback] = useState<string | null>(null);
+  // Sky time = offset in minutes from the scenario start.
+  const [tMin, setTMin] = useState(0);
+  const [playing, setPlaying] = useState(false);
   const [sky, setSky] = useState<{ sun: AzEl; earth: AzEl; synthetic: boolean } | null>(null);
 
   useEffect(() => {
@@ -351,11 +359,13 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc }: Pr
 
   // --- Sky: Sun/Earth for the scenario time -----------------------------------------------------
   const startMs = Date.parse(startUtc);
+  const spanMin = Math.max(0, durationHours * 60);
+  useEffect(() => setTMin((t) => Math.min(t, spanMin)), [spanMin]);
 
   useEffect(() => {
     if (!globe || Number.isNaN(startMs)) return;
     let stale = false;
-    getCelestialState(new Date(startMs)).then((state) => {
+    getCelestialState(new Date(startMs + tMin * 60_000)).then((state) => {
       if (stale) return;
       const s = moonSky(state);
       globe.setSky(s);
@@ -364,7 +374,23 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc }: Pr
     return () => {
       stale = true;
     };
-  }, [globe, startMs, siteLat, siteLon]);
+  }, [globe, startMs, tMin, siteLat, siteLon]);
+
+  useEffect(() => {
+    if (!playing || !active || spanMin === 0) return;
+    let raf = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = ((now - last) / 1000 / PLAY_SECONDS) * spanMin;
+      last = now;
+      setTMin((t) => (t + dt >= spanMin ? 0 : t + dt)); // loop
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [playing, active, spanMin]);
+
+  const skyUtc = Number.isNaN(startMs) ? "—" : new Date(startMs + tMin * 60_000).toISOString().slice(0, 16).replace("T", " ") + " UTC";
 
   const results = useMemo(() => index?.search(query, 12) ?? [], [index, query]);
 
@@ -416,6 +442,24 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc }: Pr
       {sky && (
         <div className="sky-overlay">
           <SkyCompass sun={sky.sun} earth={sky.earth} />
+          <div className="sky-time">
+            <button type="button" onClick={() => setPlaying((p) => !p)} aria-label={playing ? "Pause" : "Play"}>
+              {playing ? "❚❚" : "▶"}
+            </button>
+            <input
+              type="range"
+              min={0}
+              max={spanMin}
+              step={Math.max(1, stepMinutes)}
+              value={tMin}
+              onChange={(e) => {
+                setPlaying(false);
+                setTMin(Number(e.target.value));
+              }}
+              aria-label="Scenario time"
+            />
+            <output>{skyUtc}</output>
+          </div>
           {sky.synthetic && (
             <div className="sky-note">
               SYNTHETIC sky — low-precision formulae, mean Moon orientation (no libration), centre directions,
