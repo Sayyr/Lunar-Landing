@@ -63,6 +63,7 @@ interface Features {
 const HEIGHT_OCTAVES: [number, number][] = [[4, 0.5], [8, 0.25], [16, 0.13], [32, 0.07], [64, 0.05]];
 const BASE_WEIGHT = 0.55;
 const CRATER_REACH = 1.9; // influence radius / crater radius
+const NORMAL_STRENGTH = 45; // slope gain of the normal map (heights ~[0, 1] over a 512 px tile)
 const FEATURE_MARGIN = 0.02; // tile units (≈ 1.3 px at 64 px, 10 px at 512)
 
 function fbm(size: number, octaves: [number, number][], rand: () => number): Field {
@@ -123,18 +124,10 @@ function features(rand: () => number, kind: "interior" | "edge", craterCount: nu
 
 /** Moves an edge feature set into tile coordinates for one of the tile's edges. */
 function placeEdge(f: Features, edge: "n" | "s" | "e" | "w"): Features {
-  const map = (a: number, b: number): [number, number] =>
-    edge === "n" ? [a, 1 + b] : edge === "s" ? [a, b] : edge === "e" ? [1 + b, a] : [b, a];
-  return {
-    craters: f.craters.map((c) => {
-      const [x, y] = map(c.x, c.y);
-      return { ...c, x, y };
-    }),
-    boulders: f.boulders.map((c) => {
-      const [x, y] = map(c.x, c.y);
-      return { ...c, x, y };
-    }),
-  };
+  // (along, across) → tile (x, y) for that edge.
+  const move = <T extends { x: number; y: number }>({ x: a, y: b, ...rest }: T): T =>
+    ({ ...rest, ...(edge === "n" ? { x: a, y: 1 + b } : edge === "s" ? { x: a, y: b } : edge === "e" ? { x: 1 + b, y: a } : { x: b, y: a }) }) as T;
+  return { craters: f.craters.map(move), boulders: f.boulders.map(move) };
 }
 
 interface Components {
@@ -156,35 +149,62 @@ function components(size: number, octaves: [number, number][], rand: () => numbe
   };
 }
 
+/** Per-row / per-column window weights and field indices of the apron grid (depend on size only). */
+interface Axis {
+  wrap: Int32Array; // index into a periodic field
+  along: Int32Array; // along-edge index
+  near: Int32Array; // across-edge index for the edge at 0 (south / west)
+  far: Int32Array; // across-edge index for the edge at 1 (north / east)
+  sin2: Float64Array; // edge window along the axis (0 at the corners)
+  cos2Near: Float64Array; // band window of the edge at 0
+  cos2Far: Float64Array; // band window of the edge at 1
+}
+const axisCache = new Map<number, Axis>();
+function axis(size: number): Axis {
+  let a = axisCache.get(size);
+  if (a) return a;
+  const S = size + 2;
+  const wrap = (k: number) => ((k % size) + size) % size;
+  const across = (t: number) => Math.min(size - 1, Math.max(0, Math.floor((t + 0.5) * size)));
+  a = { wrap: new Int32Array(S), along: new Int32Array(S), near: new Int32Array(S), far: new Int32Array(S), sin2: new Float64Array(S), cos2Near: new Float64Array(S), cos2Far: new Float64Array(S) };
+  for (let i = 0; i < S; i++) {
+    const x = (i - 0.5) / size;
+    a.wrap[i] = a.along[i] = wrap(Math.floor(x * size));
+    a.near[i] = across(x);
+    a.far[i] = across(x - 1);
+    a.sin2[i] = sin2(x);
+    a.cos2Near[i] = cos2(x);
+    a.cos2Far[i] = cos2(x - 1);
+  }
+  axisCache.set(size, a);
+  return a;
+}
+
 /**
  * One blended field for tile (n, e, s, w) on an (size + 2)² grid: pixel centres at
  * x = (i − 0.5) / size, i = 0 … size + 1 (one-pixel apron around the tile).
  */
 function blended(c: Components, size: number, layer: number, [n, e, s, w]: number[]): Float32Array {
   const S = size + 2;
+  const A = axis(size);
   const out = new Float32Array(S * S);
-  const wrap = (k: number) => ((k % size) + size) % size;
-  const along = (a: number) => wrap(Math.floor(a * size));
-  const across = (t: number) => Math.min(size - 1, Math.max(0, Math.floor((t + 0.5) * size)));
+  const [fN, fS, fE, fW, fI] = [c.edgeH[n], c.edgeH[s], c.edgeV[e], c.edgeV[w], c.interior[layer]];
+  const m = c.mean;
   for (let j = 0; j < S; j++) {
-    const y = (j - 0.5) / size;
     for (let i = 0; i < S; i++) {
-      const x = (i - 0.5) / size;
-      const terms: [number, number][] = [
-        [BASE_WEIGHT, c.base[wrap(Math.floor(y * size)) * size + wrap(Math.floor(x * size))]],
-        [sin2(x) * cos2(y - 1), c.edgeH[n][across(y - 1) * size + along(x)]],
-        [sin2(x) * cos2(y), c.edgeH[s][across(y) * size + along(x)]],
-        [sin2(y) * cos2(x - 1), c.edgeV[e][across(x - 1) * size + along(y)]],
-        [sin2(y) * cos2(x), c.edgeV[w][across(x) * size + along(y)]],
-        [sin2(x) * sin2(y), c.interior[layer][wrap(Math.floor(y * size)) * size + wrap(Math.floor(x * size))]],
-      ];
-      let num = 0;
-      let den = 0;
-      for (const [wt, v] of terms) {
-        num += wt * (v - c.mean);
-        den += wt * wt;
-      }
-      out[j * S + i] = c.mean + num / Math.sqrt(den);
+      const wN = A.sin2[i] * A.cos2Far[j];
+      const wS = A.sin2[i] * A.cos2Near[j];
+      const wE = A.sin2[j] * A.cos2Far[i];
+      const wW = A.sin2[j] * A.cos2Near[i];
+      const wI = A.sin2[i] * A.sin2[j];
+      const num =
+        BASE_WEIGHT * (c.base[A.wrap[j] * size + A.wrap[i]] - m) +
+        wN * (fN[A.far[j] * size + A.along[i]] - m) +
+        wS * (fS[A.near[j] * size + A.along[i]] - m) +
+        wE * (fE[A.far[i] * size + A.along[j]] - m) +
+        wW * (fW[A.near[i] * size + A.along[j]] - m) +
+        wI * (fI[A.wrap[j] * size + A.wrap[i]] - m);
+      out[j * S + i] = m + num / Math.sqrt(BASE_WEIGHT ** 2 + wN * wN + wS * wS + wE * wE + wW * wW + wI * wI);
     }
   }
   return out;
@@ -266,7 +286,7 @@ export function tileFields(ctx: WangContext, [n, e, s, w]: [number, number, numb
  * Generates the 16-tile bank. `size` must be a power of two for mipmapping; 512 px over a 4 m
  * tile ≈ 8 mm/px. Takes ~1 s for 512: run it in a worker.
  */
-export function generateWangBank(size = 512, seed = 7, normalStrength = 45): WangBank {
+export function generateWangBank(size = 512, seed = 7): WangBank {
   const ctx = createWangContext(size, seed);
   const S = size + 2;
   const albedoRough = new Uint8Array(WANG_LAYERS * size * size * 4);
@@ -285,8 +305,8 @@ export function generateWangBank(size = 512, seed = 7, normalStrength = 45): Wan
         albedoRough[o] = albedoRough[o + 1] = albedoRough[o + 2] = Math.round(255 * a);
         albedoRough[o + 3] = Math.round(255 * Math.max(0.85, Math.min(1, rough[k])));
         // Central differences (the apron makes them continuous across tiles); +y = north = +v.
-        const dx = (height[k + 1] - height[k - 1]) * 0.5 * normalStrength;
-        const dy = (height[k + S] - height[k - S]) * 0.5 * normalStrength;
+        const dx = (height[k + 1] - height[k - 1]) * 0.5 * NORMAL_STRENGTH;
+        const dy = (height[k + S] - height[k - S]) * 0.5 * NORMAL_STRENGTH;
         const len = Math.hypot(dx, dy, 1);
         normal[o] = Math.round(255 * (0.5 - (0.5 * dx) / len));
         normal[o + 1] = Math.round(255 * (0.5 - (0.5 * dy) / len));
