@@ -282,7 +282,3 @@ details ul { padding-left: 1.1rem; margin: 0.3rem 0; }
   pointer-events: auto; }
 .ground-auto button { margin-left: 6px; padding: 1px 8px; font-size: 11px; background: rgba(0, 0, 0, 0.45); }
 .ground-error { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--l-warn, #ffb347); }
-.ground-exag { display: flex; align-items: center; justify-content: flex-end; gap: 4px; font-size: 12px; color: var(--muted);
-  text-shadow: 0 1px 3px #000; }
-.ground-exag button { min-width: 34px; padding: 3px 6px; }
-.ground-exag button.active { background: #2b3546; border-color: #5a75a6; color: var(--text); }
