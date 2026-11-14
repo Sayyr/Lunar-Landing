@@ -96,6 +96,15 @@ export class TileLayer {
     for (const e of this.cache.values()) if (e.mesh) this.fillPositions(e.mesh.geometry, e.id);
   }
 
+  /** Re-reads the elevation of cached tiles overlapping latitudes [south, north] (streamed band). */
+  refreshHeights(south: number, north: number): void {
+    for (const e of this.cache.values()) {
+      if (!e.mesh) continue;
+      const b = tileBounds(e.id);
+      if (b.north >= south && b.south <= north) this.fillPositions(e.mesh.geometry, e.id);
+    }
+  }
+
   /** Call once per frame. */
   update(camera: THREE.PerspectiveCamera, viewportHeightPx: number): void {
     if (!this.enabled || this.disposed) return;

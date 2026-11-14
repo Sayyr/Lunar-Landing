@@ -71,6 +71,7 @@ export class Globe {
   private sky: { sun: THREE.Vector3; earth: THREE.Vector3 } | null = null;
   private framedOnSun = false;
   private readonly tiles: TileLayer;
+  private readonly heightTex: THREE.DataTexture | null;
 
   constructor(container: HTMLElement, { colorImage, heightmap, segments, initialView }: GlobeOptions) {
     this.container = container;
@@ -171,6 +172,7 @@ export class Globe {
       heightTex.needsUpdate = true;
       this.textures.push(heightTex);
     }
+    this.heightTex = heightTex;
 
     // --- Sphere ---------------------------------------------------------------------------------
     const geometry = new THREE.SphereGeometry(1, segments, segments / 2);
@@ -466,6 +468,24 @@ export class Globe {
     const d = Math.max(1e-6, this.camera.position.length() - 1);
     const h = this.renderer.domElement.clientHeight || 1;
     return ((2 * d * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2))) / h) * MOON_RADIUS_KM;
+  }
+
+  /**
+   * Rows [row0, row0 + rows) of the heightmap array were overwritten (streamed band): upload only
+   * that band to the GPU texture (no full 66 MB re-upload), widen the height range and refresh
+   * everything placed on the surface.
+   */
+  applyHeightBand(row0: number, rows: number): void {
+    const hm = this.heightmap;
+    if (!hm || !this.heightTex) return;
+    const w = hm.width;
+    const band = new THREE.DataTexture(hm.data.subarray(row0 * w, (row0 + rows) * w), w, rows, THREE.RedFormat, THREE.FloatType);
+    this.renderer.copyTextureToTexture(band, this.heightTex, null, new THREE.Vector2(0, row0));
+    band.dispose();
+    hm.extendRange(row0, rows);
+    this.setExaggeration(this.exaggeration); // grid, markers, ring, closest approach
+    const south = (row0 / hm.height) * 180 - 90;
+    this.tiles.refreshHeights(south, south + (rows / hm.height) * 180);
   }
 
   /** Streaming imagery on/off (the base mesh always stays as the offline fallback). */
