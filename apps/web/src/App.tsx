@@ -79,6 +79,7 @@ export function App() {
           siteLat={request.site.latitude_deg}
           siteLon={request.site.longitude_deg}
           onPick={(lat, lon) => setRequest((r) => ({ ...r, site: { ...r.site, latitude_deg: lat, longitude_deg: lon } }))}
+          startUtc={request.start_utc}
         />
         <div className="side">
           <ScenarioForm

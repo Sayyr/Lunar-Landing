@@ -8,11 +8,15 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { getCelestialState } from "../api/celestial";
+
 import { type Feature, FeatureIndex, type FeaturesJson, type PublicFeature, publicFeature } from "./features";
 import { formatAltM, formatLat, formatLon, roundLon } from "./geo";
 import { Globe } from "./globe";
 import type { Heightmap } from "./heightmap";
 import { DATA_BASE, loadHeightmap, loadImage, loadJson, type Progress, SETUP_HINT } from "./loaders";
+import { SkyCompass } from "./SkyCompass";
+import { type AzEl, localAzEl, moonSky } from "./skyGeometry";
 
 // Base URL of the elevation rasters: point it at R2/a CDN (CORS required) if ldem_16 exceeds the
 // host's file-size limit (25 MiB on Cloudflare Pages).
@@ -155,9 +159,11 @@ interface Props {
   siteLon: number;
   /** Called when the user clicks (long-press on touch) a surface point. */
   onPick: (lat: number, lon: number) => void;
+  /** Scenario start: the sky (Sun, Earth, compass) is shown for this time. */
+  startUtc: string;
 }
 
-export function LunarExplorer({ active, siteLat, siteLon, onPick }: Props) {
+export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const tipRef = useRef<HTMLDivElement>(null);
@@ -181,6 +187,7 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick }: Props) {
   const [found, setFound] = useState<Feature | null>(null);
   const [copyLabel, setCopyLabel] = useState("Copy lat, lon");
   const [copyFallback, setCopyFallback] = useState<string | null>(null);
+  const [sky, setSky] = useState<{ sun: AzEl; earth: AzEl; synthetic: boolean } | null>(null);
 
   useEffect(() => {
     onPickRef.current = onPick;
@@ -342,6 +349,23 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick }: Props) {
   useEffect(() => globe?.setSite(siteLat, siteLon), [globe, siteLat, siteLon]);
   useEffect(() => globe?.setActive(active), [globe, active]);
 
+  // --- Sky: Sun/Earth for the scenario time -----------------------------------------------------
+  const startMs = Date.parse(startUtc);
+
+  useEffect(() => {
+    if (!globe || Number.isNaN(startMs)) return;
+    let stale = false;
+    getCelestialState(new Date(startMs)).then((state) => {
+      if (stale) return;
+      const s = moonSky(state);
+      globe.setSky(s);
+      setSky({ sun: localAzEl(s.sun, siteLat, siteLon), earth: localAzEl(s.earth, siteLat, siteLon), synthetic: state.synthetic });
+    });
+    return () => {
+      stale = true;
+    };
+  }, [globe, startMs, siteLat, siteLon]);
+
   const results = useMemo(() => index?.search(query, 12) ?? [], [index, query]);
 
   const goTo = (f: Feature) => {
@@ -388,6 +412,18 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick }: Props) {
       >
         ☰
       </button>
+
+      {sky && (
+        <div className="sky-overlay">
+          <SkyCompass sun={sky.sun} earth={sky.earth} />
+          {sky.synthetic && (
+            <div className="sky-note">
+              SYNTHETIC sky — low-precision formulae, mean Moon orientation (no libration), centre directions,
+              ideal horizon. Not for analysis.
+            </div>
+          )}
+        </div>
+      )}
 
       <aside className="lunar-panel">
         <h2>Last clicked point</h2>
@@ -485,7 +521,10 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick }: Props) {
               Feature shown: nearest IAU centre whose circle (IAU diameter / 2) contains the point — circular
               approximation of the outlines.
             </li>
-            <li>Lighting is purely illustrative: it is not the real Sun position.</li>
+            <li>
+              Lighting, background Sun/Earth and compass follow the SYNTHETIC mock sky (low-precision formulae, mean
+              lunar orientation without libration) — illustrative, not the scenario result.
+            </li>
           </ul>
           <p className="muted">
             Sources: NASA SVS{" "}

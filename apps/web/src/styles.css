@@ -190,3 +190,13 @@ details ul { padding-left: 1.1rem; margin: 0.3rem 0; }
   .lunar-panel { border-left: 0; }
   .lunar-panel-toggle, .lunar.panel-collapsed .lunar-panel-toggle { right: 10px; }
 }
+
+/* ---- Sky overlay: compass + scenario time (lunar view) ---- */
+.sky-overlay { position: absolute; left: 12px; top: 12px; z-index: 5; width: min(300px, calc(100% - 70px));
+  text-shadow: 0 1px 3px #000; }
+.sky-compass { display: flex; align-items: center; gap: 10px; }
+.sky-compass svg { flex: none; }
+.sky-compass-read { font-size: 12px; font-variant-numeric: tabular-nums; line-height: 1.6; }
+.sky-compass-read .sun { color: #ffd400; }
+.sky-compass-read .earth { color: #1e90ff; }
+.sky-note { margin-top: 6px; font-size: 10.5px; color: var(--l-warn); }
