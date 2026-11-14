@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { PolarDem, type PolarManifest, polarPixel, toLevel } from "./polarDem";
+import { DemStack, PolarDem, type PolarManifest, polarPixel, toLevel } from "./polarDem";
 
 // Projection of LDEM_85S_20M as written by scripts/tile_polar_dem.py (signs validated there).
 const real: PolarManifest = {
@@ -93,5 +93,35 @@ describe("level selection by mesh spacing", () => {
     expect(plan[0].radiusM).toBeCloseTo(40 / 0.032);
     expect(plan[2].radiusM).toBeCloseTo(160 / 0.032);
     expect(plan[3].radiusM).toBe(150_000);
+  });
+});
+
+describe("DemStack", () => {
+  // Minimal stand-ins: a product returns `value` where it has data, NaN elsewhere.
+  const fake = (scales: number[], value: (l: number) => number) =>
+    Object.assign(Object.create(PolarDem.prototype), {
+      manifest: { ...real, levels: scales.map((s, l) => ({ level: l, scale_m: s, lines: 10, samples: 10, rows: 1, cols: 1 })) },
+      sampleKm: (_la: number, _lo: number, l: number) => (l < scales.length ? value(l) : NaN),
+    }) as PolarDem;
+  const site = fake([5, 10], (l) => 1 + l); // km: 1 at 5 m, 2 at 10 m
+  const polar = fake([20, 40, 80], (l) => 10 + l);
+  const stack = new DemStack(
+    [
+      { dem: site, maxDistanceM: 600, clamp: false },
+      { dem: polar, maxDistanceM: 150_000, clamp: true },
+    ],
+    0.032,
+  );
+  const src = stack.source(() => -1);
+
+  it("finest product first, at the level matching the mesh spacing", () => {
+    expect(src(0, 0, 100)).toBe(1000); // spacing 3.2 m → site 5 m
+    expect(src(0, 0, 400)).toBe(2000); // 12.8 m → site 10 m
+  });
+
+  it("falls through to the next product past a layer's distance or pyramid", () => {
+    expect(src(0, 0, 700)).toBe(10_000); // site stops at 600 m → polar L0 (22 m spacing)
+    expect(src(0, 0, 100_000)).toBe(12_000); // spacing 3.2 km: polar clamped to its coarsest level
+    expect(src(0, 0, 200_000)).toBe(-1); // beyond every layer → fallback (global raster)
   });
 });

@@ -5,6 +5,9 @@
 // tiler against ldem_16: median |Δh| ≈ 28 m at 4000 random points). Units: km relative to a
 // 1737.4 km sphere, same reference as ldem_16, so the two join without offset.
 
+import { DEG } from "../lib/constants";
+import type { TerrainSource } from "./groundTerrain";
+
 export interface PolarManifest {
   source: string;
   frame: string;
@@ -23,8 +26,11 @@ export interface PolarManifest {
   validation: { median_abs_km: number; rms_km: number };
 }
 
-const DEG = Math.PI / 180;
 const NODATA = 65535;
+
+/** Catmull-Rom cubic through b (t = 0) and c (t = 1). */
+const catmullRom = (a: number, b: number, c: number, d: number, t: number) =>
+  b + 0.5 * t * (c - a + t * (2 * a - 5 * b + 4 * c - d + t * (3 * (b - c) + d - a)));
 
 /** Level-0 fractional pixel coordinates (0-based pixel centres) of a lat/lon. */
 export function polarPixel(m: PolarManifest, latDeg: number, lonDeg: number): { line: number; sample: number } {
@@ -162,7 +168,8 @@ export class PolarDem {
 
   /**
    * Elevation (km) by bicubic Catmull-Rom interpolation at `level` (smooth slopes: no stair-step
-   * shading at 20 m). NaN outside the product or where a tile is not loaded.
+   * shading at 20 m). NaN outside the product, past its coarsest level, or where a tile is not
+   * loaded.
    */
   sampleKm(latDeg: number, lonDeg: number, level: number): number {
     const L = this.manifest.levels[level];
@@ -175,14 +182,68 @@ export class PolarDem {
     if (l1 < 1 || s1 < 1 || l1 > L.lines - 3 || s1 > L.samples - 3) return NaN;
     const tl = l - l1;
     const ts = s - s1;
-    const cr = (a: number, b: number, c: number, d: number, t: number) =>
-      b + 0.5 * t * (c - a + t * (2 * a - 5 * b + 4 * c - d + t * (3 * (b - c) + d - a)));
-    const row = (dl: number) =>
-      cr(this.pixel(level, l1 + dl, s1 - 1), this.pixel(level, l1 + dl, s1), this.pixel(level, l1 + dl, s1 + 1), this.pixel(level, l1 + dl, s1 + 2), ts);
-    return cr(row(-1), row(0), row(1), row(2), tl);
+    const T = this.manifest.tile;
+    // Fast path: the 4×4 footprint inside one tile (most samples) → one look-up, not sixteen.
+    const r0 = (l1 - 1) % T;
+    const c0 = (s1 - 1) % T;
+    let px: (dl: number, ds: number) => number;
+    if (r0 <= T - 4 && c0 <= T - 4) {
+      const t = this.tiles.get(PolarDem.key(level, Math.floor((l1 - 1) / T), Math.floor((s1 - 1) / T)));
+      if (!t) return NaN;
+      px = (dl, ds) => {
+        const v = t.values[(r0 + 1 + dl) * T + c0 + 1 + ds];
+        return v === NODATA ? NaN : t.offset + v * t.step;
+      };
+    } else {
+      px = (dl, ds) => this.pixel(level, l1 + dl, s1 + ds);
+    }
+    const row = (dl: number) => catmullRom(px(dl, -1), px(dl, 0), px(dl, 1), px(dl, 2), ts);
+    return catmullRom(row(-1), row(0), row(1), row(2), tl);
+  }
+}
+
+/** One product of a DemStack: used out to maxDistanceM; `clamp` keeps its coarsest level beyond its pyramid. */
+export interface DemLayer {
+  dem: PolarDem;
+  maxDistanceM: number;
+  clamp: boolean;
+}
+
+/**
+ * Ordered products, finest first (e.g. 5 m site DEM, then the 20 m polar pyramid). At distance d
+ * a mesh sampled every d × spacingPerMetre takes, from the first product with data there, the
+ * level whose pixel matches that spacing (prefiltered, no aliasing); downloads follow the same
+ * rule, so what is fetched is what gets sampled.
+ */
+export class DemStack {
+  constructor(
+    readonly layers: DemLayer[],
+    private readonly spacingPerMetre: number,
+  ) {}
+
+  /** Loads the tiles every layer needs around a site; progress summed over layers. */
+  loadAround(latDeg: number, lonDeg: number, onProgress?: (done: number, total: number) => void): Promise<unknown> {
+    const parts = this.layers.map(() => [0, 0]);
+    return Promise.all(
+      this.layers.map(({ dem, maxDistanceM }, i) =>
+        dem.loadAround(latDeg, lonDeg, dem.planFor(this.spacingPerMetre, maxDistanceM), (done, total) => {
+          parts[i] = [done, total];
+          onProgress?.(parts.reduce((a, p) => a + p[0], 0), parts.reduce((a, p) => a + p[1], 0));
+        }),
+      ),
+    );
   }
 
-  get tileCount(): number {
-    return [...this.tiles.values()].filter(Boolean).length;
+  /** Terrain source: first layer with data at the right level, else `fallback`. */
+  source(fallback: TerrainSource): TerrainSource {
+    return (lat, lon, d) => {
+      for (const { dem, maxDistanceM, clamp } of this.layers) {
+        if (d > maxDistanceM) continue;
+        const l = dem.levelForSpacing(d * this.spacingPerMetre);
+        const v = dem.sampleKm(lat, lon, clamp ? Math.min(l, dem.manifest.levels.length - 1) : l);
+        if (Number.isFinite(v)) return v * 1000;
+      }
+      return fallback(lat, lon, d);
+    };
   }
 }
