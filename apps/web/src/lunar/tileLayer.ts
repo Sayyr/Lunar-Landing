@@ -66,6 +66,7 @@ export class TileLayer {
   private bumpScale = 0;
   status: TileStatus = "loading";
   onStatus?: (s: TileStatus) => void;
+  onChange?: () => void;
 
   constructor(
     private readonly heightmap: Heightmap | null,
@@ -198,12 +199,16 @@ export class TileLayer {
           this.group.add(e.mesh);
           e.state = "ready";
           if (this.inflight === 0) this.setStatus("ok");
+          this.onChange?.();
         },
         undefined,
         () => {
           this.inflight--;
           e.state = "failed";
+          if (this.disposed) return;
+          this.onChange?.();
           if (++this.failures >= 3) this.setStatus("offline");
+          else if (this.inflight === 0) this.setStatus("ok");
         },
       );
     }

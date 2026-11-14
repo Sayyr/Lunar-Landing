@@ -8,7 +8,6 @@ use axum::{
     Json,
 };
 use futures_util::{stream, StreamExt};
-use serde_json::{json, Value};
 
 use crate::{
     error::AppError,
@@ -20,10 +19,6 @@ fn to_line(message: &Message) -> String {
     let mut line = serde_json::to_string(message).unwrap();
     line.push('\n');
     line
-}
-
-pub async fn health() -> Json<Value> {
-    Json(json!({ "status": "ok" }))
 }
 
 pub async fn site(

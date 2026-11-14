@@ -1,6 +1,6 @@
 import { Html, Line, OrbitControls } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { memo, useMemo } from "react";
+import { memo, useMemo, useRef } from "react";
 import { type Matrix4, type PerspectiveCamera, type Texture } from "three";
 
 import { getMoonTrack, getSunTrack } from "../../api/celestial";
@@ -39,13 +39,13 @@ interface Props {
  * Reported when it changes by more than 1 %, so React does not re-render every frame.
  */
 function ScaleProbe({ onScale }: { onScale: (kmPerPx: number) => void }) {
-  let last = 0;
+  const last = useRef(0);
   useFrame(({ camera, size }) => {
     const cam = camera as PerspectiveCamera;
     const unitsPerPx = (2 * cam.position.length() * Math.tan(((cam.fov / 2) * Math.PI) / 180)) / size.height;
     const k = (unitsPerPx * EARTH_MEAN_RADIUS_M) / 1000; // 1 unit = 1 Earth radius
-    if (Math.abs(k / (last || 1) - 1) > 0.01) {
-      last = k;
+    if (Math.abs(k / (last.current || 1) - 1) > 0.01) {
+      last.current = k;
       onScale(k);
     }
   });

@@ -15,7 +15,8 @@ services:
       # Kernels are NOT in the image; mount them read-only (see data/README.md).
       - ../data/kernels:/data/kernels:ro
       - ../apps/web/data-raw/lola_polar:/data/dem:ro
-    ports: ["8000:8000"]
+    ports: ["127.0.0.1:8000:8000"]
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
       interval: 10s
@@ -30,7 +31,8 @@ services:
       SELENE_SCIENCE_URL: http://science:8000
     volumes:
       - ../services/api/config/profiles.json:/etc/lunar-landing/profiles.json:ro
-    ports: ["8080:8080"]
+    ports: ["127.0.0.1:8080:8080"]
+    restart: unless-stopped
     depends_on:
       science:
         condition: service_healthy
@@ -40,6 +42,7 @@ services:
       context: ..
       dockerfile: apps/web/Dockerfile
     ports: ["8081:80"]
+    restart: unless-stopped
     volumes:
       # Locally generated polar products (apps/web/scripts/POLAR_DATA.md), ~1.2 GB each: mounted
       # read-only instead of copied into the image. Missing on the host → empty dirs → the front

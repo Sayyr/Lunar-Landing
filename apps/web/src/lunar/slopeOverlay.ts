@@ -147,6 +147,8 @@ export class SlopeScope {
   readonly info: SlopeProductInfo | null;
   private readonly dem: SlopeProduct["dem"] | null;
   private readonly manifest: PolarManifest | null;
+  /** Repaint request, set by Globe.addSurfaceOverlay (the globe renders on demand). */
+  onChange?: () => void;
   private slopeTex: THREE.DataTexture | null = null;
   private request = 0;
 
@@ -200,6 +202,7 @@ export class SlopeScope {
   cancel(): void {
     this.request++;
     this.object.visible = false;
+    this.onChange?.();
   }
 
   /**
@@ -228,6 +231,7 @@ export class SlopeScope {
         : { centreLat: lat, centreLon: lon, radiusKm, source: "none", level: -1, pixelM: NaN };
     if (base.source === "none") {
       this.object.visible = false;
+      this.onChange?.();
       return base;
     }
     if (polar) {
@@ -294,11 +298,13 @@ export class SlopeScope {
     this.slopeTex = slopeTex;
     this.object.material.uniforms.slopeTex.value = slopeTex;
     this.object.visible = true;
+    this.onChange?.();
     return base;
   }
 
   setMaxSlope(deg: number): void {
     this.object.material.uniforms.maxSlope.value = deg;
+    this.onChange?.();
   }
 
   /** km → scene units (exaggeration included), as Globe.scale. */

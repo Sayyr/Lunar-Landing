@@ -1,0 +1,1648 @@
+{
+  "meta": {
+    "generated_utc": "2026-11-14T18:24:39Z",
+    "git_branch": "integration/test-bench",
+    "git_commit": "9325f42",
+    "git_dirty": false,
+    "python": "3.13.0",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "services": {
+      "gateway": {
+        "url": "http://127.0.0.1:8080",
+        "probe": "http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e)"
+      },
+      "science": {
+        "url": "http://127.0.0.1:8000",
+        "probe": "http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e)"
+      },
+      "back": {
+        "url": "http://127.0.0.1:3000",
+        "probe": "http://127.0.0.1:3000/api/v1/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e)"
+      }
+    },
+    "counts": {
+      "FAILED": 0,
+      "BLOCKED": 218,
+      "CONTRACT-GAP": 6,
+      "SKIPPED": 0,
+      "PASSED": 99
+    }
+  },
+  "results": [
+    {
+      "test": "test_back_branch.py::test_back_health",
+      "outcome": "BLOCKED",
+      "detail": "back service not running: http://127.0.0.1:3000/api/v1/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_BACK_URL to point elsewhere)"
+    },
+    {
+      "test": "test_back_branch.py::test_back_accepts_the_shared_scenario_request",
+      "outcome": "BLOCKED",
+      "detail": "back service not running: http://127.0.0.1:3000/api/v1/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_BACK_URL to point elsewhere)"
+    },
+    {
+      "test": "test_back_branch.py::test_back_errors_use_shared_envelope",
+      "outcome": "BLOCKED",
+      "detail": "back service not running: http://127.0.0.1:3000/api/v1/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_BACK_URL to point elsewhere)"
+    },
+    {
+      "test": "test_back_branch.py::test_back_results_are_labelled",
+      "outcome": "BLOCKED",
+      "detail": "back service not running: http://127.0.0.1:3000/api/v1/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_BACK_URL to point elsewhere)"
+    },
+    {
+      "test": "test_back_branch.py::test_back_takes_a_time_input",
+      "outcome": "BLOCKED",
+      "detail": "back service not running: http://127.0.0.1:3000/api/v1/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_BACK_URL to point elsewhere)"
+    },
+    {
+      "test": "test_contracts.py::test_schema_is_valid_draft_2020_12[error]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_schema_is_valid_draft_2020_12[health]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_schema_is_valid_draft_2020_12[request]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_schema_is_valid_draft_2020_12[response]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_schema_is_valid_draft_2020_12[sites]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_every_schema_file_is_known_to_the_bench",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_shared_fixture_matches_schema[request-scenario-request.valid.json]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_shared_fixture_matches_schema[response-scenario-response.not-ready.json]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_shared_fixture_matches_schema[response-scenario-response.synthetic.json]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_shared_fixture_matches_schema[sites-sites.json]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_shared_fixture_matches_schema[error-error.validation.json]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_shared_invalid_request_is_rejected_by_schema[latitude-out-of-range]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_shared_invalid_request_is_rejected_by_schema[longitude-180-not-allowed]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_shared_invalid_request_is_rejected_by_schema[start-not-utc]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_shared_invalid_request_is_rejected_by_schema[unknown-field]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_shared_invalid_request_is_rejected_by_schema[zero-duration]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_valid_scenario_matches_schema[claude-md-example]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_valid_scenario_matches_schema[dateline-west]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_valid_scenario_matches_schema[dem-terrain]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_valid_scenario_matches_schema[equator-sub-earth-30d]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_valid_scenario_matches_schema[far-side-equator]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_valid_scenario_matches_schema[fractional-start]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_valid_scenario_matches_schema[leap-day]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_valid_scenario_matches_schema[long-90-days]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_valid_scenario_matches_schema[max-observer-height]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_valid_scenario_matches_schema[minimum-two-samples]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_valid_scenario_matches_schema[near-max-samples]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_valid_scenario_matches_schema[north-polar]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_valid_scenario_matches_schema[south-polar-14d]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_valid_scenario_matches_schema[south-pole-exact]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_valid_scenario_matches_schema[step-not-dividing-duration]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_valid_scenario_matches_schema[year-boundary]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_valid_scenario_matches_schema[zero-observer-height]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_invalid_scenario_schema_verdict[body-is-array]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_invalid_scenario_schema_verdict[duration-above-max]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_invalid_scenario_schema_verdict[duration-negative]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_invalid_scenario_schema_verdict[duration-zero]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_invalid_scenario_schema_verdict[height-above-max]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_invalid_scenario_schema_verdict[height-negative]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_invalid_scenario_schema_verdict[latitude-above-range]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_invalid_scenario_schema_verdict[latitude-as-bool]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_invalid_scenario_schema_verdict[latitude-as-string]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_invalid_scenario_schema_verdict[latitude-below-range]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_invalid_scenario_schema_verdict[longitude-180]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_invalid_scenario_schema_verdict[longitude-below-range]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_invalid_scenario_schema_verdict[missing-site]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_invalid_scenario_schema_verdict[missing-terrain-mode]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_invalid_scenario_schema_verdict[start-date-only]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_invalid_scenario_schema_verdict[start-impossible-date]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_invalid_scenario_schema_verdict[start-lowercase-z]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_invalid_scenario_schema_verdict[start-no-zone]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_invalid_scenario_schema_verdict[start-offset]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_invalid_scenario_schema_verdict[start-space-separator]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_invalid_scenario_schema_verdict[step-above-max]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_invalid_scenario_schema_verdict[step-below-min]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_invalid_scenario_schema_verdict[terrain-mode-unknown]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_invalid_scenario_schema_verdict[too-many-samples]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_invalid_scenario_schema_verdict[unknown-site-field]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_bench_invalid_scenario_schema_verdict[unknown-top-level-field]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_sites_are_labelled_and_sourced",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_typescript_enums_match_schema[terrain_mode-<lambda>-type TerrainMode]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_typescript_enums_match_schema[status-<lambda>-type ScenarioStatus]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_typescript_enums_match_schema[ephemeris_provider-<lambda>-ephemeris_provider]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_typescript_enums_match_schema[horizon_model-<lambda>-horizon_model]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_typescript_enums_match_schema[provenance kind-<lambda>-kind]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_typescript_enums_match_schema[error code-<lambda>-code]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_rust_enums_match_schema[rust_file0-TerrainMode-<lambda>]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_rust_enums_match_schema[rust_file1-ScenarioStatus-<lambda>]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_rust_enums_match_schema[rust_file2-ErrorCode-<lambda>]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_schema_version_agrees_everywhere",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_max_samples_agrees_between_gateway_and_science",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_contracts.py::test_max_samples_is_part_of_the_contract",
+      "outcome": "CONTRACT-GAP",
+      "detail": "MAX_SAMPLES (20 000) is enforced by Rust and C++ but absent from scenario-request.schema.json: schema-valid requests can get a 422"
+    },
+    {
+      "test": "test_contracts.py::test_response_timestamps_have_a_format_in_the_contract",
+      "outcome": "CONTRACT-GAP",
+      "detail": "samples[].utc and windows[].start_utc/end_utc are plain strings in the schema (no 'Z' pattern, no stated precision); the science service emits millisecond 'Z' times"
+    },
+    {
+      "test": "test_contracts.py::test_proposed_endpoint_has_a_contract[/scenarios/compare]",
+      "outcome": "CONTRACT-GAP",
+      "detail": "POST /scenarios/compare (P0: two-scenario comparison) is proposed in CLAUDE.md but has no schema in packages/contracts and no gateway route"
+    },
+    {
+      "test": "test_contracts.py::test_proposed_endpoint_has_a_contract[/scenarios/search]",
+      "outcome": "CONTRACT-GAP",
+      "detail": "POST /scenarios/search (after MVP) is proposed in CLAUDE.md but has no schema in packages/contracts and no gateway route"
+    },
+    {
+      "test": "test_contracts.py::test_proposed_endpoint_has_a_contract[/terrain/]",
+      "outcome": "CONTRACT-GAP",
+      "detail": "GET /terrain/{site_id} (after terrain availability) is proposed in CLAUDE.md but has no schema in packages/contracts and no gateway route"
+    },
+    {
+      "test": "test_contracts.py::test_celestial_state_contract_is_shared",
+      "outcome": "CONTRACT-GAP",
+      "detail": "GET /celestial/state is defined only as a DRAFT TypeScript type (apps/web/src/api/celestialTypes.ts, schema_version 0.0.1-draft); no JSON Schema, no backend route"
+    },
+    {
+      "test": "test_http_live.py::test_health_matches_contract[gateway]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_health_matches_contract[science]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[gateway-claude-md-example]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[gateway-dateline-west]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[gateway-dem-terrain]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[gateway-equator-sub-earth-30d]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[gateway-far-side-equator]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[gateway-fractional-start]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[gateway-leap-day]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[gateway-long-90-days]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[gateway-max-observer-height]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[gateway-minimum-two-samples]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[gateway-near-max-samples]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[gateway-north-polar]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[gateway-south-polar-14d]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[gateway-south-pole-exact]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[gateway-step-not-dividing-duration]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[gateway-year-boundary]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[gateway-zero-observer-height]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[science-claude-md-example]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[science-dateline-west]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[science-dem-terrain]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[science-equator-sub-earth-30d]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[science-far-side-equator]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[science-fractional-start]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[science-leap-day]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[science-long-90-days]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[science-max-observer-height]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[science-minimum-two-samples]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[science-near-max-samples]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[science-north-polar]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[science-south-polar-14d]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[science-south-pole-exact]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[science-step-not-dividing-duration]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[science-year-boundary]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_real_route_never_returns_synthetic[science-zero-observer-height]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[gateway-claude-md-example]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[gateway-dateline-west]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[gateway-dem-terrain]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[gateway-equator-sub-earth-30d]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[gateway-far-side-equator]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[gateway-fractional-start]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[gateway-leap-day]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[gateway-long-90-days]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[gateway-max-observer-height]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[gateway-minimum-two-samples]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[gateway-near-max-samples]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[gateway-north-polar]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[gateway-south-polar-14d]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[gateway-south-pole-exact]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[gateway-step-not-dividing-duration]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[gateway-year-boundary]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[gateway-zero-observer-height]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[science-claude-md-example]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[science-dateline-west]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[science-dem-terrain]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[science-equator-sub-earth-30d]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[science-far-side-equator]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[science-fractional-start]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[science-leap-day]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[science-long-90-days]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[science-max-observer-height]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[science-minimum-two-samples]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[science-near-max-samples]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[science-north-polar]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[science-south-polar-14d]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[science-south-pole-exact]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[science-step-not-dividing-duration]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[science-year-boundary]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_synthetic_route_is_labelled_and_consistent[science-zero-observer-height]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[gateway-body-is-array]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[gateway-duration-above-max]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[gateway-duration-negative]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[gateway-duration-zero]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[gateway-height-above-max]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[gateway-height-negative]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[gateway-latitude-above-range]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[gateway-latitude-as-bool]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[gateway-latitude-as-string]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[gateway-latitude-below-range]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[gateway-longitude-180]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[gateway-longitude-below-range]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[gateway-missing-site]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[gateway-missing-terrain-mode]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[gateway-start-date-only]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[gateway-start-impossible-date]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[gateway-start-lowercase-z]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[gateway-start-no-zone]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[gateway-start-offset]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[gateway-start-space-separator]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[gateway-step-above-max]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[gateway-step-below-min]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[gateway-terrain-mode-unknown]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[gateway-too-many-samples]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[gateway-unknown-site-field]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[gateway-unknown-top-level-field]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[science-body-is-array]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[science-duration-above-max]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[science-duration-negative]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[science-duration-zero]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[science-height-above-max]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[science-height-negative]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[science-latitude-above-range]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[science-latitude-as-bool]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[science-latitude-as-string]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[science-latitude-below-range]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[science-longitude-180]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[science-longitude-below-range]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[science-missing-site]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[science-missing-terrain-mode]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[science-start-date-only]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[science-start-impossible-date]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[science-start-lowercase-z]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[science-start-no-zone]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[science-start-offset]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[science-start-space-separator]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[science-step-above-max]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[science-step-below-min]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[science-terrain-mode-unknown]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[science-too-many-samples]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[science-unknown-site-field]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_invalid_request_is_rejected_with_envelope[science-unknown-top-level-field]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_shared_invalid_fixture_is_rejected[gateway-latitude-out-of-range]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_shared_invalid_fixture_is_rejected[gateway-longitude-180-not-allowed]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_shared_invalid_fixture_is_rejected[gateway-start-not-utc]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_shared_invalid_fixture_is_rejected[gateway-unknown-field]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_shared_invalid_fixture_is_rejected[gateway-zero-duration]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_shared_invalid_fixture_is_rejected[science-latitude-out-of-range]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_shared_invalid_fixture_is_rejected[science-longitude-180-not-allowed]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_shared_invalid_fixture_is_rejected[science-start-not-utc]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_shared_invalid_fixture_is_rejected[science-unknown-field]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_shared_invalid_fixture_is_rejected[science-zero-duration]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_malformed_body_is_rejected_with_envelope[gateway-empty]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_malformed_body_is_rejected_with_envelope[gateway-truncated]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_malformed_body_is_rejected_with_envelope[gateway-null]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_malformed_body_is_rejected_with_envelope[gateway-not-utf8]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_malformed_body_is_rejected_with_envelope[science-empty]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_malformed_body_is_rejected_with_envelope[science-truncated]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_malformed_body_is_rejected_with_envelope[science-null]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_malformed_body_is_rejected_with_envelope[science-not-utf8]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_unknown_route_uses_error_envelope[gateway]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_unknown_route_uses_error_envelope[science]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_wrong_method_uses_error_envelope[gateway]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_wrong_method_uses_error_envelope[science]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_leap_second_behaviour_is_specified[gateway]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_leap_second_behaviour_is_specified[science]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_evaluation_is_deterministic[gateway]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_evaluation_is_deterministic[science]",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_sites_match_contract",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_gateway_forwards_science_output_unchanged[claude-md-example-real]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_gateway_forwards_science_output_unchanged[claude-md-example-synthetic]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_gateway_forwards_science_output_unchanged[step-not-dividing-duration-real]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_gateway_forwards_science_output_unchanged[step-not-dividing-duration-synthetic]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_gateway_forwards_science_output_unchanged[dem-terrain-real]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_gateway_forwards_science_output_unchanged[dem-terrain-synthetic]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_gateway_health_embeds_live_science_health",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_readiness_agrees_with_evaluation",
+      "outcome": "BLOCKED",
+      "detail": "science service not running: http://127.0.0.1:8000/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_SCIENCE_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_earth_never_sets_near_sub_earth_point",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_earth_never_rises_near_anti_earth_point",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_sun_rises_and_sets_within_a_synodic_month[equator-sub-earth-30d]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_sun_rises_and_sets_within_a_synodic_month[far-side-equator]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_polar_sun_stays_near_horizon",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_http_live.py::test_exact_pole_is_finite_and_deterministic",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Reference|2026 NOV 14 12:00:00 UTC|SUN]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Reference|2026 NOV 14 12:00:00 UTC|EARTH]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Pres pole Sud|2026 NOV 14 12:00:00 UTC|SUN]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Pres pole Sud|2026 NOV 14 12:00:00 UTC|EARTH]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Sud autre cote|2026 NOV 14 12:00:00 UTC|SUN]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Sud autre cote|2026 NOV 14 12:00:00 UTC|EARTH]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Hemisphere Sud|2026 NOV 14 12:00:00 UTC|SUN]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Hemisphere Sud|2026 NOV 14 12:00:00 UTC|EARTH]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Equateur 0|2026 NOV 14 12:00:00 UTC|SUN]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Equateur 0|2026 NOV 14 12:00:00 UTC|EARTH]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Equateur Est|2026 NOV 14 12:00:00 UTC|SUN]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Equateur Est|2026 NOV 14 12:00:00 UTC|EARTH]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Hemisphere Nord|2026 NOV 14 12:00:00 UTC|SUN]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Hemisphere Nord|2026 NOV 14 12:00:00 UTC|EARTH]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Pres pole Nord|2026 NOV 14 12:00:00 UTC|SUN]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Pres pole Nord|2026 NOV 14 12:00:00 UTC|EARTH]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Reference|2026 DEC 01 12:00:00 UTC|SUN]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Reference|2026 DEC 01 12:00:00 UTC|EARTH]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Pres pole Sud|2026 DEC 01 12:00:00 UTC|SUN]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Pres pole Sud|2026 DEC 01 12:00:00 UTC|EARTH]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Sud autre cote|2026 DEC 01 12:00:00 UTC|SUN]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Sud autre cote|2026 DEC 01 12:00:00 UTC|EARTH]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Hemisphere Sud|2026 DEC 01 12:00:00 UTC|SUN]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Hemisphere Sud|2026 DEC 01 12:00:00 UTC|EARTH]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Equateur 0|2026 DEC 01 12:00:00 UTC|SUN]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Equateur 0|2026 DEC 01 12:00:00 UTC|EARTH]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Equateur Est|2026 DEC 01 12:00:00 UTC|SUN]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Equateur Est|2026 DEC 01 12:00:00 UTC|EARTH]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Hemisphere Nord|2026 DEC 01 12:00:00 UTC|SUN]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Hemisphere Nord|2026 DEC 01 12:00:00 UTC|EARTH]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Pres pole Nord|2026 DEC 01 12:00:00 UTC|SUN]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Pres pole Nord|2026 DEC 01 12:00:00 UTC|EARTH]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Reference|2027 MAY 01 00:00:00 UTC|SUN]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Reference|2027 MAY 01 00:00:00 UTC|EARTH]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Pres pole Sud|2027 MAY 01 00:00:00 UTC|SUN]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Pres pole Sud|2027 MAY 01 00:00:00 UTC|EARTH]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Sud autre cote|2027 MAY 01 00:00:00 UTC|SUN]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Sud autre cote|2027 MAY 01 00:00:00 UTC|EARTH]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Hemisphere Sud|2027 MAY 01 00:00:00 UTC|SUN]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Hemisphere Sud|2027 MAY 01 00:00:00 UTC|EARTH]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Equateur 0|2027 MAY 01 00:00:00 UTC|SUN]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Equateur 0|2027 MAY 01 00:00:00 UTC|EARTH]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Equateur Est|2027 MAY 01 00:00:00 UTC|SUN]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Equateur Est|2027 MAY 01 00:00:00 UTC|EARTH]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Hemisphere Nord|2027 MAY 01 00:00:00 UTC|SUN]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Hemisphere Nord|2027 MAY 01 00:00:00 UTC|EARTH]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Pres pole Nord|2027 MAY 01 00:00:00 UTC|SUN]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_team_spice_script[Pres pole Nord|2027 MAY 01 00:00:00 UTC|EARTH]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_reference.py::test_agrees_with_jpl_horizons[none]",
+      "outcome": "BLOCKED",
+      "detail": "gateway service not running: http://127.0.0.1:8080/health unreachable ([WinError 10061] Aucune connexion n\u2019a pu \u00eatre \u00e9tablie car l\u2019ordinateur cible l\u2019a express\u00e9ment refus\u00e9e) (set SELENE_BENCH_API_URL to point elsewhere)"
+    },
+    {
+      "test": "test_response_invariants.py::test_shared_response_fixture_passes_all_invariants[synthetic-resp0]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_response_invariants.py::test_shared_response_fixture_passes_all_invariants[not_ready-resp1]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_response_invariants.py::test_synthetic_fixture_is_conspicuously_labelled",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_response_invariants.py::test_not_ready_fixture_carries_no_numbers",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_response_invariants.py::test_sample_count_rule_examples",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_response_invariants.py::test_parse_utc_accepts_contract_forms_only",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_response_invariants.py::test_bench_detects_injected_defect[SYNTHETIC warning removed]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_response_invariants.py::test_bench_detects_injected_defect[azimuth out of range]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_response_invariants.py::test_bench_detects_injected_defect[duplicate window]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_response_invariants.py::test_bench_detects_injected_defect[elevation contradicts window]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_response_invariants.py::test_bench_detects_injected_defect[elevation out of range]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_response_invariants.py::test_bench_detects_injected_defect[horizon model mismatches terrain_mode]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_response_invariants.py::test_bench_detects_injected_defect[not_ready with samples]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_response_invariants.py::test_bench_detects_injected_defect[power/radio disclaimer removed]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_response_invariants.py::test_bench_detects_injected_defect[provider claims spice]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_response_invariants.py::test_bench_detects_injected_defect[sample dropped]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_response_invariants.py::test_bench_detects_injected_defect[sample has offset timestamp]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_response_invariants.py::test_bench_detects_injected_defect[samples out of order]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_response_invariants.py::test_bench_detects_injected_defect[status claims computed]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_response_invariants.py::test_bench_detects_injected_defect[synthetic flag cleared]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_response_invariants.py::test_bench_detects_injected_defect[window clipped flag wrong]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_response_invariants.py::test_bench_detects_injected_defect[window edge not bracketed]",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_response_invariants.py::test_request_echo_mismatch_is_detected",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_response_invariants.py::test_plausibility_bounds_only_apply_to_computed",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_response_invariants.py::test_plausibility_bounds_reject_gross_errors",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_service_suites.py::test_rust_gateway_suite",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_service_suites.py::test_web_suite",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_service_suites.py::test_web_typecheck",
+      "outcome": "PASSED",
+      "detail": ""
+    },
+    {
+      "test": "test_service_suites.py::test_cpp_science_suite",
+      "outcome": "BLOCKED",
+      "detail": "no CMake build in C:\\Users\\shuay\\code maison\\projets perso\\lunar_landing\\Lunar-Landing\\services\\science\\build: build services/science first (README.md) or set SELENE_BENCH_SCIENCE_BUILD"
+    }
+  ]
+}

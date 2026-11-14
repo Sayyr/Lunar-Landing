@@ -101,9 +101,10 @@ async function loadElevation(dem: Dem, notes: string[], siteLat: number, progres
       demStream = state;
       void streamBands(base, manifest, hm.data, bandOrderNear(manifest, siteLat), (row0, rows) => {
         state.loaded++;
+        hm.extendRange(row0, rows);
         bandListeners.forEach((l) => l(row0, rows));
         streamListeners.forEach((l) => l({ ...state }));
-      }).then((n) => {
+      }).catch((e) => (console.warn("ldem_16 streaming failed:", e), 0)).then((n) => {
         state.done = true;
         if (n === state.total) hm.label = "ldem_16";
         else notes.push(`ldem_16: ${state.total - n} of ${state.total} bands failed; those latitudes stay at ldem_4 resolution.`);
@@ -429,6 +430,7 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
       canvas.addEventListener("pointerleave", onLeave);
       return () => {
         clearTimeout(longTimer);
+        pending = null;
         canvas.removeEventListener("pointermove", onMove);
         canvas.removeEventListener("pointerdown", onDown);
         canvas.removeEventListener("pointerup", onUp);

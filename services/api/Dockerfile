@@ -6,14 +6,16 @@ RUN g++ -O2 -static -o simulate simulate.cpp \
 
 FROM rust:1-slim-bookworm AS build
 WORKDIR /app/services/api
-COPY packages/contracts/fixtures/sites.json /app/packages/contracts/fixtures/sites.json
 COPY services/api/Cargo.toml services/api/Cargo.lock ./
+RUN mkdir src && echo 'fn main() {}' > src/main.rs && touch src/lib.rs && cargo build --release
+COPY packages/contracts/fixtures/sites.json /app/packages/contracts/fixtures/sites.json
 COPY services/api/src ./src
-RUN cargo build --release
+RUN touch src/main.rs src/lib.rs && cargo build --release
 
 FROM debian:bookworm-slim
 COPY --from=calculator /src/simulate /usr/local/lib/lunar-landing/calc-planete
 COPY --from=calculator /src/simulate-slow /usr/local/lib/lunar-landing/calc-radio
 COPY --from=build /app/services/api/target/release/lunar-landing /usr/local/bin/lunar-landing
+USER 65534:65534
 EXPOSE 8080
 CMD ["lunar-landing"]

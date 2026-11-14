@@ -3,6 +3,7 @@ use axum::extract::State;
 use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
 use axum::Json;
+use serde_json::{json, Value};
 
 use crate::envelope::{ApiError, FieldIssue};
 use crate::scenario::{ScenarioRequest, ScenarioResponse};
@@ -14,6 +15,20 @@ pub const SITES_JSON: &str = include_str!("../../../packages/contracts/fixtures/
 #[derive(Clone)]
 pub struct AppState {
     pub science: ScienceClient,
+}
+
+pub async fn health(State(state): State<AppState>) -> Json<Value> {
+    let (status, upstream, upstream_error) = match state.science.health().await {
+        Ok(v) => ("ok", v, Value::Null),
+        Err(e) => ("degraded", Value::Null, Value::String(e)),
+    };
+    Json(json!({
+        "service": "api",
+        "status": status,
+        "version": env!("CARGO_PKG_VERSION"),
+        "upstream": upstream,
+        "upstream_error": upstream_error,
+    }))
 }
 
 pub async fn sites() -> impl IntoResponse {

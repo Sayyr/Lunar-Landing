@@ -26,14 +26,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers: { "content-type": "application/json", ...init?.headers },
   });
   const text = await resp.text();
-  const json = text ? JSON.parse(text) : null;
-  if (!resp.ok) throw new ApiError(resp.status, json?.error ? (json as ErrorResponse) : null);
+  let json = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    if (resp.ok) throw new Error(`invalid JSON in response to ${path}`);
+  }
+  if (!resp.ok) throw new ApiError(resp.status, Array.isArray(json?.error?.details) ? (json as ErrorResponse) : null);
   return json as T;
 }
 
 export const api = {
-  health: () => request<HealthResponse>("/v1/health"),
-  sites: () => request<{ sites: PresetSite[] }>("/v1/sites").then((r) => r.sites),
+  health: (signal?: AbortSignal) => request<HealthResponse>("/v1/health", { signal }),
+  sites: (signal?: AbortSignal) => request<{ sites: PresetSite[] }>("/v1/sites", { signal }).then((r) => r.sites),
   evaluate: (req: ScenarioRequest) =>
     request<ScenarioResponse>("/v1/scenarios/evaluate", { method: "POST", body: JSON.stringify(req) }),
   /** SYNTHETIC demo data only — never for analysis. */
