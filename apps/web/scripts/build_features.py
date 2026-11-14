@@ -125,7 +125,7 @@ def main(src: str, dst: str) -> None:
     features.sort(key=lambda f: -f[2])  # grandes formations d'abord (lisibilité du fichier)
     out = {
         "source": "IAU/USGS Gazetteer of Planetary Nomenclature (Moon), " + src.rsplit("/", 1)[-1],
-        "generated_utc": dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generated_utc": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "conventions": "lat planetocentric deg; lon east-positive deg in [-180,180); diameter km",
         "fields": ["name", "type_code", "diameter_km", "lat_deg", "lon_deg"],
         "types": types,

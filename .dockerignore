@@ -1,0 +1,6 @@
+# Build context is the repo root (infra/compose.yaml). Keep it small and host-independent.
+**/node_modules
+apps/web/dist
+apps/web/data-raw
+services/api/target
+.git

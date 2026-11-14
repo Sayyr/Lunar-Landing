@@ -14,7 +14,7 @@ apps/web (React + TS + Vite + R3F)  --/api-->  services/api (Rust/Axum :8080)  -
 
 | Path | What |
 |---|---|
-| `apps/web` | UI: 3D Moon globe, scenario form, timeline, status badges |
+| `apps/web` | UI: lunar explorer (LOLA relief, IAU names, site picking), scenario form, timeline, Sun·Earth·Moon dashboard (mock), status badges — see `apps/web/README.md` |
 | `services/api` | Gateway: input validation, error envelope, forwarding to science. No astronomy math. |
 | `services/science` | Geometry, ephemeris providers (SPICE: stub; synthetic fixture), window extraction |
 | `packages/contracts` | JSON Schemas and fixtures shared by all three (see its README) |
@@ -52,6 +52,9 @@ cd services/api && cargo build && cd ../..
 
 # web
 cd apps/web && npm ci && cd ../..
+# optional NASA/IAU data for the 3D views (~90 MB; --light skips ldem_16). Without it the app
+# runs with plain spheres and says so. PYTHON=... selects a Python ≥ 3.11 for the IAU names.
+apps/web/scripts/setup-data.sh --light
 ```
 
 Run, either all at once (bash / Git Bash):
@@ -105,7 +108,7 @@ Errors always use `{"error": {"code", "message", "details": [{"field", "issue"}]
 
 Owners are assigned locally (see CONTEXT.md):
 Ephemerides → `services/science/.../ephemeris/spice.py` · Terrain → `data/`, new `terrain/` module ·
-Rust API → `services/api` (cache, `/scenarios/compare`) · 3D → `apps/web/src/components/MoonGlobe.tsx` ·
+Rust API → `services/api` (cache, `/scenarios/compare`) · 3D → `apps/web/src/lunar/` (Moon), `apps/web/src/components/celestial/` (Sun·Earth·Moon) ·
 UX/DataViz → `Timeline.tsx`, `ResultPanel.tsx`, comparison view · Integration/QA → CI, compose, `docs/`.
 Contract changes go through `packages/contracts` first.
 

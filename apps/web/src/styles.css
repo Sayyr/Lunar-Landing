@@ -16,6 +16,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body { margin: 0; background: var(--bg); }
 h1 { margin: 0; letter-spacing: 0.3em; font-weight: 600; }
 h4 { margin: 0.8rem 0 0.3rem; font-size: 0.85rem; color: var(--muted); }
@@ -34,11 +35,8 @@ h4 { margin: 0.8rem 0 0.3rem; font-size: 0.85rem; color: var(--muted); }
 .badge.bad { border-color: var(--bad); color: var(--bad); }
 .badge.pending { color: var(--muted); }
 
-.globe { background: radial-gradient(circle at 50% 40%, #161b26, var(--bg)); border: 1px solid var(--line);
-  border-radius: 8px; display: flex; flex-direction: column; min-height: 420px; }
-.globe canvas { flex: 1; min-height: 380px; cursor: crosshair; }
+
 .caption { font-size: 0.78rem; color: var(--muted); margin: 0; padding: 0.5rem 0.75rem; }
-.gold { color: #d9a441; } .blue { color: #7fb3ff; } .red { color: #ff5a5f; }
 
 .side { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
 .form, .result { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1rem; }
@@ -82,3 +80,113 @@ button:disabled { opacity: 0.5; cursor: wait; }
 details { margin-top: 0.6rem; font-size: 0.8rem; }
 details summary { cursor: pointer; color: var(--muted); }
 details ul { padding-left: 1.1rem; margin: 0.3rem 0; }
+
+/* ---- Tabs ---- */
+.tabs { display: flex; gap: 0.25rem; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 0.2rem; }
+.tabs a { color: var(--muted); text-decoration: none; padding: 0.35rem 0.8rem; border-radius: 6px; font-size: 0.85rem; }
+.tabs a.active { background: #2b3546; color: var(--text); }
+
+/* ---- Sun · Earth · Moon dashboard ---- */
+.dash-main { flex: 1; padding: 1rem 1.25rem; }
+.dash { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 400px); gap: 1rem; height: 100%; }
+@media (max-width: 960px) { .dash { grid-template-columns: 1fr; } }
+.dash-scene { display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; }
+.view-toggle { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.view-toggle button.active, .play-row button.active { background: #3b4f72; border-color: #5a75a6; }
+.celestial-canvas { flex: 1; display: flex; flex-direction: column; background: #05070b; border: 1px solid var(--line);
+  border-radius: 8px; min-height: 520px; overflow: hidden; }
+.celestial-canvas > div:first-child { flex: 1; min-height: 460px; }
+.celestial-canvas.placeholder { align-items: center; justify-content: center; color: var(--muted); }
+.body-label { color: var(--text); font-size: 11px; white-space: nowrap; background: rgba(11, 13, 18, 0.65);
+  padding: 1px 6px; border-radius: 3px; pointer-events: none; user-select: none; }
+.axis-label { color: #6b7894; font-size: 10px; white-space: nowrap; pointer-events: none; user-select: none; }
+.axis-label.sun { color: var(--sun); }
+
+.dash-side { display: flex; flex-direction: column; gap: 0.8rem; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 0.9rem 1rem; }
+.card h3 { margin: 0 0 0.6rem; font-size: 0.95rem; font-weight: 600; display: flex; align-items: center; gap: 0.45rem; }
+.card summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.dot.moon { background: #c9ced8; } .dot.sun { background: var(--sun); }
+.date-input { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px;
+  padding: 0.45rem; font: inherit; color-scheme: dark; }
+.step-buttons { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.3rem; margin-top: 0.5rem; }
+.step-buttons button { padding: 0.4rem 0; font-size: 0.82rem; }
+.scrub { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.7rem; font-size: 0.78rem; color: var(--muted); }
+.scrub b { color: var(--text); font-weight: 600; }
+.scrub input { width: 100%; accent-color: var(--earth); }
+.play-row { display: flex; gap: 0.5rem; margin-top: 0.6rem; }
+.play-row select { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 0.3rem; font: inherit; }
+.phase-row { display: flex; align-items: center; gap: 0.9rem; margin-bottom: 0.6rem; }
+.big { font-size: 1.15rem; font-weight: 600; }
+.kv { display: grid; grid-template-columns: 1fr auto; gap: 0.28rem 0.8rem; margin: 0; font-size: 0.84rem; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; font-family: ui-monospace, monospace; font-size: 0.8rem; }
+.kv.small dd { text-align: left; font-family: inherit; }
+.kv.small { grid-template-columns: max-content 1fr; margin-top: 0.6rem; }
+.small { font-size: 0.76rem; }
+.warn-text { color: var(--synthetic); }
+.view-toggle .check { display: flex; align-items: center; gap: 0.35rem; font-size: 0.82rem; color: var(--muted); margin-left: auto; }
+
+/* ---- Lunar explorer (ported from apps/moon-explorer/css/style.css, scoped to .lunar) ---- */
+.lunar { --l-panel: rgba(14, 16, 20, 0.88); --l-line: rgba(255, 255, 255, 0.1); --l-accent: #7fd4ff; --l-warn: #ffb347;
+  --l-panel-w: 300px; position: relative; overflow: hidden; background: #000; border: 1px solid var(--line);
+  border-radius: 8px; min-height: 560px; height: calc(100vh - 190px); font-size: 14px; line-height: 1.45; }
+.lunar-globe { position: absolute; inset: 0; }
+.lunar-globe canvas { display: block; touch-action: none; cursor: crosshair; }
+
+.lunar-tooltip { position: fixed; left: 0; top: 0; z-index: 50; pointer-events: none; padding: 8px 10px; max-width: 280px;
+  background: rgba(0, 0, 0, 0.78); border: 1px solid var(--l-line, rgba(255,255,255,0.1)); border-radius: 6px;
+  font-variant-numeric: tabular-nums; font-size: 13px; backdrop-filter: blur(4px); }
+.lunar-tooltip[hidden] { display: none; }
+.lunar .feat, .lunar-tooltip .feat { margin-top: 4px; color: #7fd4ff; }
+.lunar .feat small, .lunar-tooltip .feat small { display: block; color: var(--muted); }
+.lunar .feat.none, .lunar-tooltip .feat.none { color: var(--muted); }
+
+.lunar-panel { position: absolute; top: 0; right: 0; bottom: 0; z-index: 4; width: var(--l-panel-w); max-width: 100%;
+  overflow-y: auto; padding: 14px 14px 16px; background: var(--l-panel); border-left: 1px solid var(--l-line);
+  backdrop-filter: blur(8px); transition: transform 0.25s ease; }
+.lunar.panel-collapsed .lunar-panel { transform: translateX(100%); }
+.lunar-panel-toggle { position: absolute; top: 10px; right: calc(var(--l-panel-w) + 10px); z-index: 6; width: 34px;
+  height: 34px; padding: 0; font-size: 18px; transition: right 0.25s ease; }
+.lunar.panel-collapsed .lunar-panel-toggle { right: 10px; }
+
+.lunar h2 { margin: 0 0 8px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.lunar section { padding: 12px 0; border-top: 1px solid var(--l-line); margin-top: 12px; }
+.lunar section.small { font-size: 12px; }
+.lunar section.small ul { padding-left: 16px; margin: 6px 0; }
+.lunar a { color: var(--l-accent); }
+.lunar .readout { font-variant-numeric: tabular-nums; margin-bottom: 8px; }
+.lunar .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.lunar .warn, .lunar .warn-list { color: var(--l-warn); font-size: 12px; }
+.lunar button, .lunar input, .lunar select { font: inherit; color: var(--text); background: #1a1d23;
+  border: 1px solid var(--l-line); border-radius: 6px; }
+.lunar button { padding: 6px 10px; cursor: pointer; }
+.lunar button:hover:not(:disabled) { border-color: var(--l-accent); }
+.lunar button:disabled { opacity: 0.4; cursor: default; }
+.lunar input[type="search"], .lunar input[type="text"], .lunar select { width: 100%; padding: 7px 9px; }
+.lunar .copy-fallback { margin-top: 8px; }
+.lunar label { display: block; margin: 8px 0; }
+.lunar label.check { display: flex; align-items: center; gap: 8px; }
+.lunar label.slider output { float: right; color: var(--l-accent); font-variant-numeric: tabular-nums; }
+.lunar input[type="range"] { width: 100%; accent-color: var(--l-accent); background: none; border: 0; }
+.lunar-results { list-style: none; margin: 6px 0; padding: 0; max-height: 240px; overflow-y: auto; }
+.lunar-results button { width: 100%; text-align: left; border: 0; border-radius: 4px; background: transparent; padding: 5px 6px; }
+.lunar-results button:hover { background: #22262e; }
+.lunar-results small { display: block; color: var(--muted); font-size: 11px; }
+
+.lunar-loader { position: absolute; inset: 0; z-index: 10; display: grid; place-items: center; background: #000; }
+.lunar .loader-box { width: min(320px, 80%); text-align: center; }
+.lunar .loader-title { font-size: 18px; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 12px; }
+.lunar .loader-msg { color: var(--muted); font-size: 13px; min-height: 2.8em; }
+.lunar .loader-track { height: 3px; background: #222; border-radius: 2px; overflow: hidden; margin: 10px 0 6px; }
+.lunar .loader-bar { height: 100%; width: 0; background: var(--l-accent); transition: width 0.15s linear; }
+.lunar .loader-pct { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.lunar-loader.error .loader-msg { color: var(--l-warn); }
+.lunar-loader.error .loader-track { background: var(--l-warn); }
+
+@media (max-width: 640px) {
+  .lunar { --l-panel-w: 100%; }
+  .lunar-panel { border-left: 0; }
+  .lunar-panel-toggle, .lunar.panel-collapsed .lunar-panel-toggle { right: 10px; }
+}

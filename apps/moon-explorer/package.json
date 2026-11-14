@@ -1,9 +1,0 @@
-{
-  "name": "moon-explorer",
-  "private": true,
-  "type": "module",
-  "description": "Site statique : Lune 3D (three.js). Aucune dépendance npm ; ce fichier ne sert qu'aux tests.",
-  "scripts": {
-    "test": "node --test tests/*.test.mjs"
-  }
-}

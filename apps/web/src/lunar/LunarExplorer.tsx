@@ -1,0 +1,518 @@
+// Interactive Moon explorer (ported from apps/moon-explorer/js/main.js + index.html):
+// LOLA relief, LROC colour, IAU feature names, hover read-out, search, markers.
+// A click also selects the scenario site (onPick).
+//
+// Public DOM events (bubbling, emitted on the explorer root):
+//   'moonhover' and 'moonclick', detail = { lat, lon, altM, feature }
+//   feature = null | { name, type, diameterKm, lat, lon, distanceKm }
+
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import { type Feature, FeatureIndex, type FeaturesJson, type PublicFeature, publicFeature } from "./features";
+import { formatAltM, formatLat, formatLon, roundLon } from "./geo";
+import { Globe } from "./globe";
+import type { Heightmap } from "./heightmap";
+import { DATA_BASE, loadHeightmap, loadImage, loadJson, type Progress, SETUP_HINT } from "./loaders";
+
+// Base URL of the elevation rasters: point it at R2/a CDN (CORS required) if ldem_16 exceeds the
+// host's file-size limit (25 MiB on Cloudflare Pages).
+const DEM_BASE: string = (import.meta.env.VITE_LUNAR_DEM_BASE || DATA_BASE).replace(/\/?$/, "/");
+
+export interface MoonPointInfo {
+  lat: number;
+  lon: number;
+  altM: number | null;
+  feature: PublicFeature | null;
+}
+
+type Dem = "4" | "16";
+
+const isMobile = () => matchMedia("(pointer: coarse)").matches || Math.min(screen.width, screen.height) < 700;
+
+/**
+ * ?dem=4 or ?dem=16 forces the raster; otherwise ldem_4 on mobile / small screens, ldem_16 elsewhere.
+ * Cached: the GPU probe creates a throwaway WebGL context.
+ */
+let demChoice: { dem: Dem | null; notes: string[] } | null = null;
+function chooseDem(): { dem: Dem | null; notes: string[] } {
+  if (demChoice) return demChoice;
+  const notes: string[] = [];
+  const forced = new URLSearchParams(location.search).get("dem");
+  let dem: Dem = forced === "4" || forced === "16" ? forced : isMobile() ? "4" : "16";
+  const probe = document.createElement("canvas").getContext("webgl2");
+  if (!probe) return (demChoice = { dem: null, notes });
+  const maxTex = probe.getParameter(probe.MAX_TEXTURE_SIZE) as number;
+  probe.getExtension("WEBGL_lose_context")?.loseContext();
+  // ldem_16 is 5760 px wide: impossible if the GPU caps textures at 4096.
+  if (dem === "16" && maxTex < 5760) {
+    notes.push(`Max texture ${maxTex} px: ldem_16 (5760 px) unsupported, using ldem_4.`);
+    dem = "4";
+  }
+  return (demChoice = { dem, notes });
+}
+
+// Data is loaded once per page and shared across remounts (React StrictMode, hot reload):
+// one CPU copy of the raster, as in moon-explorer.
+interface LunarData {
+  colorImage: HTMLImageElement | null;
+  heightmap: Heightmap | null;
+  features: FeaturesJson | null;
+  notes: string[];
+}
+let dataPromise: Promise<LunarData> | null = null;
+const progressListeners = new Set<(pct: number | null) => void>();
+
+function loadLunarData(dem: Dem, notes: string[]): Promise<LunarData> {
+  if (dataPromise) return dataPromise;
+  const parts = { color: 0, dem: 0, names: 0 };
+  const weights = { color: 0.25, dem: 0.65, names: 0.1 };
+  let lastPct: number | null = -1;
+  const progress = (key: keyof typeof parts): Progress => (f) => {
+    parts[key] = f ?? parts[key];
+    const total = (Object.keys(parts) as (keyof typeof parts)[]).reduce((s, k) => s + parts[k] * weights[k], 0);
+    // One notification per whole percent, not per network chunk (thousands for ldem_16).
+    const pct = f == null ? null : Math.round(total * 100);
+    if (pct === lastPct) return;
+    lastPct = pct;
+    progressListeners.forEach((l) => l(pct == null ? null : pct / 100));
+  };
+  dataPromise = Promise.all([
+    loadImage(`${DATA_BASE}moon_color.jpg`, progress("color")).catch((e: Error) => {
+      notes.push(`Colour mosaic unavailable (${e.message}): untextured sphere — ${SETUP_HINT}.`);
+      return null;
+    }),
+    loadHeightmap(`${DEM_BASE}ldem_${dem}.tif`, `ldem_${dem}`, progress("dem"))
+      // `setup-data.sh --light` installs ldem_4 only: fall back to it rather than a flat Moon.
+      .catch((e: Error) => {
+        if (dem !== "16") throw e;
+        notes.push(`ldem_16 unavailable (${e.message}): using ldem_4.`);
+        return loadHeightmap(`${DEM_BASE}ldem_4.tif`, "ldem_4", progress("dem"));
+      })
+      .catch((e: Error) => {
+        notes.push(`Elevation raster unavailable (${e.message}): flat sphere, no altitude — ${SETUP_HINT}.`);
+        return null;
+      }),
+    loadJson<FeaturesJson>(`${DATA_BASE}features.json`, progress("names")).catch((e: Error) => {
+      notes.push(`Feature names unavailable (${e.message}) — ${SETUP_HINT}.`);
+      return null;
+    }),
+  ]).then(([colorImage, heightmap, features]) => ({ colorImage, heightmap, features, notes }));
+  return dataPromise;
+}
+
+/** Read-out text shared by the last-click panel (JSX) and the hover tooltip (DOM). */
+function infoText(info: MoonPointInfo) {
+  const f = info.feature;
+  return {
+    coords: `${formatLat(info.lat)}   ${formatLon(info.lon, info.lat)}`,
+    elevation: `Elevation ${formatAltM(info.altM)}`,
+    feature: f ? f.name : "No named feature",
+    detail: f ? `${f.type} · ${f.distanceKm.toFixed(0)} km from centre` : null,
+  };
+}
+
+function InfoLines({ info }: { info: MoonPointInfo }) {
+  const t = infoText(info);
+  return (
+    <>
+      <div style={{ whiteSpace: "pre" }}>{t.coords}</div>
+      <div>{t.elevation}</div>
+      <div className={t.detail ? "feat" : "feat none"}>
+        {t.feature} {t.detail && <small>{t.detail}</small>}
+      </div>
+    </>
+  );
+}
+
+/** Tooltip content built with textContent (no innerHTML, no React render) — hover runs every frame. */
+function fillTooltip(el: HTMLElement, info: MoonPointInfo) {
+  const t = infoText(info);
+  const line = (text: string, cls?: string) => {
+    const d = document.createElement("div");
+    d.textContent = text;
+    if (cls) d.className = cls;
+    return d;
+  };
+  const featEl = line(t.feature, t.detail ? "feat" : "feat none");
+  if (t.detail) featEl.append(Object.assign(document.createElement("small"), { textContent: t.detail }));
+  el.replaceChildren(line(t.coords), line(t.elevation), featEl);
+}
+
+function placeTooltip(tip: HTMLElement, x: number, y: number) {
+  const pad = 16;
+  const r = tip.getBoundingClientRect();
+  let left = x + pad;
+  let top = y + pad;
+  if (left + r.width > innerWidth - 8) left = x - r.width - pad;
+  if (top + r.height > innerHeight - 8) top = y - r.height - pad;
+  tip.style.transform = `translate(${Math.max(8, left)}px, ${Math.max(8, top)}px)`;
+}
+
+interface Props {
+  /** false while the tab is hidden: the render loop is paused. */
+  active: boolean;
+  siteLat: number;
+  siteLon: number;
+  /** Called when the user clicks (long-press on touch) a surface point. */
+  onPick: (lat: number, lon: number) => void;
+}
+
+export function LunarExplorer({ active, siteLat, siteLon, onPick }: Props) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const hostRef = useRef<HTMLDivElement>(null);
+  const tipRef = useRef<HTMLDivElement>(null);
+  const onPickRef = useRef(onPick);
+  const siteRef = useRef({ lat: siteLat, lon: siteLon });
+  const mobile = useMemo(isMobile, []);
+
+  const [globe, setGlobe] = useState<Globe | null>(null);
+  const [index, setIndex] = useState<FeatureIndex | null>(null);
+  const [loadPct, setLoadPct] = useState<number | null>(0);
+  const [fatal, setFatal] = useState<string | null>(null);
+  const [notes, setNotes] = useState<string[]>([]);
+  const [dataset, setDataset] = useState("");
+  const [demLabel, setDemLabel] = useState<Dem>("4");
+  const [exag, setExag] = useState(2);
+  const [grid, setGrid] = useState(false);
+  const [refine, setRefine] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(!mobile);
+  const [lastClick, setLastClick] = useState<MoonPointInfo | null>(null);
+  const [query, setQuery] = useState("");
+  const [found, setFound] = useState<Feature | null>(null);
+  const [copyLabel, setCopyLabel] = useState("Copy lat, lon");
+  const [copyFallback, setCopyFallback] = useState<string | null>(null);
+
+  useEffect(() => {
+    onPickRef.current = onPick;
+    siteRef.current = { lat: siteLat, lon: siteLon };
+  });
+
+  // --- Boot: load data once, build the globe, wire pointer interactions ---------------------
+  useEffect(() => {
+    const host = hostRef.current!;
+    const root = rootRef.current!;
+    const tip = tipRef.current!;
+    let cancelled = false;
+    let g: Globe | null = null;
+    let detach = () => {};
+
+    const { dem, notes: demNotes } = chooseDem();
+    const notesAcc = [...demNotes];
+    if (!dem) {
+      setFatal("WebGL 2 is not available in this browser.");
+      return;
+    }
+    setDemLabel(dem);
+    const onProgress = (p: number | null) => !cancelled && setLoadPct(p);
+    progressListeners.add(onProgress);
+
+    loadLunarData(dem, notesAcc)
+      .then((data) => {
+        if (cancelled) return;
+        const site = siteRef.current;
+        g = new Globe(host, {
+          colorImage: data.colorImage,
+          heightmap: data.heightmap,
+          segments: mobile ? 512 : 1024,
+          initialView: site,
+        });
+        const idx = new FeatureIndex(data.features ?? { types: {}, features: [] });
+        const allNotes = [...new Set([...notesAcc, ...data.notes])];
+        if (data.heightmap && !g.floatLinear) allNotes.push("float32 linear filtering unavailable: relief sampled with 'nearest'.");
+        const hm = data.heightmap;
+        if (hm) setDemLabel(hm.label === "ldem_16" ? "16" : "4");
+        setDataset(
+          (hm ? `${hm.label} · ${hm.width}×${hm.height} px · ≈ ${hm.kmPerPixel.toFixed(1)} km/px at the equator` : "no elevation raster") +
+            ` · ${idx.features.length} features`,
+        );
+        setNotes(allNotes);
+        setIndex(idx);
+        setGlobe(g);
+        detach = attachPointer(g, idx, root, tip);
+      })
+      .catch((e: Error) => !cancelled && setFatal(`Loading failed: ${e.message}`));
+
+    function attachPointer(gl: Globe, idx: FeatureIndex, rootEl: HTMLElement, tipEl: HTMLElement) {
+      const canvas = gl.renderer.domElement;
+
+      const describe = (x: number, y: number): MoonPointInfo | null => {
+        const hit = gl.pick(x, y);
+        if (!hit) return null;
+        return { ...hit, feature: publicFeature(idx.nearest(hit.lat, hit.lon)) };
+      };
+      const hover = (x: number, y: number) => {
+        const info = describe(x, y);
+        if (!info) {
+          tipEl.hidden = true;
+          return;
+        }
+        fillTooltip(tipEl, info);
+        tipEl.hidden = false;
+        placeTooltip(tipEl, x, y);
+        rootEl.dispatchEvent(new CustomEvent("moonhover", { detail: info, bubbles: true }));
+      };
+      const click = (x: number, y: number) => {
+        const info = describe(x, y);
+        if (!info) return;
+        gl.addMarker(info.lat, info.lon);
+        setLastClick(info);
+        // Re-wrap after rounding: 179.99996 would round to 180, outside the API's [-180, 180).
+        onPickRef.current(+info.lat.toFixed(4), roundLon(info.lon, 4));
+        rootEl.dispatchEvent(new CustomEvent("moonclick", { detail: info, bubbles: true }));
+      };
+
+      // Hover throttled to one pick per animation frame.
+      let pending: { x: number; y: number } | null = null;
+      let scheduled = false;
+      const queueHover = (x: number, y: number) => {
+        pending = { x, y };
+        if (scheduled) return;
+        scheduled = true;
+        requestAnimationFrame(() => {
+          scheduled = false;
+          if (pending) hover(pending.x, pending.y);
+        });
+      };
+
+      // Mouse: continuous hover; click = press/release without dragging.
+      // Touch: tap = hover (tooltip); long press (≥ 550 ms) = click (marker).
+      let down: { x: number; y: number; moved: boolean; type: string; long: boolean } | null = null;
+      let longTimer = 0;
+      const onMove = (e: PointerEvent) => {
+        if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) {
+          down.moved = true;
+          clearTimeout(longTimer);
+        }
+        if (e.pointerType === "mouse") queueHover(e.clientX, e.clientY);
+      };
+      const onDown = (e: PointerEvent) => {
+        down = { x: e.clientX, y: e.clientY, moved: false, type: e.pointerType, long: false };
+        if (e.pointerType !== "mouse") {
+          longTimer = window.setTimeout(() => {
+            if (down && !down.moved) {
+              down.long = true;
+              click(down.x, down.y);
+              navigator.vibrate?.(15);
+            }
+          }, 550);
+        }
+      };
+      const onUp = (e: PointerEvent) => {
+        clearTimeout(longTimer);
+        if (!down || down.moved) {
+          down = null;
+          return;
+        }
+        if (down.type === "mouse") click(e.clientX, e.clientY);
+        else if (!down.long) hover(e.clientX, e.clientY);
+        down = null;
+      };
+      const onLeave = (e: PointerEvent) => {
+        if (e.pointerType === "mouse") tipEl.hidden = true;
+      };
+      canvas.addEventListener("pointermove", onMove);
+      canvas.addEventListener("pointerdown", onDown);
+      canvas.addEventListener("pointerup", onUp);
+      canvas.addEventListener("pointerleave", onLeave);
+      return () => {
+        clearTimeout(longTimer);
+        canvas.removeEventListener("pointermove", onMove);
+        canvas.removeEventListener("pointerdown", onDown);
+        canvas.removeEventListener("pointerup", onUp);
+        canvas.removeEventListener("pointerleave", onLeave);
+        tipEl.hidden = true;
+      };
+    }
+
+    return () => {
+      cancelled = true;
+      progressListeners.delete(onProgress);
+      detach();
+      g?.dispose();
+      setGlobe(null);
+    };
+  }, [mobile]);
+
+  // --- Settings → globe ---------------------------------------------------------------------
+  useEffect(() => globe?.setExaggeration(exag), [globe, exag]);
+  useEffect(() => globe?.setGridVisible(grid), [globe, grid]);
+  useEffect(() => {
+    if (globe) globe.refinePick = refine;
+  }, [globe, refine]);
+  useEffect(() => globe?.setSite(siteLat, siteLon), [globe, siteLat, siteLon]);
+  useEffect(() => globe?.setActive(active), [globe, active]);
+
+  const results = useMemo(() => index?.search(query, 12) ?? [], [index, query]);
+
+  const goTo = (f: Feature) => {
+    globe?.flyTo(f.lat, f.lon, f.radiusKm);
+    globe?.showRing(f.lat, f.lon, f.radiusKm);
+    setFound(f);
+    if (mobile) setPanelOpen(false);
+  };
+
+  const copy = async () => {
+    if (!lastClick) return;
+    // Signed decimal, east-positive longitude: readable by most tools.
+    const text = `${lastClick.lat.toFixed(5)}, ${roundLon(lastClick.lon, 5).toFixed(5)}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyLabel("Copied ✓");
+      setTimeout(() => setCopyLabel("Copy lat, lon"), 1200);
+    } catch {
+      // Clipboard refused (insecure http…): show the text, selected.
+      setCopyFallback(text);
+    }
+  };
+
+  const changeQuality = (dem: string) => {
+    // Changing quality reloads the page: guarantees a single copy of the raster in memory.
+    const url = new URL(location.href);
+    url.searchParams.set("dem", dem);
+    location.href = url.toString();
+  };
+
+  const loaded = globe !== null;
+
+  return (
+    <div ref={rootRef} className={`lunar${panelOpen ? "" : " panel-collapsed"}`}>
+      <div ref={hostRef} className="lunar-globe" aria-label="Interactive lunar globe" />
+      <div ref={tipRef} className="lunar-tooltip" role="status" aria-live="polite" hidden />
+
+      <button
+        className="lunar-panel-toggle"
+        type="button"
+        aria-expanded={panelOpen}
+        title="Panel"
+        onClick={() => setPanelOpen((o) => !o)}
+      >
+        ☰
+      </button>
+
+      <aside className="lunar-panel">
+        <h2>Last clicked point</h2>
+        <div className={`readout${lastClick ? "" : " muted"}`}>
+          {lastClick ? <InfoLines info={lastClick} /> : "Click the surface (long-press on touch) to place a marker and select the scenario site."}
+        </div>
+        <div className="row">
+          <button type="button" disabled={!lastClick} onClick={copy}>
+            {copyLabel}
+          </button>
+          <button type="button" onClick={() => globe?.clearMarkers()}>
+            Clear markers
+          </button>
+        </div>
+        {copyFallback && <input className="copy-fallback" type="text" readOnly value={copyFallback} onFocus={(e) => e.target.select()} autoFocus aria-label="Coordinates" />}
+
+        <section>
+          <h2>Find a feature</h2>
+          <input
+            type="search"
+            placeholder="Tycho, Mare Imbrium, Shackleton…"
+            autoComplete="off"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && results.length > 0 && goTo(results[0])}
+          />
+          <ul className="lunar-results">
+            {results.map((f) => (
+              <li key={`${f.name}|${f.lat}|${f.lon}`}>
+                <button type="button" onClick={() => goTo(f)}>
+                  {f.name}
+                  <small>
+                    {f.type} · {f.diameterKm.toFixed(0)} km
+                  </small>
+                </button>
+              </li>
+            ))}
+          </ul>
+          {found && (
+            <div className="readout">
+              <strong>{found.name}</strong> — {found.type}
+              <br />
+              {formatLat(found.lat)}, {formatLon(found.lon, found.lat)} · Ø {found.diameterKm.toFixed(1)} km
+            </div>
+          )}
+        </section>
+
+        <section>
+          <h2>Display</h2>
+          <label className="slider">
+            Relief exaggeration <output>{exag.toFixed(1)}×</output>
+            <input type="range" min={0} max={10} step={0.5} value={exag} onChange={(e) => setExag(Number(e.target.value))} />
+          </label>
+          <label className="check">
+            <input type="checkbox" checked={grid} onChange={(e) => setGrid(e.target.checked)} /> Lat/lon grid (15°)
+          </label>
+          <label className="check">
+            <input type="checkbox" checked={refine} onChange={(e) => setRefine(e.target.checked)} /> Pick on displayed relief
+          </label>
+          {!refine && exag >= 2 && (
+            <p className="warn">
+              Picking on the undisplaced sphere: with strong exaggeration the read-out point can be offset from the
+              visible relief (parallax).
+            </p>
+          )}
+          <label className="select">
+            Relief quality
+            <select value={demLabel} onChange={(e) => changeQuality(e.target.value)}>
+              <option value="4">ldem_4 — 4 px/°, 4 MB (light)</option>
+              <option value="16">ldem_16 — 16 px/°, 66 MB</option>
+            </select>
+          </label>
+        </section>
+
+        <section className="small">
+          <h2>Data &amp; limits</h2>
+          <p className="muted">{dataset}</p>
+          {notes.length > 0 && (
+            <ul className="warn-list">
+              {notes.map((n) => (
+                <li key={n}>{n}</li>
+              ))}
+            </ul>
+          )}
+          <ul>
+            <li>
+              Elevation: LOLA raster from the CGI Moon Kit, relative to a 1737.4 km sphere (not a geoid); interpolated
+              value, accuracy limited by raster resolution.
+            </li>
+            <li>
+              Planetocentric latitude, east-positive longitude. LOLA and the IAU gazetteer are assumed to share the same
+              frame (Mean Earth / Polar Axis).
+            </li>
+            <li>
+              Feature shown: nearest IAU centre whose circle (IAU diameter / 2) contains the point — circular
+              approximation of the outlines.
+            </li>
+            <li>Lighting is purely illustrative: it is not the real Sun position.</li>
+          </ul>
+          <p className="muted">
+            Sources: NASA SVS{" "}
+            <a href="https://svs.gsfc.nasa.gov/4720" target="_blank" rel="noopener">
+              CGI Moon Kit
+            </a>{" "}
+            (LRO LROC WAC, LOLA);{" "}
+            <a href="https://planetarynames.wr.usgs.gov" target="_blank" rel="noopener">
+              IAU/USGS Gazetteer of Planetary Nomenclature
+            </a>
+            .
+          </p>
+        </section>
+      </aside>
+
+      {!loaded && (
+        <div className={`lunar-loader${fatal ? " error" : ""}`}>
+          <div className="loader-box">
+            <div className="loader-title">Moon 3D</div>
+            <div className="loader-msg">{fatal ?? `Downloading (relief ldem_${demLabel})…`}</div>
+            <div className="loader-track">
+              <div className="loader-bar" style={{ width: `${((loadPct ?? 0) * 100).toFixed(1)}%` }} />
+            </div>
+            <div className="loader-pct">{loadPct == null ? "…" : `${Math.round(loadPct * 100)} %`}</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
