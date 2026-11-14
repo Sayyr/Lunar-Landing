@@ -50,9 +50,7 @@ function colorSourceFrom(img: HTMLImageElement | null): ColorSource | undefined 
   let mean = 0;
   for (let i = 0; i < px.length; i += 4) mean += px[i] + px[i + 1] + px[i + 2];
   mean /= (px.length / 4) * 3 * 255;
-  // Mean → 0.34: regolith is dark (normal albedo ≈ 0.1–0.2, highlands brighter than maria); a bit
-  // above the physical value only because the display has no exposure control.
-  const k = 0.34 / mean;
+  const k = 0.62 / mean; // mean → 0.62 (linear-ish grey), relative brightness kept
   // The WAC colour product is contrast-enhanced: keep 35 % of its tint so the ground reads grey
   // with a faint real hue, as seen by eye.
   const SAT = 0.35;
