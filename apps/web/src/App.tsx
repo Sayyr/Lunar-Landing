@@ -1,13 +1,17 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 
 import { api, ApiError } from "./api/client";
 import type { PresetSite, ScenarioRequest, ScenarioResponse } from "./api/types";
 import { ResultPanel } from "./components/ResultPanel";
 import { ScenarioForm } from "./components/ScenarioForm";
 import { ServiceStatus } from "./components/ServiceStatus";
-import { CelestialDashboard } from "./components/celestial/CelestialDashboard";
 import { REPO_URL } from "./lib/links";
 import { LunarExplorer } from "./lunar/LunarExplorer";
+import { RadioLinkPanel } from "./components/RadioLinkPanel";
+
+const CelestialDashboard = lazy(() =>
+  import("./components/celestial/CelestialDashboard").then((m) => ({ default: m.CelestialDashboard })),
+);
 
 type Tab = "scenario" | "sky";
 const tabFromHash = (): Tab => (window.location.hash === "#/sky" ? "sky" : "scenario");
@@ -28,6 +32,8 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<Tab>(tabFromHash);
+  const [skyOpened, setSkyOpened] = useState(tab === "sky");
+  if (tab === "sky" && !skyOpened) setSkyOpened(true);
 
   useEffect(() => {
     const onHash = () => setTab(tabFromHash());
@@ -36,7 +42,9 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    api.sites().then(setSites).catch(() => setSites([]));
+    const ctrl = new AbortController();
+    api.sites(ctrl.signal).then(setSites).catch(() => setSites([]));
+    return () => ctrl.abort();
   }, []);
 
   const run = async (call: (r: ScenarioRequest) => Promise<ScenarioResponse>) => {
@@ -68,7 +76,11 @@ export function App() {
       </header>
       {/* Both views stay mounted (hidden + paused) so switching tabs keeps the globe, its GPU data and state. */}
       <main className="dash-main" hidden={tab !== "sky"}>
-        <CelestialDashboard active={tab === "sky"} />
+        {skyOpened && (
+          <Suspense fallback={null}>
+            <CelestialDashboard active={tab === "sky"} />
+          </Suspense>
+        )}
       </main>
       <main className="scenario-main" hidden={tab !== "scenario"}>
         <LunarExplorer
@@ -92,6 +104,7 @@ export function App() {
           />
           {error && <div className="error" role="alert">{error}</div>}
           {result && <ResultPanel result={result} />}
+          <RadioLinkPanel scenario={request} />
           <ServiceStatus />
           <p className="muted small">
             Geometric visibility is not a power or communications guarantee. Not NASA-certified; not flight-ready.

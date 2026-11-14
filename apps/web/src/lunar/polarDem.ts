@@ -157,6 +157,16 @@ export class PolarDem {
     }));
   }
 
+  /**
+   * Decoded value (offset + v × step) of one level pixel, NaN if outside / missing / no data / not
+   * loaded. Km for height tiles; degrees for the derived slope/aspect tiles (polar_s_slope).
+   */
+  pixelValue(level: number, line: number, sample: number): number {
+    const L = this.manifest.levels[level];
+    if (!L || line < 0 || sample < 0 || line >= L.lines || sample >= L.samples) return NaN;
+    return this.pixel(level, line, sample);
+  }
+
   /** Height (km) of one level pixel, NaN if missing / no data / not loaded. */
   private pixel(level: number, line: number, sample: number): number {
     const T = this.manifest.tile;

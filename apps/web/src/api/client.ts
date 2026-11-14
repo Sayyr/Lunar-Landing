@@ -1,4 +1,14 @@
-import type { ErrorResponse, HealthResponse, PresetSite, ScenarioRequest, ScenarioResponse } from "./types";
+import type {
+  ErrorResponse,
+  HealthResponse,
+  PresetSite,
+  RadioLinkRequest,
+  RadioLinkResponse,
+  ScenarioRequest,
+  ScenarioResponse,
+  SlopeCheckRequest,
+  SlopeCheckResponse,
+} from "./types";
 
 // Relative base: Vite dev proxy (and nginx in Docker) forward /api/* to the Rust gateway.
 const BASE = import.meta.env.VITE_API_BASE ?? "/api";
@@ -18,17 +28,28 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers: { "content-type": "application/json", ...init?.headers },
   });
   const text = await resp.text();
-  const json = text ? JSON.parse(text) : null;
-  if (!resp.ok) throw new ApiError(resp.status, json?.error ? (json as ErrorResponse) : null);
+  let json = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    if (resp.ok) throw new Error(`invalid JSON in response to ${path}`);
+  }
+  if (!resp.ok) throw new ApiError(resp.status, Array.isArray(json?.error?.details) ? (json as ErrorResponse) : null);
   return json as T;
 }
 
 export const api = {
-  health: () => request<HealthResponse>("/v1/health"),
-  sites: () => request<{ sites: PresetSite[] }>("/v1/sites").then((r) => r.sites),
+  health: (signal?: AbortSignal) => request<HealthResponse>("/v1/health", { signal }),
+  sites: (signal?: AbortSignal) => request<{ sites: PresetSite[] }>("/v1/sites", { signal }).then((r) => r.sites),
   evaluate: (req: ScenarioRequest) =>
     request<ScenarioResponse>("/v1/scenarios/evaluate", { method: "POST", body: JSON.stringify(req) }),
   /** SYNTHETIC demo data only — never for analysis. */
   evaluateSynthetic: (req: ScenarioRequest) =>
     request<ScenarioResponse>("/v1/demo/synthetic/evaluate", { method: "POST", body: JSON.stringify(req) }),
+  /** Server-side slope check of a circular zone on the full-resolution DEM (science service). */
+  slopeCheck: (req: SlopeCheckRequest) =>
+    request<SlopeCheckResponse>("/v1/terrain/slope/check", { method: "POST", body: JSON.stringify(req) }),
+  /** Direct-to-Earth radio-link windows (engineering estimate, analytic ephemeris — not a link guarantee). */
+  radioLink: (req: RadioLinkRequest) =>
+    request<RadioLinkResponse>("/v1/scenarios/radio-link", { method: "POST", body: JSON.stringify(req) }),
 };

@@ -1,0 +1,4 @@
+# Same test dependencies as the former Python science service (services/sciencepy, dev extra).
+pytest>=8
+jsonschema>=4.22
+referencing>=0.35

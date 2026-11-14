@@ -31,7 +31,8 @@ int main(int argc, char **argv)
 		return 2;
 	}
 	sleep(DURATION_SECONDS);
-	printf("{\"lat\":%g,\"lon\":%g,\"height\":%g,\"duration_s\":%d,\"earth_elevation_deg\":-0.8,\"earth_visible\":false}\n",
+	/* SIMULATOR: placeholder numbers with no physical meaning; the label travels with them. */
+	printf("{\"synthetic\":true,\"note\":\"SIMULATOR OUTPUT - placeholder values, not a real radio link\",\"lat\":%g,\"lon\":%g,\"height\":%g,\"duration_s\":%d,\"earth_elevation_deg\":-0.8,\"earth_visible\":false}\n",
 		lat, lon, height, DURATION_SECONDS);
 	return 0;
 }

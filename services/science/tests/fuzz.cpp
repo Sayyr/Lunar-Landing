@@ -12,7 +12,7 @@
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     static const selene::App app(std::nullopt);
     const std::string body(reinterpret_cast<const char*>(data), size);
-    for (const char* path : {"/evaluate", "/evaluate/synthetic", "/health"}) {
+    for (const char* path : {"/evaluate", "/evaluate/synthetic", "/health", "/terrain/slope/check"}) {
         selene::HttpResponse r = app.handle("POST", path, body);
         (void)r.body.dump();
     }

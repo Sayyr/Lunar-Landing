@@ -35,7 +35,7 @@ apps/web (React + TS + Vite + R3F)  --/api-->  services/api (Rust/Axum :8080)  -
 ```bash
 docker compose -f infra/compose.yaml up --build
 ```
-Web: <http://localhost:8081> · API: <http://localhost:8080/health> · Science: <http://localhost:8000/health>
+Web: <http://localhost:8081> · API: <http://localhost:8080/api/v1/health> · Science: <http://localhost:8000/health>
 
 ## Option B — local, no Docker
 
@@ -89,7 +89,7 @@ Science memory-safety checks: `-DSELENE_SANITIZE=ON` builds the tests with Addre
 Contract tests run inside both backend suites. The Rust suite validates the shared fixtures and the gateway output against `packages/contracts/schemas`; the C++ suite checks that live science output still matches those fixtures.
 CI (`.github/workflows/ci.yml`) runs the same commands.
 
-## API (gateway, :8080)
+## API (gateway, :8080, every route under `/api/v1`)
 
 | Method & path | Result |
 |---|---|
@@ -97,10 +97,15 @@ CI (`.github/workflows/ci.yml`) runs the same commands.
 | `GET /sites` | preset sites. Currently **synthetic test points only** (not landing sites). |
 | `POST /scenarios/evaluate` | real evaluation → currently `status: "not_ready"`, no samples |
 | `POST /demo/synthetic/evaluate` | **SYNTHETIC** demo data (`status: "synthetic"`, `synthetic: true`) |
+| `POST /scenarios/radio-link` | **engineering estimate** of direct-to-Earth radio-link windows: Earth above the lunar-side mask (ideal horizon), a requested ground station seeing the Moon, and the free-space link budget closing with the request's hardware figures. Analytic low-precision ephemeris (Meeus), **not SPICE**; not a link guarantee. See `docs/validation.md` |
+| `POST /calcule` | former `back/` API: runs the programs of a profile (`services/api/config/profiles.json`) and streams NDJSON. The bundled programs are **simulators** whose output is labelled `synthetic` |
+| `POST /terrain/slope/check` | max-slope pass/fail of a circular zone, recomputed by the science service on the raw LOLA 20 m DEM (`SELENE_DEM_PATH`, see `data/README.md`); `dem_unavailable` without it |
 
 ```bash
-curl -s -X POST localhost:8080/scenarios/evaluate -H 'content-type: application/json' \
+curl -s -X POST localhost:8080/api/v1/scenarios/evaluate -H 'content-type: application/json' \
   --data @packages/contracts/fixtures/scenario-request.valid.json
+curl -s -X POST localhost:8080/api/v1/scenarios/radio-link -H 'content-type: application/json' \
+  --data @packages/contracts/fixtures/radio-link-request.valid.json
 ```
 
 Errors always use `{"error": {"code", "message", "details": [{"field", "issue"}]}}`:

@@ -1,0 +1,11 @@
+{
+  "site": {
+    "latitude_deg": -85.0,
+    "longitude_deg": 45.0,
+    "observer_height_m": 2.0
+  },
+  "start_utc": "2026-11-15",
+  "duration_hours": 72,
+  "step_minutes": 10,
+  "terrain_mode": "ideal"
+}

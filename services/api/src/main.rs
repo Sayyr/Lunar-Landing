@@ -4,10 +4,7 @@ use lunar_landing::{
     config::ProfilesConfig, gateway::AppState, repository::CalculatorRepository, routes,
     science::ScienceClient, service::SiteService,
 };
-use tokio::{
-    net::TcpListener,
-    signal::unix::{signal, SignalKind},
-};
+use tokio::net::TcpListener;
 
 const ADDRESS: &str = "0.0.0.0:8080";
 const DEFAULT_PROFILES_FILE: &str = "/etc/lunar-landing/profiles.json";
@@ -23,7 +20,10 @@ async fn shutdown_signal() {
     let interrupt = async {
         let _ = tokio::signal::ctrl_c().await;
     };
+    // SIGTERM (docker stop) only exists on Unix; elsewhere Ctrl-C is the only shutdown signal.
+    #[cfg(unix)]
     let terminate = async {
+        use tokio::signal::unix::{signal, SignalKind};
         match signal(SignalKind::terminate()) {
             Ok(mut stream) => {
                 stream.recv().await;
@@ -31,6 +31,8 @@ async fn shutdown_signal() {
             Err(_) => std::future::pending::<()>().await,
         }
     };
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
     tokio::select! {
         _ = interrupt => {}
         _ = terminate => {}
@@ -66,15 +68,16 @@ async fn main() {
         science: ScienceClient::new(&science_url, Duration::from_secs(timeout_s)),
     };
 
-    let listener = match TcpListener::bind(ADDRESS).await {
+    let address = std::env::var("SELENE_API_BIND").unwrap_or_else(|_| ADDRESS.into());
+    let listener = match TcpListener::bind(&address).await {
         Ok(listener) => listener,
         Err(error) => {
-            eprintln!("cannot bind {ADDRESS}: {error}");
+            eprintln!("cannot bind {address}: {error}");
             exit(1);
         }
     };
 
-    println!("listening on {ADDRESS}");
+    println!("listening on {address}");
     if let Err(error) = axum::serve(listener, routes::router(service, state))
         .with_graceful_shutdown(shutdown_signal())
         .await

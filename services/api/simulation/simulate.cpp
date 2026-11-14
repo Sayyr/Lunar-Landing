@@ -26,7 +26,10 @@ int main(int argc, char** argv) {
     std::this_thread::sleep_for(std::chrono::seconds(3));
 
     double sun_elevation = 90.0 - std::abs(lat);
-    std::cout << "{\"lat\":" << lat
+    // SIMULATOR: placeholder numbers with no physical meaning; the label travels with them.
+    std::cout << "{\"synthetic\":true"
+              << ",\"note\":\"SIMULATOR OUTPUT - placeholder values, not the real Sun or Earth\""
+              << ",\"lat\":" << lat
               << ",\"lon\":" << lon
               << ",\"height\":" << height
               << ",\"sun_elevation_deg\":" << sun_elevation

@@ -1,12 +1,12 @@
 // "Standing on the site" view: overlay over the orbit globe, sharing the scenario time bar and the
 // compass. Terrain rebuilt when the site, the observer height or the streamed DEM changes.
 
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
-import { normalizeLon } from "./geo";
+import { normalizeLon, roundLon } from "./geo";
 import { sunClearsTerrain } from "./groundAuto";
 import { colorSourceFromImage } from "./groundColor";
-import { buildGroundTerrain, DEFAULT_GROUND, type GroundTerrain, heightmapSource, horizonAt, ringSpacingPerMetre } from "./groundTerrain";
+import { buildGroundTerrain, DEFAULT_GROUND, type GroundTerrain, groundSignature, heightmapSource, horizonAt, ringSpacingPerMetre } from "./groundTerrain";
 import { type GroundSky, GroundView, type GroundViewState } from "./groundView";
 import type { Heightmap } from "./heightmap";
 import { DATA_BASE, loadJson } from "./loaders";
@@ -169,6 +169,7 @@ export function GroundViewPanel(props: Props) {
 
   // Terrain: debounce rebuilds (each streamed band bumps demVersion; polar tiles arrive once).
   const stack = dem?.ready ? dem.stack : null;
+  const demSignature = useMemo(() => groundSignature(heightmap, siteLat, DEFAULT_GROUND.maxDistanceM), [heightmap, siteLat, demVersion]);
   useEffect(() => {
     if (!view) return;
     const id = setTimeout(() => {
@@ -182,7 +183,7 @@ export function GroundViewPanel(props: Props) {
       }
     }, 150);
     return () => clearTimeout(id);
-  }, [view, heightmap, colorImage, stack, siteLat, siteLon, observerHeightM, demVersion]);
+  }, [view, heightmap, colorImage, stack, siteLat, siteLon, observerHeightM, demSignature]);
 
   useEffect(() => {
     if (!view) return;
@@ -208,6 +209,9 @@ export function GroundViewPanel(props: Props) {
     searchId.current++;
     setSearching(false);
     setSunSearch(null);
+    return () => {
+      searchId.current++;
+    };
   }, [siteLat, siteLon]);
 
   /**
@@ -246,7 +250,7 @@ export function GroundViewPanel(props: Props) {
     const lat = Number(gps.lat);
     const lon = Number(gps.lon);
     if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90) return;
-    onMoveSite(+lat.toFixed(5), +normalizeLon(lon).toFixed(5));
+    onMoveSite(+lat.toFixed(5), roundLon(normalizeLon(lon), 5));
   };
 
   /** "visible / hidden by terrain" from the rendered terrain's horizon in the body's direction. */
