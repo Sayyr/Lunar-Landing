@@ -54,7 +54,7 @@ export class GroundView {
   private readonly scene = new THREE.Scene();
   private readonly camera: THREE.PerspectiveCamera;
   private readonly sunLight = new THREE.DirectionalLight(0xffffff, 3);
-  private readonly fill = new THREE.HemisphereLight(0xb8c0d0, 0x000000, 0.6);
+  private readonly fill = new THREE.HemisphereLight(0xb8c0d0, 0x000000, 0.4);
   private readonly sunBody: THREE.Group;
   private readonly earthBody: THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial>;
   private readonly textures: THREE.Texture[] = [];
@@ -140,7 +140,7 @@ export class GroundView {
     g.computeBoundingSphere();
     if (this.ground.vertexColors !== !!t.colors) {
       this.ground.vertexColors = !!t.colors;
-      this.ground.color.set(t.colors ? 0xffffff : 0x9a9a9a);
+      this.ground.color.set(t.colors ? 0xffffff : 0x575757);
       this.ground.needsUpdate = true;
     }
     this.terrain = new THREE.Mesh(g, this.ground);
@@ -203,7 +203,7 @@ export class GroundView {
       return t;
     };
     const m = new THREE.MeshStandardMaterial({
-      color: 0x9a9a9a,
+      color: 0x575757,
       map: tex(rgba, true),
       normalMap: tex(nrm, false),
       normalScale: new THREE.Vector2(1, 1),
