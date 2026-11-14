@@ -1,0 +1,176 @@
+{
+  "valid": {
+    "claude-md-example": {
+      "purpose": "CLAUDE.md minimum input (near south pole). Synthetic, not a landing site."
+    },
+    "south-pole-exact": {
+      "purpose": "Exact south pole: exercises the deterministic polar azimuth convention.",
+      "polar": true
+    },
+    "south-polar-14d": {
+      "purpose": "SYN-B test point over 14 days (half a synodic month)."
+    },
+    "north-polar": {
+      "purpose": "Near north pole.",
+      "polar": true
+    },
+    "equator-sub-earth-30d": {
+      "purpose": "Near the mean sub-Earth point over ~1 synodic month.",
+      "expect_earth_always_up": true,
+      "expect_sun_rise_and_set": true
+    },
+    "far-side-equator": {
+      "purpose": "Near the mean anti-Earth point (lon -180 = 180\u00b0).",
+      "expect_earth_never_up": true,
+      "expect_sun_rise_and_set": true
+    },
+    "dateline-west": {
+      "purpose": "Longitude just inside the [-180, 180) bound."
+    },
+    "max-observer-height": {
+      "purpose": "Observer height at the contract maximum (1000 m)."
+    },
+    "zero-observer-height": {
+      "purpose": "Observer on the reference surface."
+    },
+    "minimum-two-samples": {
+      "purpose": "Smallest grid: 1 minute, 2 samples."
+    },
+    "step-not-dividing-duration": {
+      "purpose": "60/7 min: end not on the grid -> 9 samples."
+    },
+    "fractional-start": {
+      "purpose": "Sub-second start time."
+    },
+    "leap-day": {
+      "purpose": "Leap day."
+    },
+    "year-boundary": {
+      "purpose": "Crosses a year boundary (no leap second scheduled)."
+    },
+    "long-90-days": {
+      "purpose": "Maximum duration (90 days), coarse step."
+    },
+    "near-max-samples": {
+      "purpose": "19 996 samples, just under MAX_SAMPLES = 20 000.",
+      "heavy": true
+    },
+    "dem-terrain": {
+      "purpose": "DEM terrain mode: must be not_ready until a DEM is installed.",
+      "expect_not_ready": true
+    }
+  },
+  "invalid": {
+    "latitude-below-range": {
+      "field": "site.latitude_deg",
+      "schema_valid": false
+    },
+    "latitude-above-range": {
+      "field": "site.latitude_deg",
+      "schema_valid": false
+    },
+    "longitude-180": {
+      "field": "site.longitude_deg",
+      "schema_valid": false
+    },
+    "longitude-below-range": {
+      "field": "site.longitude_deg",
+      "schema_valid": false
+    },
+    "height-negative": {
+      "field": "site.observer_height_m",
+      "schema_valid": false
+    },
+    "height-above-max": {
+      "field": "site.observer_height_m",
+      "schema_valid": false
+    },
+    "duration-zero": {
+      "field": "duration_hours",
+      "schema_valid": false
+    },
+    "duration-negative": {
+      "field": "duration_hours",
+      "schema_valid": false
+    },
+    "duration-above-max": {
+      "field": "duration_hours",
+      "schema_valid": false
+    },
+    "step-below-min": {
+      "field": "step_minutes",
+      "schema_valid": false
+    },
+    "step-above-max": {
+      "field": "step_minutes",
+      "schema_valid": false
+    },
+    "start-offset": {
+      "field": "start_utc",
+      "schema_valid": false
+    },
+    "start-no-zone": {
+      "field": "start_utc",
+      "schema_valid": false
+    },
+    "start-lowercase-z": {
+      "field": "start_utc",
+      "schema_valid": false
+    },
+    "start-space-separator": {
+      "field": "start_utc",
+      "schema_valid": false
+    },
+    "start-date-only": {
+      "field": "start_utc",
+      "schema_valid": false
+    },
+    "start-impossible-date": {
+      "field": "start_utc",
+      "schema_valid": true,
+      "note": "Matches the schema pattern; implementations must still reject it."
+    },
+    "terrain-mode-unknown": {
+      "field": "terrain_mode",
+      "schema_valid": false
+    },
+    "latitude-as-string": {
+      "field": "site.latitude_deg",
+      "schema_valid": false
+    },
+    "latitude-as-bool": {
+      "field": "site.latitude_deg",
+      "schema_valid": false
+    },
+    "missing-site": {
+      "field": "site",
+      "schema_valid": false
+    },
+    "missing-terrain-mode": {
+      "field": "terrain_mode",
+      "schema_valid": false
+    },
+    "unknown-top-level-field": {
+      "field": "power_w",
+      "schema_valid": false
+    },
+    "unknown-site-field": {
+      "field": "site.elevation_m",
+      "schema_valid": false
+    },
+    "body-is-array": {
+      "field": "",
+      "schema_valid": false
+    },
+    "too-many-samples": {
+      "field": "step_minutes",
+      "schema_valid": true,
+      "note": "Schema-valid, but 20 041 samples > MAX_SAMPLES. The limit is not expressed in the schema."
+    }
+  },
+  "unspecified": {
+    "leap-second": {
+      "note": "2016-12-31T23:59:60Z is a real UTC leap second. The schema pattern accepts it; the contract does not say whether it must be accepted (SPICE str2et handles it)."
+    }
+  }
+}
