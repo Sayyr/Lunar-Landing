@@ -73,6 +73,7 @@ export class Globe {
   private readonly controls: OrbitControls;
   private readonly mesh: THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial>;
   private readonly grid: THREE.Group;
+  private readonly poleRings: THREE.Group;
   private readonly markers = new THREE.Group();
   private landings: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial> | null = null;
   private readonly siteMarker: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
@@ -232,6 +233,8 @@ export class Globe {
     this.grid = makeGrid();
     this.grid.visible = false;
     scene.add(this.grid);
+    this.poleRings = makePoleRings();
+    scene.add(this.poleRings);
     scene.add(this.markers);
 
     this.siteMarker = new THREE.Mesh(
@@ -288,6 +291,7 @@ export class Globe {
     this.controls.minDistance = 1 + (this.heightmap?.maxKm ?? 0) * this.scale + 0.01;
     // The grid floats just above the highest point.
     this.grid.scale.setScalar(1 + (this.heightmap?.maxKm ?? 0) * this.scale + 0.002);
+    this.poleRings.scale.copy(this.grid.scale);
     for (const mk of this.markers.children) this.placeOnSurface(mk, mk.userData.lat, mk.userData.lon);
     if (this.siteMarker.visible) this.placeOnSurface(this.siteMarker, this.siteMarker.userData.lat, this.siteMarker.userData.lon);
     if (this.ring) this.placeRing(this.ring);
@@ -806,6 +810,30 @@ function makeGrid(): THREE.Group {
     const pts = [];
     for (let lat = -90; lat <= 90; lat += 2) pts.push(toV(lat, lon));
     group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lon === 0 ? major : minor));
+  }
+  return group;
+}
+
+// Pole rings, planetocentric latitude. South (red): the Artemis III landing zone. NASA, 19 Aug 2022,
+// "NASA Identifies Candidate Regions for Landing Next Americans on Moon": all 13 candidate
+// regions lie within 6° of latitude of the lunar South Pole, i.e. poleward of 84°S.
+// North (green): mirror of the same latitude for symmetry only; NASA defines no north-polar zone.
+const POLE_RING_LAT_DEG = 90 - 6;
+// Tube radius in scene units (1 = 1737.4 km): ~3.5 km, a few pixels wide from orbit.
+const POLE_RING_TUBE = 0.002;
+
+/** Circles at ±POLE_RING_LAT_DEG: south red, north green. Radius 1 (scaled like the grid). */
+function makePoleRings(): THREE.Group {
+  const group = new THREE.Group();
+  for (const [lat, color] of [[-POLE_RING_LAT_DEG, 0xff3b30], [POLE_RING_LAT_DEG, 0x34c759]] as const) {
+    const pts = [];
+    for (let lon = -180; lon < 180; lon += 2) {
+      const u = latLonToUnit(lat, lon);
+      pts.push(new THREE.Vector3(u.x, u.y, u.z));
+    }
+    const curve = new THREE.CatmullRomCurve3(pts, true);
+    const geometry = new THREE.TubeGeometry(curve, 360, POLE_RING_TUBE, 6, true);
+    group.add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color })));
   }
   return group;
 }
