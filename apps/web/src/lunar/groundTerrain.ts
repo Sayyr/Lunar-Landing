@@ -21,7 +21,14 @@ export interface GroundTerrainOptions {
   maxDistanceM: number;
 }
 
-export const DEFAULT_GROUND: GroundTerrainOptions = { bearings: 720, rings: 150, minDistanceM: 5, maxDistanceM: 400_000 };
+export const DEFAULT_GROUND: GroundTerrainOptions = { bearings: 1080, rings: 220, minDistanceM: 5, maxDistanceM: 400_000 };
+
+/**
+ * Where elevations come from: the global raster (bicubic), nothing (smooth sphere), or a custom
+ * function of (lat, lon, distance from the observer in metres) → metres, e.g. a high-resolution
+ * polar DEM near the site with the global raster as fallback.
+ */
+export type TerrainSource = Heightmap | null | ((latDeg: number, lonDeg: number, distanceM: number) => number);
 
 export interface GroundTerrain {
   /** xyz per vertex (metres, eye at the origin); vertex 0 = point under the observer */
@@ -33,7 +40,7 @@ export interface GroundTerrain {
 }
 
 export function buildGroundTerrain(
-  hm: Heightmap | null,
+  source: TerrainSource,
   latDeg: number,
   lonDeg: number,
   observerHeightM: number,
@@ -41,8 +48,9 @@ export function buildGroundTerrain(
 ): GroundTerrain {
   const { east, north, up } = enuBasis(latDeg, lonDeg);
   // Bicubic: continuous slopes, so the shading does not show the raster's pixel edges.
-  const elevM = (lat: number, lon: number) => (hm ? hm.sampleKmSmooth(lat, lon) * 1000 : 0);
-  const siteElevationM = elevM(latDeg, lonDeg);
+  const elevM: (lat: number, lon: number, d: number) => number =
+    typeof source === "function" ? source : source ? (lat, lon) => source.sampleKmSmooth(lat, lon) * 1000 : () => 0;
+  const siteElevationM = elevM(latDeg, lonDeg, 0);
   const eyeR = MOON_RADIUS_M + siteElevationM + observerHeightM;
 
   const B = opt.bearings;
@@ -54,7 +62,8 @@ export function buildGroundTerrain(
   const ratio = (opt.maxDistanceM / opt.minDistanceM) ** (1 / (N - 1));
   const dir: Vec3 = [0, 0, 0];
   for (let i = 0; i < N; i++) {
-    const delta = (opt.minDistanceM * ratio ** i) / MOON_RADIUS_M; // central angle
+    const dist = opt.minDistanceM * ratio ** i;
+    const delta = dist / MOON_RADIUS_M; // central angle
     const cd = Math.cos(delta);
     const sd = Math.sin(delta);
     for (let j = 0; j < B; j++) {
@@ -64,7 +73,7 @@ export function buildGroundTerrain(
       for (let k = 0; k < 3; k++) dir[k] = cd * up[k] + sd * (cb * north[k] + sb * east[k]);
       const lat = (Math.asin(Math.max(-1, Math.min(1, dir[2]))) * 180) / Math.PI;
       const lon = (Math.atan2(dir[1], dir[0]) * 180) / Math.PI;
-      const r = MOON_RADIUS_M + elevM(lat, lon);
+      const r = MOON_RADIUS_M + elevM(lat, lon, dist);
       // Position relative to the eye, in ENU (eye = eyeR · up).
       const px = dir[0] * r - up[0] * eyeR;
       const py = dir[1] * r - up[1] * eyeR;
