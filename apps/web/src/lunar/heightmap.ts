@@ -100,6 +100,31 @@ export class Heightmap {
   }
 
   /**
+   * Elevation in km by bicubic (Catmull-Rom) interpolation: passes through the pixel values like
+   * sampleKm, but with a continuous slope, so shading of a finely meshed surface does not show
+   * the raster's pixel edges (stair steps). Same wrap/clamp rules. Visualization use.
+   */
+  sampleKmSmooth(lat: number, lon: number): number {
+    const { width: W, height: H, data } = this;
+    const x = ((lon + 180) / 360) * W - 0.5;
+    const y = Math.min(H - 1, Math.max(0, ((lat + 90) / 180) * H - 0.5));
+    const x1 = Math.floor(x);
+    const y1 = Math.min(H - 2, Math.floor(y));
+    const tx = x - x1;
+    const ty = y - y1;
+    const col = (i: number) => (((x1 + i) % W) + W) % W;
+    const row = (j: number) => Math.min(H - 1, Math.max(0, y1 + j)) * W;
+    const cr = (p0: number, p1: number, p2: number, p3: number, t: number) =>
+      p1 + 0.5 * t * (p2 - p0 + t * (2 * p0 - 5 * p1 + 4 * p2 - p3 + t * (3 * (p1 - p2) + p3 - p0)));
+    const c0 = col(-1), c1 = col(0), c2 = col(1), c3 = col(2);
+    const rowVal = (j: number) => {
+      const r = row(j);
+      return cr(data[r + c0], data[r + c1], data[r + c2], data[r + c3], tx);
+    };
+    return cr(rowVal(-1), rowVal(0), rowVal(1), rowVal(2), ty);
+  }
+
+  /**
    * Elevation in km by bilinear interpolation (matches GPU linear filtering): longitude wraps
    * (seamless at ±180°), latitude is clamped to the outermost rows.
    */

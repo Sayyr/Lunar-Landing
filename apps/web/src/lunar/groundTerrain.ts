@@ -40,7 +40,8 @@ export function buildGroundTerrain(
   opt: GroundTerrainOptions = DEFAULT_GROUND,
 ): GroundTerrain {
   const { east, north, up } = enuBasis(latDeg, lonDeg);
-  const elevM = (lat: number, lon: number) => (hm ? hm.sampleKm(lat, lon) * 1000 : 0);
+  // Bicubic: continuous slopes, so the shading does not show the raster's pixel edges.
+  const elevM = (lat: number, lon: number) => (hm ? hm.sampleKmSmooth(lat, lon) * 1000 : 0);
   const siteElevationM = elevM(latDeg, lonDeg);
   const eyeR = MOON_RADIUS_M + siteElevationM + observerHeightM;
 
