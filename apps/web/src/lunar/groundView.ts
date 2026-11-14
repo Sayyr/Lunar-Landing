@@ -50,6 +50,7 @@ export class GroundView {
   private readonly scene = new THREE.Scene();
   private readonly camera: THREE.PerspectiveCamera;
   private readonly sunLight = new THREE.DirectionalLight(0xffffff, 3);
+  private readonly fill = new THREE.HemisphereLight(0xb8c0d0, 0x000000, 0.6);
   private readonly sunBody: THREE.Group;
   private readonly earthBody: THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial>;
   private readonly textures: THREE.Texture[] = [];
@@ -81,9 +82,10 @@ export class GroundView {
     sh.bias = -0.0002;
     sh.normalBias = 15; // m, ≈ one texel: no acne on grazing slopes
     this.sunLight.castShadow = true;
-    // Not physical (no earthshine model): a little fill light so terrain facing away from the Sun
-    // keeps a readable shape. Stated in the panel note.
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.12));
+    // Visual aid, NOT physical (no earthshine / scattered-light model): a sky-like hemisphere fill
+    // so relief in shadow keeps a readable shape (slopes darken with their tilt). Toggleable.
+    this.scene.add(this.fill);
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.02));
 
     this.sunBody = makeSun(SKY_DIST * Math.tan(SUN_ANG_RADIUS), this.textures);
     this.sunBody.visible = false;
@@ -146,6 +148,11 @@ export class GroundView {
     this.sunBody.position.copy(sun).multiplyScalar(SKY_DIST);
     this.earthBody.position.copy(earth).multiplyScalar(SKY_DIST);
     if (sky.earthToEnu) this.earthBody.quaternion.setFromRotationMatrix(bodyRotationToThree(sky.earthToEnu));
+  }
+
+  /** Visual-aid fill light on/off (off = only the Sun lights the terrain, as on the Moon). */
+  setFill(on: boolean): void {
+    this.fill.visible = on;
   }
 
   /** Point the view at an azimuth / elevation (degrees). */

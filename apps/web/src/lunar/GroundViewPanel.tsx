@@ -3,7 +3,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { buildGroundTerrain, type TerrainSource } from "./groundTerrain";
+import { buildGroundTerrain, type GroundTerrain, horizonAt, type TerrainSource } from "./groundTerrain";
 import { type GroundSky, GroundView, type GroundViewState } from "./groundView";
 import type { Heightmap } from "./heightmap";
 import { DATA_BASE, loadJson } from "./loaders";
@@ -102,6 +102,8 @@ export function GroundViewPanel({ heightmap, siteLat, siteLon, observerHeightM, 
   const [view, setView] = useState<GroundView | null>(null);
   const [state, setState] = useState<GroundViewState>({ azimuthDeg: 0, elevationDeg: 5, hfovDeg: 90 });
   const [siteElevationM, setSiteElevationM] = useState<number | null>(null);
+  const [terrain, setTerrain] = useState<GroundTerrain | null>(null);
+  const [fill, setFill] = useState(true);
   /** null: polar DEM not used here; otherwise its loading state for this site */
   const [polar, setPolar] = useState<{ dem: PolarDem; done: number; total: number; ready: boolean } | null>(null);
   const firstSky = useRef(true);
@@ -143,6 +145,7 @@ export function GroundViewPanel({ heightmap, siteLat, siteLon, observerHeightM, 
     const id = setTimeout(() => {
       const t = buildGroundTerrain(terrainSource(heightmap, polarReady), siteLat, siteLon, observerHeightM);
       view.setTerrain(t);
+      setTerrain(t);
       setSiteElevationM(heightmap || polarReady ? t.siteElevationM : null);
     }, 150);
     return () => clearTimeout(id);
@@ -159,6 +162,17 @@ export function GroundViewPanel({ heightmap, siteLat, siteLon, observerHeightM, 
     }
   }, [view, sky]);
 
+  useEffect(() => view?.setFill(fill), [view, fill]);
+
+  /** "visible / hidden by terrain" from the rendered terrain's horizon in the body's direction. */
+  const status = (name: string, v?: AzEl) => {
+    if (!v) return null;
+    const h = terrain ? horizonAt(terrain, v.azimuthDeg) : 0;
+    const margin = v.elevationDeg - h;
+    const verdict = margin > 0 ? `visible, ${margin.toFixed(1)}° above the terrain` : `hidden by terrain (${(-margin).toFixed(1)}° below it)`;
+    return `${name} el ${v.elevationDeg.toFixed(1)}° · terrain horizon ${h.toFixed(1)}° at az ${v.azimuthDeg.toFixed(0)}° → ${verdict}`;
+  };
+
   const lookAt = (v?: AzEl) => v && view?.look(v.azimuthDeg, Math.max(2, v.elevationDeg));
 
   return (
@@ -170,6 +184,12 @@ export function GroundViewPanel({ heightmap, siteLat, siteLon, observerHeightM, 
           View az {state.azimuthDeg.toFixed(0)}° · el {state.elevationDeg.toFixed(0)}° · FOV {state.hfovDeg.toFixed(0)}°
           {siteElevationM != null && ` · ground ${Math.round(siteElevationM).toLocaleString("en-US")} m, eye +${observerHeightM} m`}
         </div>
+        {sky && terrain && (
+          <div className="ground-visibility">
+            <span className="sun">{status("Sun", sky.sun)}</span>
+            <span className="earth">{status("Earth", sky.earth)}</span>
+          </div>
+        )}
         <div className="ground-note">
           {polar?.ready ? (
             <>
@@ -184,8 +204,9 @@ export function GroundViewPanel({ heightmap, siteLat, siteLon, observerHeightM, 
               close), out to 400 km with curvature
             </>
           )}{" "}
-          · cast shadows (GPU, ±30 km around the line to the Sun) · uniform albedo, constant fill light (no earthshine model) ·
-          dashed line = ideal horizon 0° · drag to look, wheel to zoom
+          · cast shadows (GPU, ±30 km around the line to the Sun) · uniform albedo
+          {fill ? " · fill light ON (visual aid, not physical)" : " · Sun light only"} · terrain horizon read from the rendered mesh
+          (estimate, not the science computation) · dashed line = ideal horizon 0° · drag to look, wheel to zoom
         </div>
       </div>
       <div className="ground-buttons">
@@ -194,6 +215,9 @@ export function GroundViewPanel({ heightmap, siteLat, siteLon, observerHeightM, 
         </button>
         <button type="button" onClick={() => lookAt(sky?.earth)} disabled={!sky}>
           Look at Earth
+        </button>
+        <button type="button" onClick={() => setFill((f) => !f)} aria-pressed={fill} title="Sky-like fill light so shadowed relief stays readable (not physical)">
+          Fill light: {fill ? "on" : "off"}
         </button>
         <button type="button" onClick={onExit}>
           Back to orbit
