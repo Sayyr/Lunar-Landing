@@ -17,6 +17,7 @@ import { formatAltM, formatLat, formatLon, roundLon } from "./geo";
 import { Globe } from "./globe";
 import { Heightmap } from "./heightmap";
 import { type BandManifest, bandOrderNear, DATA_BASE, loadHeightmap, loadImage, loadJson, type Progress, SETUP_HINT, streamBands } from "./loaders";
+import { GroundViewBoundary } from "./GroundViewBoundary";
 import { GroundViewPanel } from "./GroundViewPanel";
 import { SkyCompass } from "./SkyCompass";
 import { TREK_LAYER } from "./tileScheme";
@@ -601,24 +602,26 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
       </button>
 
       {groundOn && (
-        <GroundViewPanel
-          heightmap={heightmap}
-          colorImage={colorImage}
-          siteLat={siteLat}
-          siteLon={siteLon}
-          observerHeightM={observerHeightM}
-          sky={groundSky}
-          demVersion={demVersion}
-          active={active}
-          onExit={() => setGroundOn(false)}
-          onHeading={onGroundHeading}
-          tMin={tMin}
-          spanMin={spanMin}
-          stepMinutes={stepMinutes}
-          setTime={setGroundTime}
-          sunAt={sunAt}
-          onMoveSite={moveSite}
-        />
+        <GroundViewBoundary onExit={() => setGroundOn(false)}>
+          <GroundViewPanel
+            heightmap={heightmap}
+            colorImage={colorImage}
+            siteLat={siteLat}
+            siteLon={siteLon}
+            observerHeightM={observerHeightM}
+            sky={groundSky}
+            demVersion={demVersion}
+            active={active}
+            onExit={() => setGroundOn(false)}
+            onHeading={onGroundHeading}
+            tMin={tMin}
+            spanMin={spanMin}
+            stepMinutes={stepMinutes}
+            setTime={setGroundTime}
+            sunAt={sunAt}
+            onMoveSite={moveSite}
+          />
+        </GroundViewBoundary>
       )}
       {sky && !groundOn && (
         <>

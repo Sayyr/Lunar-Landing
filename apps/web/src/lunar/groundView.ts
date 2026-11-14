@@ -30,6 +30,9 @@ const SUN_ANG_RADIUS = Math.atan(695_700 / 149_597_871);
 const EARTH_ANG_RADIUS = Math.atan(6371 / 384_400);
 const DEG = Math.PI / 180;
 
+/** sRGB transfer function → linear (IEC 61966-2-1). three's typings declare SRGBToLinear but r187 does not export it. */
+const srgbToLinear = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+
 /** ENU → three.js (x = E, y = U, z = −N). */
 const enuToThree = ([e, n, u]: number[]) => new THREE.Vector3(e, u, -n);
 
@@ -173,7 +176,7 @@ export class GroundView {
     let mean = 0;
     for (let i = 0; i < albedo.length; i++) {
       const a = Math.max(0, Math.min(1, albedo[i] / 1.4));
-      mean += THREE.SRGBToLinear(a); // the shader multiplies decoded (linear) values
+      mean += srgbToLinear(a); // the shader multiplies decoded (linear) values
       // Neutral grey with the faint warm cast of highland regolith.
       rgba[4 * i] = 255 * Math.min(1, a * 1.03);
       rgba[4 * i + 1] = 255 * a;
