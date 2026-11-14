@@ -39,6 +39,9 @@ const DEG = Math.PI / 180;
 
 export type TileStatus = "off" | "loading" | "ok" | "offline";
 
+/** Stencil value written by drawn tiles; the base mesh skips those pixels (Globe). */
+export const TILE_STENCIL = 1;
+
 interface Entry {
   id: TileId;
   mesh: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial> | null;
@@ -236,6 +239,11 @@ export class TileLayer {
       polygonOffset: true,
       polygonOffsetFactor: -2,
       polygonOffsetUnits: -2,
+      // Mark covered pixels: the base mesh (renderOrder 1, drawn after) is masked there.
+      stencilWrite: true,
+      stencilRef: TILE_STENCIL,
+      stencilFunc: THREE.AlwaysStencilFunc,
+      stencilZPass: THREE.ReplaceStencilOp,
     });
     if (this.heightTex) {
       // Sample the GLOBAL raster at this tile's lon/lat: replace three's per-texture bump UV

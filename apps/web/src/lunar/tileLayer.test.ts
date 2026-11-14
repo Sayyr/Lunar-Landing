@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 
-import { TileLayer } from "./tileLayer";
+import { TILE_STENCIL, TileLayer } from "./tileLayer";
 
 /** TileLayer with downloads answered synchronously (no network in tests). */
 function layer(fail = false) {
@@ -99,5 +99,14 @@ describe("TileLayer lighting", () => {
     expect(shader.vertexShader).toContain("tileBumpTransform * vec3( BUMPMAP_UV, 1 )");
     expect(shader.vertexShader).not.toContain("bumpMapTransform * vec3( BUMPMAP_UV, 1 )");
     expect(shader.uniforms.tileBumpTransform.value).toBeInstanceOf(THREE.Matrix3);
+  });
+
+  it("drawn tiles mark the stencil so the base mesh cannot show through them", () => {
+    const { l } = layer();
+    settle(l, camera(0.05));
+    const m = (drawn(l)[0] as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>).material;
+    expect(m.stencilWrite).toBe(true);
+    expect(m.stencilRef).toBe(TILE_STENCIL);
+    expect(m.stencilZPass).toBe(THREE.ReplaceStencilOp);
   });
 });

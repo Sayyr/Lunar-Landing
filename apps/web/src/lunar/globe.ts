@@ -17,7 +17,7 @@ import { latLonToUnit, MOON_RADIUS_KM, pointToUv, uvToLatLon } from "./geo";
 import type { Heightmap } from "./heightmap";
 import { DATA_BASE } from "./loaders";
 import type { MoonSky, Vec3 } from "./skyGeometry";
-import { TileLayer, type TileStatus } from "./tileLayer";
+import { TILE_STENCIL, TileLayer, type TileStatus } from "./tileLayer";
 
 // Background bodies are drawn at SKY_DIST from the camera (always "at infinity": no parallax when
 // orbiting) with their true mean angular radii as seen from the Moon.
@@ -77,7 +77,8 @@ export class Globe {
     this.heightmap = heightmap;
 
     // --- Rendering ---------------------------------------------------------------------------
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    // stencil: tiles mark their pixels so the coarser base mesh cannot draw over them (see TileLayer).
+    const renderer = new THREE.WebGLRenderer({ antialias: true, stencil: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(container.clientWidth, container.clientHeight);
     container.appendChild(renderer.domElement);
@@ -183,7 +184,13 @@ export class Globe {
       roughness: 1,
       metalness: 0,
     });
+    // Drawn after the tiles and only where no tile wrote the stencil: in concave terrain the base
+    // mesh's long chords sit above the finer tile surface and would otherwise show through.
+    material.stencilWrite = true;
+    material.stencilRef = TILE_STENCIL;
+    material.stencilFunc = THREE.NotEqualStencilFunc;
     this.mesh = new THREE.Mesh(geometry, material);
+    this.mesh.renderOrder = 1;
     scene.add(this.mesh);
 
     // --- Lat/lon grid, markers, selection ring ---------------------------------------------------
