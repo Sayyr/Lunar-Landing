@@ -13,6 +13,11 @@ import type { Heightmap } from "./heightmap";
 import { enuBasis, type Vec3 } from "./skyGeometry";
 
 export const MOON_RADIUS_M = 1_737_400;
+/** Repeat length of the (illustrative) regolith detail texture at its finest scale, metres. */
+export const DETAIL_PERIOD_M = 4;
+
+/** Colour of the ground at a lat/lon, RGB in 0..1 (e.g. from the LROC WAC colour mosaic). */
+export type ColorSource = (latDeg: number, lonDeg: number) => [number, number, number];
 
 export interface GroundTerrainOptions {
   bearings: number;
@@ -37,6 +42,10 @@ export interface GroundTerrain {
   /** surface elevation under the observer, metres relative to 1737.4 km (0 without raster) */
   siteElevationM: number;
   observerHeightM: number;
+  /** Detail-texture coordinates: local metres / DETAIL_PERIOD_M (x = East, y = −North). */
+  uvs: Float32Array;
+  /** Optional per-vertex RGB (0..1) from a colour map; undefined without one. */
+  colors?: Float32Array;
   /**
    * Terrain horizon of the BUILT mesh, degrees per bearing (index j ↔ j·360/bearings° from north):
    * highest elevation angle of any vertex in that direction. A visual estimate at mesh sampling,
@@ -60,6 +69,7 @@ export function buildGroundTerrain(
   lonDeg: number,
   observerHeightM: number,
   opt: GroundTerrainOptions = DEFAULT_GROUND,
+  color?: ColorSource,
 ): GroundTerrain {
   const { east, north, up } = enuBasis(latDeg, lonDeg);
   // Bicubic: continuous slopes, so the shading does not show the raster's pixel edges.
@@ -72,6 +82,9 @@ export function buildGroundTerrain(
   const N = opt.rings;
   const horizonDeg = new Float32Array(B).fill(-90);
   const positions = new Float32Array((1 + N * B) * 3);
+  const uvs = new Float32Array((1 + N * B) * 2);
+  const colors = color ? new Float32Array((1 + N * B) * 3) : undefined;
+  if (colors && color) colors.set(color(latDeg, lonDeg), 0);
   // Vertex 0: ground point under the eye.
   positions[1] = -observerHeightM;
 
@@ -101,6 +114,9 @@ export function buildGroundTerrain(
       positions[3 * v] = e;
       positions[3 * v + 1] = u;
       positions[3 * v + 2] = -n;
+      uvs[2 * v] = e / DETAIL_PERIOD_M;
+      uvs[2 * v + 1] = n / DETAIL_PERIOD_M;
+      if (colors && color) colors.set(color(lat, lon), 3 * v);
       const elev = (Math.atan2(u, Math.hypot(e, n)) * 180) / Math.PI;
       if (elev > horizonDeg[j]) horizonDeg[j] = elev;
     }
@@ -118,7 +134,7 @@ export function buildGroundTerrain(
       tris.push(a, b2, c, b2, d, c);
     }
   }
-  return { positions, indices: Uint32Array.from(tris), siteElevationM, observerHeightM, horizonDeg };
+  return { positions, indices: Uint32Array.from(tris), siteElevationM, observerHeightM, horizonDeg, uvs, colors };
 }
 
 /** Elevation angle (degrees) of a terrain vertex seen from the eye. */
