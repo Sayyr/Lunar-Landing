@@ -66,15 +66,16 @@ async fn main() {
         science: ScienceClient::new(&science_url, Duration::from_secs(timeout_s)),
     };
 
-    let listener = match TcpListener::bind(ADDRESS).await {
+    let address = std::env::var("SELENE_API_BIND").unwrap_or_else(|_| ADDRESS.into());
+    let listener = match TcpListener::bind(&address).await {
         Ok(listener) => listener,
         Err(error) => {
-            eprintln!("cannot bind {ADDRESS}: {error}");
+            eprintln!("cannot bind {address}: {error}");
             exit(1);
         }
     };
 
-    println!("listening on {ADDRESS}");
+    println!("listening on {address}");
     if let Err(error) = axum::serve(listener, routes::router(service, state))
         .with_graceful_shutdown(shutdown_signal())
         .await

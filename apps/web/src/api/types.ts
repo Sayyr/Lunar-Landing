@@ -91,3 +91,33 @@ export interface PresetSite {
   source: string;
   notes: string;
 }
+
+// packages/contracts/schemas/slope-check-{request,response}.schema.json
+
+export interface SlopeCheckRequest {
+  zone: { center_latitude_deg: number; center_longitude_deg: number; radius_m: number };
+  max_slope_deg: number;
+  /** default 1.0 (applied by the science service) */
+  required_fraction?: number;
+  /** default 0.0 (applied by the science service) */
+  max_nodata_fraction?: number;
+}
+
+export interface SlopeCheckResponse {
+  status: "computed" | "out_of_coverage" | "dem_unavailable";
+  verdict: "pass" | "fail" | "insufficient_data" | "not_evaluated";
+  request: Required<SlopeCheckRequest>;
+  stats: {
+    pixel_count: number;
+    nodata_count: number;
+    fraction_ok: number;
+    slope_max_deg: number | null;
+    slope_mean_deg: number | null;
+    slope_p95_deg: number | null;
+    worst_pixel?: { latitude_deg: number; longitude_deg: number; slope_deg: number } | null;
+  } | null;
+  model: { method: string; baseline_m: number | null; body_fixed_frame: string | null; projection: string | null };
+  data_provenance: { dem_product: string; dem_sha256?: string | null; [k: string]: unknown };
+  assumptions: string[];
+  warnings: string[];
+}

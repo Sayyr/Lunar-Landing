@@ -28,6 +28,9 @@ const SUN_ANG_RADIUS = Math.atan(695_700 / 149_597_871); // ≈ 0.27°
 // Sun–Moon–camera angle i on load: lit fraction of the disc k = (1 + cos i) / 2 = 0.8 → i ≈ 53.1°
 // (formula for a distant viewer; from 3.2 radii it is within a few percent).
 const LOAD_PHASE_ANGLE = Math.acos(2 * 0.8 - 1);
+// On-screen marker radii (CSS px), constant whatever the zoom (see sizeMarkers).
+const SITE_MARKER_PX = 7;
+const CLICK_MARKER_PX = 4;
 // Moon body frame (x lon 0, y lon 90° E, z north) → three.js (x, z, −y), as lunar/geo.ts.
 const bodyToThree = (v: Vec3) => new THREE.Vector3(v[0], v[2], -v[1]);
 
@@ -45,6 +48,13 @@ export interface GlobeOptions {
   segments: number;
   /** initial camera direction */
   initialView?: { lat: number; lon: number };
+}
+
+/** A layer draped over the displayed surface (e.g. the slope filter), kept in step with the relief scale. */
+export interface SurfaceOverlay {
+  readonly object: THREE.Object3D;
+  setScale(scale: number): void;
+  dispose(): void;
 }
 
 export class Globe {
@@ -74,6 +84,7 @@ export class Globe {
   private framedOnSun = false;
   private readonly tiles: TileLayer;
   private readonly heightTex: THREE.DataTexture | null;
+  private readonly overlays = new Set<SurfaceOverlay>();
 
   constructor(container: HTMLElement, { colorImage, heightmap, segments, initialView }: GlobeOptions) {
     this.container = container;
@@ -249,6 +260,7 @@ export class Globe {
     // to keep shading of the real slopes at exaggeration 0.
     m.bumpScale = Math.max(x, 1) / MOON_RADIUS_KM;
     this.tiles.setScale(this.scale, m.bumpScale);
+    for (const o of this.overlays) o.setScale(this.scale);
     // Closest approach: ~17 km above the highest displayed point.
     this.controls.minDistance = 1 + (this.heightmap?.maxKm ?? 0) * this.scale + 0.01;
     // The grid floats just above the highest point.
@@ -545,6 +557,36 @@ export class Globe {
     this.scene.add(ring);
   }
 
+  /**
+   * Screen scale (km per CSS pixel) at a surface point, from its distance to the camera (same
+   * pinhole formula as kmPerPixelAtCentre, which it equals at the view centre). Ignores the
+   * foreshortening of oblique views: an estimate for sizing overlays, not a measurement.
+   */
+  kmPerPixelAt(lat: number, lon: number): number {
+    const u = latLonToUnit(lat, lon);
+    const r = this.surfaceRadius(lat, lon);
+    const d = Math.max(1e-6, this.camera.position.distanceTo(new THREE.Vector3(u.x * r, u.y * r, u.z * r)));
+    const h = this.renderer.domElement.clientHeight || 1;
+    return ((2 * d * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2))) / h) * MOON_RADIUS_KM;
+  }
+
+  /** Height raster texture used for displacement (km; equirectangular, row 0 = south); null without relief. */
+  get heightTexture(): THREE.Texture | null {
+    return this.heightTex;
+  }
+
+  /** Adds a draped layer; returns a function removing and disposing it (also done by dispose()). */
+  addSurfaceOverlay(o: SurfaceOverlay): () => void {
+    this.overlays.add(o);
+    o.setScale(this.scale);
+    this.scene.add(o.object);
+    return () => {
+      if (!this.overlays.delete(o)) return;
+      this.scene.remove(o.object);
+      o.dispose();
+    };
+  }
+
   /** Turns the camera toward lat/lon (spherical interpolation; distance kept or reduced). */
   flyTo(lat: number, lon: number, radiusKm = 50): void {
     const u = latLonToUnit(lat, lon);
@@ -561,6 +603,11 @@ export class Globe {
     this.controls.dispose();
     this.clearMarkers();
     this.tiles.dispose();
+    for (const o of this.overlays) {
+      this.scene.remove(o.object);
+      o.dispose();
+    }
+    this.overlays.clear();
     this.scene.traverse((obj) => {
       const o = obj as THREE.Mesh;
       o.geometry?.dispose();
@@ -589,6 +636,7 @@ export class Globe {
     if (this.ring) this.ring.material.opacity = 0.55 + 0.4 * Math.sin(now / 250);
     this.controls.update();
     this.tiles.update(this.camera, this.renderer.domElement.clientHeight);
+    this.sizeMarkers();
     if (this.sky) {
       // Re-centre on the camera every frame: directions, not positions, are what is physical.
       const cam = this.camera.position;
@@ -601,9 +649,26 @@ export class Globe {
     this.renderer.render(this.scene, this.camera);
   }
 
+  /**
+   * Keeps the site and click markers at a constant size ON SCREEN (radius in CSS pixels) whatever
+   * the zoom: a fixed scene size would cover tens of km close up and hide the terrain / overlays.
+   */
+  private sizeMarkers(): void {
+    const h = this.renderer.domElement.clientHeight || 1;
+    const k = (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2))) / h; // scene units per px per unit distance
+    const fit = (obj: THREE.Mesh<THREE.SphereGeometry>, px: number) => {
+      const r0 = obj.geometry.parameters.radius;
+      obj.scale.setScalar((px * k * this.camera.position.distanceTo(obj.position)) / r0);
+    };
+    if (this.siteMarker.visible) fit(this.siteMarker, SITE_MARKER_PX);
+    for (const mk of this.markers.children) fit(mk as THREE.Mesh<THREE.SphereGeometry>, CLICK_MARKER_PX);
+  }
+
   private placeOnSurface(obj: THREE.Object3D, lat: number, lon: number): void {
     const u = latLonToUnit(lat, lon);
-    obj.position.set(u.x, u.y, u.z).multiplyScalar(this.surfaceRadius(lat, lon) + 0.002);
+    // Just above the imagery tiles (lifted 0.0004): markers are small on screen now, so a large
+    // offset would show as parallax away from the clicked point when viewed obliquely.
+    obj.position.set(u.x, u.y, u.z).multiplyScalar(this.surfaceRadius(lat, lon) + 0.0008);
   }
 
   private placeLandings(pts: THREE.Points): void {

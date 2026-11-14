@@ -287,3 +287,35 @@ details ul { padding-left: 1.1rem; margin: 0.3rem 0; }
 .ground-gps input { width: 86px; padding: 3px 5px; font-size: 12px; background: rgba(0, 0, 0, 0.55); color: var(--text);
   border: 1px solid #3b4760; border-radius: 2px; }
 .ground-gps button { padding: 3px 8px; }
+
+/* Terrain slope map (SlopeMap.tsx) */
+.slope-canvas-wrap { position: relative; width: 100%; max-width: 320px; aspect-ratio: 1; margin: 0.4rem 0; }
+.slope-canvas-wrap canvas { width: 100%; height: 100%; image-rendering: pixelated; border: 1px solid var(--line); display: block; }
+.slope-north { position: absolute; top: 6px; right: 6px; width: 22px; text-align: center; color: #fff; font-size: 13px;
+  line-height: 1; text-shadow: 0 1px 3px #000; transform-origin: 50% 50%; }
+.slope-north span { display: block; font-size: 10px; font-weight: 700; }
+.slope-scale { position: absolute; bottom: 6px; left: 6px; border-bottom: 2px solid #fff; color: #fff; font-size: 10px;
+  text-align: center; text-shadow: 0 1px 3px #000; }
+.slope-loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 0.8rem;
+  background: var(--panel); border: 1px solid var(--line); }
+.slope-ok { color: #2fc85a; }
+.slope-bad { color: var(--bad); }
+.slope-nodata { color: #464646; }
+.slope-verify { display: flex; gap: 0.5rem; align-items: flex-end; flex-wrap: wrap; margin: 0.3rem 0; }
+.slope-check p { margin: 0.25rem 0; }
+.slope-check ul { margin: 0.2rem 0; padding-left: 1.1rem; }
+.slope-verdict-pass { color: #2fc85a; }
+.slope-verdict-fail { color: var(--bad); }
+.slope-verdict-insufficient_data, .slope-verdict-not_evaluated { color: #e0b040; }
+.slope-worst { color: #ff3df2; }
+
+/* Slope filter on the globe (slopeOverlay.ts): toggle in .sky-view, controls under it. */
+.lunar .sky-view button.on { border-color: #2fc85a; color: #2fc85a; }
+.lunar .slope-filter { position: absolute; top: 230px; right: calc(var(--l-panel-w) + 10px); z-index: 5;
+  width: min(280px, calc(100% - 2rem)); padding: 0.6rem 0.75rem; background: rgba(10, 12, 18, 0.82);
+  border: 1px solid var(--line); border-radius: 4px; display: flex; flex-direction: column; gap: 0.4rem;
+  transition: right 0.25s ease; }
+.lunar.panel-collapsed .slope-filter { right: 10px; }
+.lunar .slope-filter .slider { display: flex; flex-wrap: wrap; justify-content: space-between; font-size: 0.85rem; }
+.lunar .slope-filter .slider input { width: 100%; }
+.lunar .slope-filter .small { font-size: 0.75rem; line-height: 1.35; }

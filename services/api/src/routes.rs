@@ -24,6 +24,7 @@ pub fn gateway_router(state: AppState) -> Router {
             "/demo/synthetic/evaluate",
             post(gateway::evaluate_synthetic),
         )
+        .route("/terrain/slope/check", post(gateway::slope_check))
         .with_state(state)
 }
 

@@ -7,6 +7,7 @@ use axum::Json;
 use crate::envelope::{ApiError, FieldIssue};
 use crate::scenario::{ScenarioRequest, ScenarioResponse};
 use crate::science::{Provider, ScienceClient};
+use crate::terrain::{SlopeCheckRequest, SlopeCheckResponse};
 
 pub const SITES_JSON: &str = include_str!("../../../packages/contracts/fixtures/sites.json");
 
@@ -46,4 +47,16 @@ pub async fn evaluate_synthetic(
     Ok(Json(
         state.science.evaluate(&req, Provider::Synthetic).await?,
     ))
+}
+
+/// Forwards a validated slope check to the science service (which reads the DEM and decides).
+pub async fn slope_check(
+    State(state): State<AppState>,
+    body: Bytes,
+) -> Result<Json<SlopeCheckResponse>, ApiError> {
+    const INVALID: &str = "Slope check request is invalid.";
+    let req: SlopeCheckRequest = serde_json::from_slice(&body)
+        .map_err(|e| ApiError::invalid(INVALID, vec![FieldIssue::new("body", &e.to_string())]))?;
+    req.validate().map_err(|d| ApiError::invalid(INVALID, d))?;
+    Ok(Json(state.science.slope_check(&req).await?))
 }

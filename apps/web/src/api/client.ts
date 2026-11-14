@@ -1,4 +1,12 @@
-import type { ErrorResponse, HealthResponse, PresetSite, ScenarioRequest, ScenarioResponse } from "./types";
+import type {
+  ErrorResponse,
+  HealthResponse,
+  PresetSite,
+  ScenarioRequest,
+  ScenarioResponse,
+  SlopeCheckRequest,
+  SlopeCheckResponse,
+} from "./types";
 
 // Relative base: Vite dev proxy (and nginx in Docker) forward /api/* to the Rust gateway.
 const BASE = import.meta.env.VITE_API_BASE ?? "/api";
@@ -31,4 +39,7 @@ export const api = {
   /** SYNTHETIC demo data only — never for analysis. */
   evaluateSynthetic: (req: ScenarioRequest) =>
     request<ScenarioResponse>("/v1/demo/synthetic/evaluate", { method: "POST", body: JSON.stringify(req) }),
+  /** Server-side slope check of a circular zone on the full-resolution DEM (science service). */
+  slopeCheck: (req: SlopeCheckRequest) =>
+    request<SlopeCheckResponse>("/v1/terrain/slope/check", { method: "POST", body: JSON.stringify(req) }),
 };

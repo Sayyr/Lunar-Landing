@@ -74,12 +74,11 @@ int days_in_month(int y, int m) {
     return m == 2 && is_leap(y) ? 29 : dim[m - 1];
 }
 
-struct Limit {
-    enum Op { GE, GT, LE, LT } op;
-    double value;
-};
+}  // namespace
 
-std::string limit_message(const Limit& l) {
+namespace validate {
+
+static std::string limit_message(const Limit& l) {
     char num[32];
     // Limits are integers in the contract; print them the way the schema does.
     std::snprintf(num, sizeof num, "%g", l.value);
@@ -92,7 +91,7 @@ std::string limit_message(const Limit& l) {
     return {};
 }
 
-bool satisfies(double x, const Limit& l) {
+static bool satisfies(double x, const Limit& l) {
     switch (l.op) {
         case Limit::GE: return x >= l.value;
         case Limit::GT: return x > l.value;
@@ -123,9 +122,11 @@ void reject_extra(const json& obj, std::initializer_list<const char*> known, con
     }
 }
 
-const char* NOT_OBJECT = "Input should be a valid dictionary or object to extract fields from";
+const char* const NOT_OBJECT = "Input should be a valid dictionary or object to extract fields from";
 
-}  // namespace
+}  // namespace validate
+
+using namespace validate;
 
 int64_t parse_utc(const std::string& value) {
     UtcFields f;

@@ -16,6 +16,10 @@ mkdir -p "$SIM"
 g++ -O2 -o "$SIM/calc-planete" "$API/simulation/simulate.cpp"
 gcc -O2 -o "$SIM/calc-radio" "$API/simulation/simulate-slow.c"
 
+# Raw LOLA DEM for POST /terrain/slope/check, if installed (apps/web/scripts/POLAR_DATA.md).
+DEM="$ROOT/apps/web/data-raw/lola_polar/ldem_85s_20m_float.img"
+if [ -z "${SELENE_DEM_PATH:-}" ] && [ -f "$DEM" ]; then export SELENE_DEM_PATH="$DEM"; fi
+
 trap 'kill 0' EXIT INT TERM
 "$SCIENCE" --host 127.0.0.1 --port 8000 &
 (cd "$API" && PROFILES_FILE="$API/config/profiles.json" SCRIPTS_DIR="$SIM" cargo run -q) &

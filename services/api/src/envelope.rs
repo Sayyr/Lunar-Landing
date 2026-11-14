@@ -64,10 +64,14 @@ impl ApiError {
     }
 
     pub fn validation(details: Vec<FieldIssue>) -> Self {
+        Self::invalid("Scenario request is invalid.", details)
+    }
+
+    pub fn invalid(message: &str, details: Vec<FieldIssue>) -> Self {
         let mut e = Self::new(
             StatusCode::UNPROCESSABLE_ENTITY,
             ErrorCode::ValidationError,
-            "Scenario request is invalid.",
+            message,
         );
         e.body.details = details;
         e

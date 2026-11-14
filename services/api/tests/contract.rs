@@ -14,6 +14,7 @@ use lunar_landing::gateway::{AppState, SITES_JSON};
 use lunar_landing::routes::gateway_router;
 use lunar_landing::scenario::{ScenarioRequest, ScenarioResponse, ScenarioStatus};
 use lunar_landing::science::ScienceClient;
+use lunar_landing::terrain::{SlopeCheckRequest, SlopeCheckResponse, SlopeStatus, SlopeVerdict};
 use serde_json::{json, Value};
 use tower::ServiceExt;
 
@@ -104,11 +105,55 @@ fn sites_and_error_fixtures() {
     serde_json::from_value::<ErrorResponse>(err).unwrap();
 }
 
+#[test]
+fn slope_check_request_fixtures() {
+    let raw = load("fixtures/slope-check-request.valid.json");
+    assert_valid("slope-check-request.schema.json", &raw);
+    serde_json::from_value::<SlopeCheckRequest>(raw)
+        .unwrap()
+        .validate()
+        .unwrap();
+
+    let dir = contracts().join("fixtures/invalid-slope-check-requests");
+    let mut n = 0;
+    for entry in std::fs::read_dir(dir).unwrap() {
+        let path = entry.unwrap().path();
+        let raw: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert!(
+            !validator("slope-check-request.schema.json").is_valid(&raw),
+            "{path:?} schema"
+        );
+        let rust_ok = serde_json::from_value::<SlopeCheckRequest>(raw)
+            .map(|r| r.validate().is_ok())
+            .unwrap_or(false);
+        assert!(!rust_ok, "{path:?} should be rejected by the gateway");
+        n += 1;
+    }
+    assert!(n >= 5);
+}
+
+#[test]
+fn slope_check_response_fixtures_roundtrip() {
+    for name in [
+        "slope-check-response.dem-unavailable.json",
+        "slope-check-response.synthetic-dem.json",
+    ] {
+        let raw = load(&format!("fixtures/{name}"));
+        assert_valid("slope-check-response.schema.json", &raw);
+        let typed: SlopeCheckResponse = serde_json::from_value(raw).unwrap();
+        assert_valid(
+            "slope-check-response.schema.json",
+            &serde_json::to_value(&typed).unwrap(),
+        );
+    }
+}
+
 // ---------- HTTP ----------
 
 async fn mock_science() -> String {
     let not_ready = load("fixtures/scenario-response.not-ready.json");
     let synthetic = load("fixtures/scenario-response.synthetic.json");
+    let slope = load("fixtures/slope-check-response.synthetic-dem.json");
     let app = Router::new()
         .route(
             "/health",
@@ -123,6 +168,10 @@ async fn mock_science() -> String {
         .route(
             "/evaluate/synthetic",
             post(move || async move { Json(synthetic) }),
+        )
+        .route(
+            "/terrain/slope/check",
+            post(move || async move { Json(slope) }),
         );
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -238,4 +287,66 @@ async fn sites_endpoint() {
         .unwrap()
         .iter()
         .all(|s| s["kind"] == "synthetic_test_point"));
+}
+
+#[tokio::test]
+async fn slope_check_forwards_science_result() {
+    let url = mock_science().await;
+    let req = load("fixtures/slope-check-request.valid.json");
+    let (status, body) = call(app(&url), "POST", "/api/v1/terrain/slope/check", Some(req)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid("slope-check-response.schema.json", &body);
+    let typed: SlopeCheckResponse = serde_json::from_value(body).unwrap();
+    assert_eq!(typed.status, SlopeStatus::Computed);
+    assert_eq!(typed.verdict, SlopeVerdict::Pass);
+    // the mock serves the SYNTHETIC-DEM fixture; provenance must say so
+    assert_eq!(typed.data_provenance.extra["synthetic"], true);
+}
+
+#[tokio::test]
+async fn slope_check_invalid_is_422_without_calling_science() {
+    let mut req = load("fixtures/slope-check-request.valid.json");
+    req["zone"]["radius_m"] = json!(5.0);
+    let (status, body) = call(
+        app("http://127.0.0.1:9"),
+        "POST",
+        "/api/v1/terrain/slope/check",
+        Some(req),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_valid("error.schema.json", &body);
+    assert_eq!(body["error"]["details"][0]["field"], "zone.radius_m");
+}
+
+#[tokio::test]
+async fn slope_check_null_fraction_is_422_without_calling_science() {
+    for field in ["required_fraction", "max_nodata_fraction"] {
+        let mut req = load("fixtures/slope-check-request.valid.json");
+        req[field] = Value::Null;
+        let (status, body) = call(
+            app("http://127.0.0.1:9"),
+            "POST",
+            "/api/v1/terrain/slope/check",
+            Some(req),
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{field}");
+        assert_valid("error.schema.json", &body);
+        assert_eq!(body["error"]["code"], "validation_error");
+    }
+}
+
+#[tokio::test]
+async fn slope_check_science_down_is_503() {
+    let req = load("fixtures/slope-check-request.valid.json");
+    let (status, body) = call(
+        app("http://127.0.0.1:9"),
+        "POST",
+        "/api/v1/terrain/slope/check",
+        Some(req),
+    )
+    .await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(body["error"]["code"], "science_unavailable");
 }
