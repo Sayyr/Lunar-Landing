@@ -92,7 +92,8 @@ function EarthMoonView({ state, earthTex, moonTex, earthOrientation, moonOrienta
       <EclipticFrameHints radius={70} />
       <Line points={track} color="#7d8aa5" lineWidth={1} transparent opacity={0.55} />
       <Line points={[[0, 0, 0], moonPos]} color="#c9ced8" lineWidth={1} dashed dashSize={1.2} gapSize={0.8} />
-      <Line points={[[0, 0, 0], times(sunDir, 90)]} color="#f2c14e" lineWidth={1.2} dashed dashSize={2} gapSize={1.2} />
+      {/* Dashed line all the way to the (distance-compressed) Sun proxy, stopping at its limb. */}
+      <Line points={[[0, 0, 0], times(sunDir, SUN_PROXY_DIST - sunRadius)]} color="#f2c14e" lineWidth={1.2} dashed dashSize={2} gapSize={1.2} />
       <Html position={[sunDir[0] * 92, sunDir[1] * 92 + 2, sunDir[2] * 92]} center className="axis-label sun">
         → toward Sun
       </Html>
