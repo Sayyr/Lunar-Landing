@@ -480,7 +480,9 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
       const el = diskRef.current;
       if (!el) return;
       const a = globe.northScreenAngle(siteLat, siteLon);
-      const tilt = globe.siteViewTilt(siteLat, siteLon);
+      // Capped so the disc stays readable when the site is seen edge-on (e.g. a pole from the front):
+      // past 50° the ellipse gets too flat to read N/E/S/W or the Sun/Earth positions.
+      const tilt = Math.min(50, globe.siteViewTilt(siteLat, siteLon));
       el.style.transform = `rotateX(${tilt.toFixed(1)}deg) rotate(${(a ?? 0).toFixed(1)}deg)`;
       el.style.opacity = a == null ? "0.45" : "1"; // dimmed: site behind the camera plane
     };
