@@ -2,6 +2,8 @@ import type {
   ErrorResponse,
   HealthResponse,
   PresetSite,
+  RadioLinkRequest,
+  RadioLinkResponse,
   ScenarioRequest,
   ScenarioResponse,
   SlopeCheckRequest,
@@ -47,4 +49,7 @@ export const api = {
   /** Server-side slope check of a circular zone on the full-resolution DEM (science service). */
   slopeCheck: (req: SlopeCheckRequest) =>
     request<SlopeCheckResponse>("/v1/terrain/slope/check", { method: "POST", body: JSON.stringify(req) }),
+  /** Direct-to-Earth radio-link windows (engineering estimate, analytic ephemeris — not a link guarantee). */
+  radioLink: (req: RadioLinkRequest) =>
+    request<RadioLinkResponse>("/v1/scenarios/radio-link", { method: "POST", body: JSON.stringify(req) }),
 };

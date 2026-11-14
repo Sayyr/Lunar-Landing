@@ -25,7 +25,7 @@ from conftest import CASES, contract_gap, scenario
 TS_TYPES = REPO / "apps/web/src/api/types.ts"
 TS_CELESTIAL = REPO / "apps/web/src/api/celestialTypes.ts"
 RUST_SCENARIO = REPO / "services/api/src/scenario.rs"
-RUST_ERROR = REPO / "services/api/src/error.rs"
+RUST_ERROR = REPO / "services/api/src/envelope.rs"
 RUST_LIB = REPO / "services/api/src/lib.rs"
 CPP_MODELS = REPO / "services/science/src/models.hpp"
 
@@ -57,6 +57,11 @@ def test_every_schema_file_is_known_to_the_bench():
         ("response", "scenario-response.synthetic.json"),
         ("sites", "sites.json"),
         ("error", "error.validation.json"),
+        ("slope_request", "slope-check-request.valid.json"),
+        ("slope_response", "slope-check-response.dem-unavailable.json"),
+        ("slope_response", "slope-check-response.synthetic-dem.json"),
+        ("radio_request", "radio-link-request.valid.json"),
+        ("radio_response", "radio-link-response.computed.json"),
     ],
 )
 def test_shared_fixture_matches_schema(kind, fixture):
@@ -68,6 +73,17 @@ def test_shared_fixture_matches_schema(kind, fixture):
 )
 def test_shared_invalid_request_is_rejected_by_schema(path):
     assert schema_errors("request", load_json(path)), f"{path.name} is accepted by the schema"
+
+
+@pytest.mark.parametrize(
+    "kind,folder",
+    [("slope_request", "invalid-slope-check-requests"), ("radio_request", "invalid-radio-link-requests")],
+)
+def test_shared_invalid_engineering_requests_are_rejected_by_schema(kind, folder):
+    paths = sorted((SHARED_FIXTURES / folder).glob("*.json"))
+    assert paths, f"no fixture in {folder}"
+    accepted = [p.name for p in paths if not schema_errors(kind, load_json(p))]
+    assert not accepted, f"accepted by the schema: {accepted}"
 
 
 # --- bench fixtures -----------------------------------------------------------------------

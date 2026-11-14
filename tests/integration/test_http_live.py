@@ -272,3 +272,56 @@ def test_exact_pole_is_finite_and_deterministic(gateway):
     again = gateway.post("/scenarios/evaluate", scenario("valid", "south-pole-exact")).json
     assert body["samples"] == again["samples"]
     assert inv.check_directions(body) == []
+
+
+# --- radio link (engineering tier) ---------------------------------------------------------
+
+RADIO = {"gateway": "/scenarios/radio-link", "science": "/radio/evaluate"}
+RADIO_REQUEST = load_json(SHARED_FIXTURES / "radio-link-request.valid.json")
+
+
+def _radio(client, path, **site):
+    sent = {**RADIO_REQUEST, "site": {**RADIO_REQUEST["site"], **site}}
+    reply = client.post(path, sent)
+    assert reply.status == 200, f"HTTP {reply.status}: {reply.text[:300]}"
+    assert schema_errors("radio_response", reply.json) == []
+    return sent, reply.json
+
+
+def test_radio_link_matches_contract_and_is_labelled(svc):
+    name, client = svc
+    sent, body = _radio(client, RADIO[name])
+    assert body["request"] == sent
+    assert body["model"]["tier"] == "engineering"
+    assert body["model"]["ephemeris_provider"] != "spice", "analytic ephemeris must not be called SPICE"
+    assert any("not a guaranteed radio link" in a for a in body["assumptions"])
+    for s in body["samples"]:
+        assert s["link_available"] == (s["earth_visible"] and s["station_visible"] and s["margin_db"] > 0)
+
+
+def test_radio_link_far_side_never_has_a_link(svc):
+    name, client = svc
+    _, body = _radio(client, RADIO[name], latitude_deg=0.0, longitude_deg=-180.0)
+    assert body["windows"]["link_available"] == []
+    assert not any(s["earth_visible"] for s in body["samples"])
+
+
+def test_radio_link_sub_earth_point_always_sees_earth(svc):
+    name, client = svc
+    _, body = _radio(client, RADIO[name], latitude_deg=0.0, longitude_deg=0.0)
+    assert all(s["earth_visible"] for s in body["samples"])
+    assert body["summary"]["earth_visible_fraction"] == 1.0
+
+
+@pytest.mark.parametrize(
+    "path", sorted((SHARED_FIXTURES / "invalid-radio-link-requests").glob("*.json")), ids=lambda p: p.stem
+)
+def test_radio_link_invalid_request_is_422(svc, path):
+    name, client = svc
+    reply = client.post(RADIO[name], load_json(path))
+    assert reply.status == 422, f"HTTP {reply.status}, expected 422: {reply.text[:200]}"
+    assert schema_errors("error", reply.json_or_none()) == []
+
+
+def test_gateway_forwards_radio_link_unchanged(gateway, science):
+    assert gateway.post(RADIO["gateway"], RADIO_REQUEST).json == science.post(RADIO["science"], RADIO_REQUEST).json

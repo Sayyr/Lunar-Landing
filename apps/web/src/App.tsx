@@ -7,6 +7,7 @@ import { ScenarioForm } from "./components/ScenarioForm";
 import { ServiceStatus } from "./components/ServiceStatus";
 import { REPO_URL } from "./lib/links";
 import { LunarExplorer } from "./lunar/LunarExplorer";
+import { RadioLinkPanel } from "./components/RadioLinkPanel";
 
 const CelestialDashboard = lazy(() =>
   import("./components/celestial/CelestialDashboard").then((m) => ({ default: m.CelestialDashboard })),
@@ -103,6 +104,7 @@ export function App() {
           />
           {error && <div className="error" role="alert">{error}</div>}
           {result && <ResultPanel result={result} />}
+          <RadioLinkPanel scenario={request} />
           <ServiceStatus />
           <p className="muted small">
             Geometric visibility is not a power or communications guarantee. Not NASA-certified; not flight-ready.

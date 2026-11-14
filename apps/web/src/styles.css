@@ -319,3 +319,17 @@ details ul { padding-left: 1.1rem; margin: 0.3rem 0; }
 .lunar .slope-filter .slider { display: flex; flex-wrap: wrap; justify-content: space-between; font-size: 0.85rem; }
 .lunar .slope-filter .slider input { width: 100%; }
 .lunar .slope-filter .small { font-size: 0.75rem; line-height: 1.35; }
+
+/* Radio link (engineering estimate) */
+.radio { border-top: 1px solid var(--line); padding-top: 0.6rem; }
+.radio > summary { cursor: pointer; font-weight: 600; font-size: 0.9rem; }
+.radio .stations { border: 1px solid var(--line); border-radius: 6px; margin: 0.6rem 0 0; padding: 0.4rem 0.6rem;
+  display: flex; flex-direction: column; gap: 0.2rem; }
+.radio .stations legend { font-size: 0.75rem; color: var(--muted); padding: 0 0.3rem; }
+.radio .stations .check { flex-direction: row; align-items: center; gap: 0.4rem; color: var(--text); }
+.radio .radio-kv { margin: 0.8rem 0; }
+.radio h4 { margin: 0.6rem 0 0.2rem; font-size: 0.8rem; }
+.radio .radio-windows { max-height: 11rem; overflow-y: auto; }
+.status-engineering { background: #1b2a44; color: var(--earth); }
+.timeline .band-station { fill: var(--muted); opacity: 0.55; }
+.timeline .band-link { fill: var(--ok); opacity: 0.85; }

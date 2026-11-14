@@ -44,6 +44,7 @@ Build **SELENE**, a scientifically defensible, interactive lunar landing-site an
 - `POST /scenarios/evaluate`
 - `POST /scenarios/compare`
 - `POST /scenarios/search` (after MVP)
+- `POST /scenarios/radio-link` (engineering tier: direct-to-Earth radio-link windows; analytic ephemeris, not SPICE)
 - `GET /terrain/{site_id}` (after terrain availability)
 
 ### Minimum scenario input

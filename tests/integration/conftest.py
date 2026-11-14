@@ -27,9 +27,11 @@ REPORTS = BENCH / "reports"
 
 SERVICES = {
     # name: (env var, default URL, health path)
-    "gateway": ("SELENE_BENCH_API_URL", "http://127.0.0.1:8080", "/health"),
+    # The gateway nests every route under /api/v1 (services/api/src/routes.rs).
+    "gateway": ("SELENE_BENCH_API_URL", "http://127.0.0.1:8080/api/v1", "/health"),
     "science": ("SELENE_BENCH_SCIENCE_URL", "http://127.0.0.1:8000", "/health"),
-    "back": ("SELENE_BENCH_BACK_URL", "http://127.0.0.1:3000", "/api/v1/health"),
+    # The former `back/` API now lives in the gateway binary (POST /api/v1/calcule).
+    "back": ("SELENE_BENCH_BACK_URL", "http://127.0.0.1:8080", "/api/v1/health"),
 }
 
 

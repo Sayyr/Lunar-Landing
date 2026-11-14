@@ -51,5 +51,11 @@ Geometric visibility is **not** power availability and **not** a radio link. Eve
 | Sun/Earth az/el at a lunar site | JPL Horizons topocentric observer on body 301 (user-defined site), same epochs and frame assumptions; store small reference CSVs in `services/science/tests/fixtures/` with the query used | proposal: < 0.01° | ⏳ |
 | Polar handling | sites at lat −90, −89.999, −89.5 produce finite, continuous az/el | deterministic | ⏳ |
 | Long-period sanity | Sun elevation at a near-pole site stays within a few degrees of horizon; must be confirmed with real data, not assumed | qualitative | ⏳ |
+| Analytic Moon position (`services/science/src/lunar_ephemeris.cpp`, used ONLY by the radio-link estimate) | Meeus worked example 47.a (1992-04-12 0h TD): longitude, latitude, distance | 0.01°, 0.01°, 60 km | ✅ automated — measured 0.0007°, 0.0006°, 35 km at that single epoch |
+| Analytic optical librations (sub-Earth point) | Meeus worked example 53.a, same epoch | 0.02° | ✅ automated — measured < 0.001° |
+| Greenwich mean sidereal time | Meeus worked example 12.a (1987-04-10 0h UT) | 1e-5° | ✅ automated |
+| Analytic Earth direction at a lunar site vs SPICE | same sites/epochs as the team's `test_validation_lunar_mission.py` (needs the kernels + SpiceyPy) | expected ~0.1° (physical librations ≤ 0.04°, nutation, light time not modelled) | ⏳ **not done**: radio-link windows are unverified against SPICE/Horizons |
+| Link-budget formulas (`services/science/src/link.*`, engineering tier) | FSPL vs the independent form `32.44778 + 20log10(d_km) + 20log10(f_MHz)`, inverse-square scaling, C/N0 and Eb/N0 identities, Doppler sign | 1e-4 dB | ✅ automated (formulas only) |
+| Radio-link windows (`POST /radio/evaluate`) | sanity: sub-Earth equator always sees Earth, far side never, near-pole site ~half the time with multi-day outages, one station ≈ one pass/day, link ⊂ Earth ∩ ground windows, FSPL swing ≈ 1.1 dB | qualitative | ✅ automated (C++ suite + integration bench, live) |
 
 Record every executed validation here with date, kernel set and SHA-256, and the result.
