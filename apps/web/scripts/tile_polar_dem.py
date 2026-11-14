@@ -138,7 +138,7 @@ def write_tiles(level_img: np.ndarray, out: str, tile: int) -> tuple[int, int, i
     written = 0
     for r in range(rows):
         for c in range(cols):
-            block = np.full((tile, tile), np.nan, dtype=np.float64)
+            block = np.full((tile, tile), np.nan, dtype=np.float32)
             src = level_img[r * tile : (r + 1) * tile, c * tile : (c + 1) * tile]
             block[: src.shape[0], : src.shape[1]] = src
             finite = np.isfinite(block)
@@ -154,6 +154,24 @@ def write_tiles(level_img: np.ndarray, out: str, tile: int) -> tuple[int, int, i
                 fh.write(q.tobytes())
             written += 1
     return rows, cols, written
+
+
+ENCODING = "8-byte header float32 LE offset_km, step_km; then uint16 LE; 65535 = no data"
+
+
+def write_product(km: np.ndarray, out: str, n_levels: int, tile: int, scale_m: float, manifest: dict) -> None:
+    """Writes the level pyramid (×2 coarser per level, 2×2 mean) and manifest.json (fields + tile, encoding, levels)."""
+    levels = []
+    for lv in range(n_levels):
+        if lv:
+            km = downsample(km)
+        rows, cols, n = write_tiles(km, os.path.join(out, f"L{lv}"), tile)
+        levels.append({"level": lv, "scale_m": scale_m * 2**lv, "lines": km.shape[0], "samples": km.shape[1], "rows": rows, "cols": cols, "tiles": n})
+        print(f"  L{lv}: {km.shape[1]}×{km.shape[0]} px at {scale_m * 2**lv:g} m → {n} tiles")
+    os.makedirs(out, exist_ok=True)
+    with open(os.path.join(out, "manifest.json"), "w") as fh:
+        json.dump({**manifest, "tile": tile, "encoding": ENCODING, "levels": levels}, fh, indent=1)
+    print(f"manifest → {os.path.join(out, 'manifest.json')}")
 
 
 def main() -> None:
@@ -175,15 +193,8 @@ def main() -> None:
     if fit["rms_km"] * 1000 > a.max_rms_m:
         raise SystemExit(f"projection check failed: rms {fit['rms_km'] * 1000:.0f} m > {a.max_rms_m} m — not writing tiles")
 
-    levels = []
-    img = np.asarray(dem, dtype=np.float64) * lab["scaling"]
-    for lv in range(a.levels):
-        if lv:
-            img = downsample(img)
-        rows, cols, n = write_tiles(img, os.path.join(a.out, f"L{lv}"), a.tile)
-        levels.append({"level": lv, "scale_m": lab["scale_m"] * 2**lv, "lines": img.shape[0], "samples": img.shape[1], "rows": rows, "cols": cols, "tiles": n})
-        print(f"  L{lv}: {img.shape[1]}×{img.shape[0]} px at {lab['scale_m'] * 2**lv:g} m → {n} tiles")
-
+    km = np.array(dem, dtype=np.float32)  # float32: ~1 mm at these heights, below the cm quantisation
+    km *= lab["scaling"]
     manifest = {
         "source": os.path.basename(a.img),
         "frame": lab["frame"],
@@ -207,14 +218,9 @@ def main() -> None:
             "sign_line": fit["sl"],
             "pixel_index": "0-based pixel centres at level 0; level n: (index + 0.5) / 2^n − 0.5",
         },
-        "tile": a.tile,
-        "encoding": "8-byte header float32 LE offset_km, step_km; then uint16 LE; 65535 = no data",
-        "levels": levels,
         "validation": {"against": os.path.basename(a.check), **fit},
     }
-    with open(os.path.join(a.out, "manifest.json"), "w") as fh:
-        json.dump(manifest, fh, indent=1)
-    print(f"manifest → {os.path.join(a.out, 'manifest.json')}")
+    write_product(km, a.out, a.levels, a.tile, lab["scale_m"], manifest)
 
 
 if __name__ == "__main__":

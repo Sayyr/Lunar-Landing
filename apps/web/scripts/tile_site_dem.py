@@ -29,7 +29,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from split_ldem import read_float_tiff, read_tiff_tags  # noqa: E402
-from tile_polar_dem import bilinear, downsample, parse_label, project, write_tiles  # noqa: E402
+from tile_polar_dem import bilinear, parse_label, project, write_product  # noqa: E402
 
 
 def geokeys(tags: dict) -> dict[int, float]:
@@ -129,7 +129,7 @@ def main() -> None:
 
     site = site_label(a.tif)
     W, H, px = read_float_tiff(a.tif)
-    img = np.frombuffer(px.tobytes(), dtype=np.float32).reshape(H, W).astype(np.float64)
+    img = np.frombuffer(px, dtype=np.float32).reshape(H, W)  # native order (read_float_tiff byteswaps)
     ref_lab = parse_label(a.ref_lbl)
     ref_img = np.memmap(a.ref_img, dtype="<f4", mode="r", shape=(ref_lab["lines"], ref_lab["samples"]))
     rp = json.load(open(a.ref_manifest))["projection"]
@@ -141,15 +141,7 @@ def main() -> None:
 
     # Heights in km on the reference sphere; the (small, validated) median offset to the 20 m
     # product is removed so the two join without a step where the ground view switches products.
-    km = img * (0.001 if fit["unit"] == "m" else 1.0) - fit["median_offset_m"] / 1000
-    levels = []
-    for lv in range(a.levels):
-        if lv:
-            km = downsample(km)
-        rows, cols, n = write_tiles(km, os.path.join(a.out, f"L{lv}"), a.tile)
-        levels.append({"level": lv, "scale_m": site["scale_m"] * 2**lv, "lines": km.shape[0], "samples": km.shape[1], "rows": rows, "cols": cols, "tiles": n})
-        print(f"  L{lv}: {km.shape[1]}×{km.shape[0]} px at {site['scale_m'] * 2**lv:g} m → {n} tiles")
-
+    km = img * np.float32(0.001 if fit["unit"] == "m" else 1.0) - np.float32(fit["median_offset_m"] / 1000)
     manifest = {
         "source": os.path.basename(a.tif),
         "frame": "MEAN EARTH/POLAR AXIS OF DE421 (PGDA product page)",
@@ -172,15 +164,9 @@ def main() -> None:
             "sign_y": fit["sy"],
             "sign_line": fit["sl"],
         },
-        "tile": a.tile,
-        "encoding": "8-byte header float32 LE offset_km, step_km; then uint16 LE; 65535 = no data",
-        "levels": levels,
         "validation": {"against": os.path.basename(a.ref_img), **fit},
     }
-    os.makedirs(a.out, exist_ok=True)
-    with open(os.path.join(a.out, "manifest.json"), "w") as fh:
-        json.dump(manifest, fh, indent=1)
-    print(f"manifest → {os.path.join(a.out, 'manifest.json')}")
+    write_product(km, a.out, a.levels, a.tile, site["scale_m"], manifest)
 
 
 if __name__ == "__main__":
