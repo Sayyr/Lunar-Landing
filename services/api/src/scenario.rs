@@ -99,7 +99,9 @@ impl ScenarioRequest {
 
 fn is_utc_z(s: &str) -> bool {
     // RFC 3339 parse rejects impossible dates; the 'Z' check rejects offsets like +02:00.
-    s.ends_with('Z') && s.as_bytes().get(10) == Some(&b'T') && chrono::DateTime::parse_from_rfc3339(s).is_ok()
+    s.ends_with('Z')
+        && s.as_bytes().get(10) == Some(&b'T')
+        && chrono::DateTime::parse_from_rfc3339(s).is_ok()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

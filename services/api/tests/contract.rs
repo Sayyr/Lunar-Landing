@@ -11,6 +11,7 @@ use axum::{Json, Router};
 use http_body_util::BodyExt;
 use lunar_landing::envelope::ErrorResponse;
 use lunar_landing::gateway::{AppState, SITES_JSON};
+use lunar_landing::radio::{RadioLinkRequest, RadioLinkResponse};
 use lunar_landing::routes::gateway_router;
 use lunar_landing::scenario::{ScenarioRequest, ScenarioResponse, ScenarioStatus};
 use lunar_landing::science::ScienceClient;
@@ -154,7 +155,9 @@ async fn mock_science() -> String {
     let not_ready = load("fixtures/scenario-response.not-ready.json");
     let synthetic = load("fixtures/scenario-response.synthetic.json");
     let slope = load("fixtures/slope-check-response.synthetic-dem.json");
+    let radio = load("fixtures/radio-link-response.computed.json");
     let app = Router::new()
+        .route("/radio/evaluate", post(move || async move { Json(radio) }))
         .route(
             "/health",
             get(|| async {
@@ -363,6 +366,105 @@ async fn slope_check_science_down_is_503() {
         app("http://127.0.0.1:9"),
         "POST",
         "/api/v1/terrain/slope/check",
+        Some(req),
+    )
+    .await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(body["error"]["code"], "science_unavailable");
+}
+
+// ---------- radio link ----------
+
+#[test]
+fn radio_link_request_fixtures() {
+    let raw = load("fixtures/radio-link-request.valid.json");
+    assert_valid("radio-link-request.schema.json", &raw);
+    let req: RadioLinkRequest = serde_json::from_value(raw).unwrap();
+    req.validate().unwrap();
+
+    let dir = contracts().join("fixtures/invalid-radio-link-requests");
+    let mut count = 0;
+    for entry in std::fs::read_dir(dir).unwrap() {
+        let path = entry.unwrap().path();
+        let raw: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert!(
+            !validator("radio-link-request.schema.json").is_valid(&raw),
+            "schema accepted {path:?}"
+        );
+        let typed = serde_json::from_value::<RadioLinkRequest>(raw);
+        assert!(
+            typed.map(|r| r.validate().is_err()).unwrap_or(true),
+            "gateway accepted {path:?}"
+        );
+        count += 1;
+    }
+    assert!(count >= 10);
+}
+
+#[test]
+fn radio_link_response_fixture_roundtrip() {
+    let raw = load("fixtures/radio-link-response.computed.json");
+    assert_valid("radio-link-response.schema.json", &raw);
+    let typed: RadioLinkResponse = serde_json::from_value(raw).unwrap();
+    assert_valid(
+        "radio-link-response.schema.json",
+        &serde_json::to_value(&typed).unwrap(),
+    );
+    assert_eq!(typed.model.tier, "engineering");
+    // never presented as SPICE or as a guaranteed link
+    assert_ne!(typed.model.ephemeris_provider, "spice");
+    assert!(typed
+        .assumptions
+        .iter()
+        .any(|a| a.contains("not a guaranteed radio link")));
+}
+
+#[tokio::test]
+async fn radio_link_forwards_science_result() {
+    let url = mock_science().await;
+    let req = load("fixtures/radio-link-request.valid.json");
+    let (status, body) = call(app(&url), "POST", "/api/v1/scenarios/radio-link", Some(req)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid("radio-link-response.schema.json", &body);
+    assert_eq!(body["status"], "computed");
+}
+
+#[tokio::test]
+async fn radio_link_invalid_is_422_without_calling_science() {
+    let mut req = load("fixtures/radio-link-request.valid.json");
+    req["link"]["data_rate_bps"] = json!(0);
+    let (status, body) = call(
+        app("http://127.0.0.1:9"),
+        "POST",
+        "/api/v1/scenarios/radio-link",
+        Some(req),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_valid("error.schema.json", &body);
+    assert_eq!(body["error"]["details"][0]["field"], "link.data_rate_bps");
+
+    // a missing hardware figure is refused, never defaulted
+    let mut req = load("fixtures/radio-link-request.valid.json");
+    req["link"].as_object_mut().unwrap().remove("eirp_dbw");
+    let (status, body) = call(
+        app("http://127.0.0.1:9"),
+        "POST",
+        "/api/v1/scenarios/radio-link",
+        Some(req),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(body["error"]["code"], "validation_error");
+}
+
+#[tokio::test]
+async fn radio_link_science_down_is_503() {
+    let req = load("fixtures/radio-link-request.valid.json");
+    let (status, body) = call(
+        app("http://127.0.0.1:9"),
+        "POST",
+        "/api/v1/scenarios/radio-link",
         Some(req),
     )
     .await;

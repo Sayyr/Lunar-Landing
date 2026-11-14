@@ -6,6 +6,7 @@ use axum::Json;
 use serde_json::{json, Value};
 
 use crate::envelope::{ApiError, FieldIssue};
+use crate::radio::{RadioLinkRequest, RadioLinkResponse};
 use crate::scenario::{ScenarioRequest, ScenarioResponse};
 use crate::science::{Provider, ScienceClient};
 use crate::terrain::{SlopeCheckRequest, SlopeCheckResponse};
@@ -74,4 +75,17 @@ pub async fn slope_check(
         .map_err(|e| ApiError::invalid(INVALID, vec![FieldIssue::new("body", &e.to_string())]))?;
     req.validate().map_err(|d| ApiError::invalid(INVALID, d))?;
     Ok(Json(state.science.slope_check(&req).await?))
+}
+
+/// Forwards a validated radio-link request to the science service (geometry and link budget
+/// are computed there; the gateway adds no hardware default).
+pub async fn radio_link(
+    State(state): State<AppState>,
+    body: Bytes,
+) -> Result<Json<RadioLinkResponse>, ApiError> {
+    const INVALID: &str = "Radio link request is invalid.";
+    let req: RadioLinkRequest = serde_json::from_slice(&body)
+        .map_err(|e| ApiError::invalid(INVALID, vec![FieldIssue::new("body", &e.to_string())]))?;
+    req.validate().map_err(|d| ApiError::invalid(INVALID, d))?;
+    Ok(Json(state.science.radio_link(&req).await?))
 }

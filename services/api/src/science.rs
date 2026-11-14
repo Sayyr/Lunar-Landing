@@ -9,6 +9,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::envelope::{ApiError, ErrorCode, ErrorResponse};
+use crate::radio::{RadioLinkRequest, RadioLinkResponse};
 use crate::scenario::{ScenarioRequest, ScenarioResponse};
 use crate::terrain::{SlopeCheckRequest, SlopeCheckResponse};
 
@@ -73,6 +74,10 @@ impl ScienceClient {
         req: &SlopeCheckRequest,
     ) -> Result<SlopeCheckResponse, ApiError> {
         self.post("/terrain/slope/check", req).await
+    }
+
+    pub async fn radio_link(&self, req: &RadioLinkRequest) -> Result<RadioLinkResponse, ApiError> {
+        self.post("/radio/evaluate", req).await
     }
 
     async fn post<Req: Serialize, Resp: DeserializeOwned>(
