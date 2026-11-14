@@ -1,0 +1,60 @@
+{
+  "statut": "TRANSITION_ATTEINTE",
+  "instant_utc": "2027-01-06T05:27:09.126Z",
+  "et_tdb_s": 852485298.3095913,
+  "repere_etat": "J2000 geocentrique, km et km/s",
+  "position_j2000_km": [
+    -15574.407488180626,
+    -357934.4425747538,
+    -190098.1443671129
+  ],
+  "vitesse_j2000_km_s": [
+    -1.0591848132031025,
+    -0.47936109335558663,
+    0.5500691183201244
+  ],
+  "position_moon_me_km": [
+    911.471872456087,
+    -479.24892550067625,
+    -2765.965854827272
+  ],
+  "vitesse_moon_me_km_s": [
+    -0.33158032675521465,
+    2.017480780807872,
+    0.6051973785319361
+  ],
+  "site": {
+    "latitude_deg": -85.0,
+    "longitude_est_deg": -30.0,
+    "altitude_site_km": 1.5
+  },
+  "vehicule": {
+    "masse_kg": 15000.0,
+    "carburant_kg": 8000.0,
+    "masse_seche_kg": 7000.0,
+    "poussee_max_n": 45000.0,
+    "isp_s": 311.0,
+    "carburant_illimite": true,
+    "modele_masse": "constante avec ravitaillement fictif"
+  },
+  "critere": {
+    "altitude_sur_site_km": 1212.5450048988744,
+    "seuil_freinage_km": 1212.5450049699439,
+    "distance_min_freinage_km": 932.7269268999568,
+    "vitesse_lunaire_ms": 2132.237810611697,
+    "vitesse_verticale_ms": -997.1579742407442,
+    "vitesse_horizontale_ms": 1884.7052967003249,
+    "deceleration_initiale_ms2": 2.437173169275196,
+    "marge": 1.3,
+    "altitude_reference": "rayon spherique du site (R_LUNE + altitude_site)"
+  },
+  "distance_laterale_site_km": 468.1638235425079,
+  "distance_laterale_admise_km": 606.2725024849719,
+  "delta_v_theorique_reservoir_nominal_ms": 2324.4266705771724,
+  "delta_v_ideal_disponible_ms": null,
+  "vitesse_depart_km_s": 10.92,
+  "altitude_depart_km": 200.0,
+  "angle_depart_deg": 170.0,
+  "nombre_candidats_controles": 1,
+  "commentaire": "Seuil de freinage 1D, sans preuve de faisabilite 3D. Les ergols illimites sont fictifs; la poussee reste limitee."
+}
