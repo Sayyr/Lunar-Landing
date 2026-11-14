@@ -3,91 +3,44 @@
 
 import { type FormEvent, useEffect, useRef, useState } from "react";
 
+import { normalizeLon } from "./geo";
 import { sunClearsTerrain } from "./groundAuto";
-import { buildGroundTerrain, type ColorSource, DEFAULT_GROUND, type GroundTerrain, horizonAt, ringSpacingPerMetre, type TerrainSource } from "./groundTerrain";
+import { colorSourceFromImage } from "./groundColor";
+import { buildGroundTerrain, DEFAULT_GROUND, type GroundTerrain, heightmapSource, horizonAt, ringSpacingPerMetre } from "./groundTerrain";
 import { type GroundSky, GroundView, type GroundViewState } from "./groundView";
 import type { Heightmap } from "./heightmap";
 import { DATA_BASE, loadJson } from "./loaders";
-import { PolarDem, type PolarManifest } from "./polarDem";
-import type { AzEl } from "./skyGeometry";
+import { type DemLayer, DemStack, PolarDem, type PolarManifest } from "./polarDem";
+import { type AzEl, wrap360 } from "./skyGeometry";
 
-// High-resolution south-polar DEM (scripts/setup-polar-dem.sh), shared by every ground view of the
-// page so tiles are fetched once. null = not installed.
+// Optional high-resolution products (scripts/setup-polar-dem.sh): the south-polar 20 m pyramid and
+// PGDA 5 m site DEMs listed in sites.json, opened once per page so tiles are fetched once.
 const POLAR_BASE = `${DATA_BASE}polar_s/`;
-let polarPromise: Promise<PolarDem | null> | null = null;
-const loadPolar = () =>
-  (polarPromise ??= loadJson<PolarManifest>(`${POLAR_BASE}manifest.json`)
-    .then((m) => new PolarDem(m, POLAR_BASE))
-    .catch(() => null));
-
-// PGDA 5 m site DEMs (same tile format and reader as the polar product), listed in sites.json.
-let sitesPromise: Promise<PolarDem[]> | null = null;
-const loadSites = () =>
-  (sitesPromise ??= loadJson<{ sites: string[] }>(`${POLAR_BASE}sites.json`)
-    .then((ix) =>
-      Promise.all(ix.sites.map(async (name) => new PolarDem(await loadJson<PolarManifest>(`${POLAR_BASE}sites/${name}/manifest.json`), `${POLAR_BASE}sites/${name}/`))),
-    )
-    .catch(() => []));
+const openDem = (base: string) => loadJson<PolarManifest>(`${base}manifest.json`).then((m) => new PolarDem(m, base));
+let productsPromise: Promise<{ polar: PolarDem | null; sites: PolarDem[] }> | null = null;
+const loadProducts = () =>
+  (productsPromise ??= Promise.all([
+    openDem(POLAR_BASE).catch(() => null),
+    loadJson<{ sites: string[] }>(`${POLAR_BASE}sites.json`)
+      .then((ix) => Promise.all(ix.sites.map((name) => openDem(`${POLAR_BASE}sites/${name}/`))))
+      .catch(() => []),
+  ]).then(([polar, sites]) => ({ polar, sites })));
 
 /** Mesh sample spacing per metre of distance, and how far the 20 m pyramid is used. */
 const SPACING = ringSpacingPerMetre(DEFAULT_GROUND);
 const POLAR_MAX_M = 150_000;
 
 /**
- * Finest useful data first: at distance d the mesh samples every d × SPACING, so each product
- * gives its level matching that spacing (prefiltered, no aliasing). The 5 m site DEM only while
- * it is finer than the spacing allows; the polar pyramid's coarsest level out to POLAR_MAX_M;
- * then the global raster. A product is skipped where it has no data.
+ * Products covering a site, finest first: the PGDA 5 m DEM only while it is finer than the mesh
+ * spacing, then the 20 m pyramid (coarsest level kept) out to POLAR_MAX_M. null = none.
  */
-function terrainSource(hm: Heightmap | null, polar: PolarDem | null, site: PolarDem | null): TerrainSource {
-  if (!polar && !site) return hm;
-  return (lat, lon, d) => {
-    const spacing = d * SPACING;
-    if (site) {
-      const l = site.levelForSpacing(spacing);
-      const v = l < site.manifest.levels.length ? site.sampleKm(lat, lon, l) : NaN;
-      if (Number.isFinite(v)) return v * 1000;
-    }
-    if (polar && d <= POLAR_MAX_M) {
-      const v = polar.sampleKm(lat, lon, Math.min(polar.levelForSpacing(spacing), polar.manifest.levels.length - 1));
-      if (Number.isFinite(v)) return v * 1000;
-    }
-    return hm ? hm.sampleKmSmooth(lat, lon) * 1000 : 0;
-  };
-}
-
-/**
- * Ground colour from the LROC WAC colour mosaic (real data, ≈ 2.7 km/px), normalised so its mean
- * brightness maps to a regolith grey: keeps the true large-scale albedo and tint variations.
- */
-let colorCache: { img: HTMLImageElement; source: ColorSource } | null = null;
-function colorSourceFrom(img: HTMLImageElement | null): ColorSource | undefined {
-  if (!img) return undefined;
-  if (colorCache?.img === img) return colorCache.source;
-  const W = 2048;
-  const H = 1024;
-  const ctx = Object.assign(document.createElement("canvas"), { width: W, height: H }).getContext("2d", { willReadFrequently: true });
-  if (!ctx) return undefined;
-  ctx.drawImage(img, 0, 0, W, H);
-  const px = ctx.getImageData(0, 0, W, H).data;
-  let mean = 0;
-  for (let i = 0; i < px.length; i += 4) mean += px[i] + px[i + 1] + px[i + 2];
-  mean /= (px.length / 4) * 3 * 255;
-  const k = 0.62 / mean; // mean → 0.62 (linear-ish grey), relative brightness kept
-  // The WAC colour product is contrast-enhanced: keep 35 % of its tint so the ground reads grey
-  // with a faint real hue, as seen by eye.
-  const SAT = 0.35;
-  const source: ColorSource = (lat, lon) => {
-    const x = Math.min(W - 1, Math.max(0, Math.floor(((lon + 180) / 360) * W)));
-    const y = Math.min(H - 1, Math.max(0, Math.floor(((90 - lat) / 180) * H)));
-    const i = 4 * (y * W + x);
-    const [r, g, b] = [(px[i] / 255) * k, (px[i + 1] / 255) * k, (px[i + 2] / 255) * k];
-    const l = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    const c = (v: number) => Math.min(1, l + SAT * (v - l));
-    return [c(r), c(g), c(b)];
-  };
-  colorCache = { img, source };
-  return source;
+function stackFor({ polar, sites }: { polar: PolarDem | null; sites: PolarDem[] }, lat: number, lon: number): DemStack | null {
+  if (!polar?.covers(lat, lon)) return null;
+  const layers: DemLayer[] = [];
+  const site = sites.find((s) => s.covers(lat, lon));
+  if (site) layers.push({ dem: site, maxDistanceM: (2 * site.manifest.levels.at(-1)!.scale_m) / SPACING, clamp: false });
+  layers.push({ dem: polar, maxDistanceM: POLAR_MAX_M, clamp: true });
+  return new DemStack(layers, SPACING);
 }
 
 interface Props {
@@ -115,17 +68,16 @@ interface Props {
   onMoveSite: (lat: number, lon: number) => void;
 }
 
-const wrap180 = (d: number) => ((((d + 180) % 360) + 360) % 360) - 180;
 const CARD = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
 
 /** Heading tape: ticks over the horizontal field of view, Sun/Earth markers or edge arrows. */
 function HeadingTape({ view, sun, earth }: { view: GroundViewState; sun?: AzEl; earth?: AzEl }) {
   const W = 560;
-  const x = (az: number) => (wrap180(az - view.azimuthDeg) / view.hfovDeg + 0.5) * W;
+  const x = (az: number) => (normalizeLon(az - view.azimuthDeg) / view.hfovDeg + 0.5) * W;
   const ticks = [];
   const start = Math.floor((view.azimuthDeg - view.hfovDeg / 2) / 5) * 5;
   for (let a = start; a <= view.azimuthDeg + view.hfovDeg / 2; a += 5) {
-    const az = ((a % 360) + 360) % 360;
+    const az = wrap360(a);
     const px = x(az);
     if (px < 0 || px > W) continue;
     const major = az % 45 === 0;
@@ -147,7 +99,7 @@ function HeadingTape({ view, sun, earth }: { view: GroundViewState; sun?: AzEl; 
   }
   const marker = (v: AzEl | undefined, color: string, label: string) => {
     if (!v) return null;
-    const d = wrap180(v.azimuthDeg - view.azimuthDeg);
+    const d = normalizeLon(v.azimuthDeg - view.azimuthDeg);
     if (Math.abs(d) <= view.hfovDeg / 2) return <circle cx={x(v.azimuthDeg)} cy={31} r={4} fill={color}><title>{label}</title></circle>;
     const left = d < 0;
     return (
@@ -172,17 +124,16 @@ export function GroundViewPanel(props: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<GroundView | null>(null);
   const [state, setState] = useState<GroundViewState>({ azimuthDeg: 0, elevationDeg: 5, hfovDeg: 90 });
-  const [siteElevationM, setSiteElevationM] = useState<number | null>(null);
   const [terrain, setTerrain] = useState<{ t: GroundTerrain; lat: number; lon: number } | null>(null);
-  /** null: idle; otherwise the "next sunlit time" search result to show */
+  /** result of the last "Next sunlit time" search (null: none) */
   const [sunSearch, setSunSearch] = useState<string | null>(null);
   const [gps, setGps] = useState({ lat: String(siteLat), lon: String(siteLon) });
   useEffect(() => setGps({ lat: String(siteLat), lon: String(siteLon) }), [siteLat, siteLon]);
   const [fill, setFill] = useState(true);
-  // Rethrows an async failure (terrain build in a timer) during render, so GroundViewBoundary sees it.
-  const [, setCrash] = useState<never>();
-  /** null: polar DEM not used here; otherwise its loading state for this site */
-  const [polar, setPolar] = useState<{ dem: PolarDem; site: PolarDem | null; done: number; total: number; ready: boolean } | null>(null);
+  // An async failure (terrain build in a timer) is rethrown during render for GroundViewBoundary.
+  const [error, setError] = useState<unknown>(null);
+  /** high-resolution products around this site and their loading state; null: none here */
+  const [dem, setDem] = useState<{ stack: DemStack; done: number; total: number; ready: boolean } | null>(null);
   const firstSky = useRef(true);
 
   useEffect(() => {
@@ -199,26 +150,17 @@ export function GroundViewPanel(props: Props) {
   useEffect(() => view?.setActive(active), [view, active]);
   useEffect(() => onHeading?.(state.azimuthDeg), [onHeading, state.azimuthDeg]);
 
-  // High-resolution polar DEM: fetch the tiles around the site once, then use them.
+  // High-resolution products: fetch the tiles around the site, then use them.
   useEffect(() => {
     let stale = false;
-    setPolar(null);
-    Promise.all([loadPolar(), loadSites()]).then(([dem, sites]) => {
-      if (stale || !dem || !dem.covers(siteLat, siteLon)) return;
-      const site = sites.find((s) => s.covers(siteLat, siteLon)) ?? null;
-      const progress = { polar: [0, 0], site: [0, 0] };
-      const report = () => {
-        if (stale) return;
-        const done = progress.polar[0] + progress.site[0];
-        setPolar({ dem, site, done, total: progress.polar[1] + progress.site[1], ready: false });
-      };
-      report();
-      Promise.all([
-        dem.loadAround(siteLat, siteLon, dem.planFor(SPACING, POLAR_MAX_M), (d, t) => ((progress.polar = [d, t]), report())),
-        site?.loadAround(siteLat, siteLon, site.planFor(SPACING, (2 * site.manifest.levels.at(-1)!.scale_m) / SPACING), (d, t) => (
-          (progress.site = [d, t]), report()
-        )),
-      ]).then(() => !stale && setPolar((p) => (p ? { ...p, ready: true } : p)));
+    setDem(null);
+    loadProducts().then((products) => {
+      const stack = stale ? null : stackFor(products, siteLat, siteLon);
+      if (!stack) return;
+      setDem({ stack, done: 0, total: 0, ready: false });
+      stack
+        .loadAround(siteLat, siteLon, (done, total) => !stale && setDem({ stack, done, total, ready: false }))
+        .then(() => !stale && setDem((d) => (d ? { ...d, ready: true } : d)));
     });
     return () => {
       stale = true;
@@ -226,24 +168,21 @@ export function GroundViewPanel(props: Props) {
   }, [siteLat, siteLon]);
 
   // Terrain: debounce rebuilds (each streamed band bumps demVersion; polar tiles arrive once).
-  const polarReady = polar?.ready ? polar.dem : null;
-  const siteReady = polar?.ready ? polar.site : null;
+  const stack = dem?.ready ? dem.stack : null;
   useEffect(() => {
     if (!view) return;
     const id = setTimeout(() => {
       try {
-        const t = buildGroundTerrain(terrainSource(heightmap, polarReady, siteReady), siteLat, siteLon, observerHeightM, DEFAULT_GROUND, colorSourceFrom(colorImage));
+        const global = heightmapSource(heightmap);
+        const t = buildGroundTerrain(stack ? stack.source(global) : global, siteLat, siteLon, observerHeightM, DEFAULT_GROUND, colorSourceFromImage(colorImage));
         view.setTerrain(t);
         setTerrain({ t, lat: siteLat, lon: siteLon });
-        setSiteElevationM(heightmap || polarReady ? t.siteElevationM : null);
       } catch (e) {
-        setCrash(() => {
-          throw e;
-        });
+        setError(e);
       }
     }, 150);
     return () => clearTimeout(id);
-  }, [view, heightmap, colorImage, polarReady, siteReady, siteLat, siteLon, observerHeightM, demVersion]);
+  }, [view, heightmap, colorImage, stack, siteLat, siteLon, observerHeightM, demVersion]);
 
   useEffect(() => {
     if (!view) return;
@@ -258,9 +197,9 @@ export function GroundViewPanel(props: Props) {
 
   useEffect(() => view?.setFill(fill), [view, fill]);
 
-  /** Move the time bar to the next scenario time when the whole Sun clears the true terrain. */
   /** Terrain of the CURRENT site only (a rebuild is debounced after the site moves). */
   const current = terrain && terrain.lat === siteLat && terrain.lon === siteLon ? terrain.t : null;
+  const siteElevationM = current && (heightmap || stack) ? current.siteElevationM : null;
 
   // A search belongs to one site: moving the site cancels it (and clears its message).
   const searchId = useRef(0);
@@ -271,20 +210,29 @@ export function GroundViewPanel(props: Props) {
     setSunSearch(null);
   }, [siteLat, siteLon]);
 
+  /**
+   * Moves the time bar to the next scenario time when the whole Sun clears the true terrain.
+   * Times are evaluated in batches (concurrent requests once the sky comes from the backend) and
+   * the loop yields a frame between batches, so a long scenario does not freeze the view.
+   */
   const nextSunlit = async () => {
     if (!current || searching) return;
     const id = ++searchId.current;
     setSearching(true);
-    setSunSearch("searching…");
+    setSunSearch(null);
     const step = Math.max(1, stepMinutes);
+    const BATCH = 32;
     try {
-      for (let m = Math.floor(tMin / step) * step + step; m <= spanMin; m += step) {
-        const sun = await sunAt(m, siteLat, siteLon);
+      for (let m0 = Math.floor(tMin / step) * step + step; m0 <= spanMin; m0 += step * BATCH) {
+        const times = Array.from({ length: BATCH }, (_, k) => m0 + k * step).filter((m) => m <= spanMin);
+        const suns = await Promise.all(times.map((m) => sunAt(m, siteLat, siteLon)));
         if (id !== searchId.current) return; // site moved: stale search
-        if (sunClearsTerrain(sun, current)) {
-          setTime(m);
-          return setSunSearch(`Sun clears the terrain at +${(m / 60).toFixed(1)} h`);
+        const hit = suns.findIndex((sun) => sunClearsTerrain(sun, current));
+        if (hit >= 0) {
+          setTime(times[hit]);
+          return setSunSearch(`Sun clears the terrain at +${(times[hit] / 60).toFixed(1)} h`);
         }
+        await new Promise(requestAnimationFrame);
       }
       setSunSearch("the Sun does not clear the terrain here for the rest of the scenario");
     } finally {
@@ -296,11 +244,9 @@ export function GroundViewPanel(props: Props) {
   const goGps = (e: FormEvent) => {
     e.preventDefault();
     const lat = Number(gps.lat);
-    let lon = Number(gps.lon);
+    const lon = Number(gps.lon);
     if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90) return;
-    lon = ((((lon + 180) % 360) + 360) % 360) - 180;
-    setSunSearch(null);
-    onMoveSite(+lat.toFixed(5), +lon.toFixed(5));
+    onMoveSite(+lat.toFixed(5), +normalizeLon(lon).toFixed(5));
   };
 
   /** "visible / hidden by terrain" from the rendered terrain's horizon in the body's direction. */
@@ -314,6 +260,10 @@ export function GroundViewPanel(props: Props) {
   };
 
   const lookAt = (v?: AzEl) => v && view?.look(v.azimuthDeg, Math.max(2, v.elevationDeg));
+
+  if (error) throw error;
+  const siteDem = dem && dem.stack.layers.length > 1 ? dem.stack.layers[0].dem : null;
+  const polarDem = dem?.stack.layers.at(-1)?.dem;
 
   return (
     <div className="ground-view">
@@ -333,19 +283,15 @@ export function GroundViewPanel(props: Props) {
           </div>
         )}
         <div className="ground-note">
-          {polar?.ready && polar.site && (
+          {dem?.ready && siteDem && <>LOLA 5 m site DEM ({siteDem.manifest.source}, PGDA) near the observer · then </>}
+          {dem?.ready && polarDem ? (
             <>
-              LOLA 5 m site DEM ({polar.site.manifest.source}, PGDA) near the observer · then{" "}
-            </>
-          )}
-          {polar?.ready ? (
-            <>
-              Terrain: LOLA 20 m polar DEM ({polar.dem.manifest.source}, {polar.dem.manifest.frame}) to{" "}
+              Terrain: LOLA 20 m polar DEM ({polarDem.manifest.source}, {polarDem.manifest.frame}) to{" "}
               {POLAR_MAX_M / 1000} km, each distance at the resolution matching the mesh spacing — then {heightmap?.label ?? "—"} to 400 km,
               true scale with curvature
             </>
-          ) : polar ? (
-            <>Loading {polar.site ? "5 m + 20 m" : "20 m"} polar relief around the site: {polar.done}/{polar.total} tiles… (meanwhile {heightmap?.label ?? "—"}, ≈ 1.9 km/px)</>
+          ) : dem ? (
+            <>Loading {siteDem ? "5 m + 20 m" : "20 m"} polar relief around the site: {dem.done}/{dem.total} tiles… (meanwhile {heightmap?.label ?? "—"}, ≈ 1.9 km/px)</>
           ) : (
             <>
               Terrain: LOLA {heightmap?.label ?? "—"} at true scale (≈ {heightmap ? heightmap.kmPerPixel.toFixed(1) : "—"} km/px, smoothed up

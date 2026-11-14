@@ -9,15 +9,16 @@
 // Output frame: metres, origin at the observer's eye, three.js axes x = East, y = Up, z = −North.
 // Directions are built from the ENU basis (enuBasis), so the poles work (prime-meridian fallback).
 
+import { DEG, MOON_RADIUS_KM } from "../lib/constants";
 import type { Heightmap } from "./heightmap";
-import { enuBasis, type Vec3 } from "./skyGeometry";
+import { enuBasis, wrap360 } from "./skyGeometry";
 
-export const MOON_RADIUS_M = 1_737_400;
+export const MOON_RADIUS_M = MOON_RADIUS_KM * 1000;
 /** Repeat length of the (illustrative) regolith detail texture at its finest scale, metres. */
 export const DETAIL_PERIOD_M = 4;
 
-/** Colour of the ground at a lat/lon, RGB in 0..1 (e.g. from the LROC WAC colour mosaic). */
-export type ColorSource = (latDeg: number, lonDeg: number) => [number, number, number];
+/** Writes the ground colour at a lat/lon, RGB in 0..1, into out[offset … offset + 2]. */
+export type ColorSource = (latDeg: number, lonDeg: number, out: Float32Array, offset: number) => void;
 
 export interface GroundTerrainOptions {
   bearings: number;
@@ -35,21 +36,23 @@ export const DEFAULT_GROUND: GroundTerrainOptions = { bearings: 900, rings: 360,
 export const ringSpacingPerMetre = (opt: GroundTerrainOptions = DEFAULT_GROUND) =>
   (opt.maxDistanceM / opt.minDistanceM) ** (1 / (opt.rings - 1)) - 1;
 
-/**
- * Where elevations come from: the global raster (bicubic), nothing (smooth sphere), or a custom
- * function of (lat, lon, distance from the observer in metres) → metres, e.g. a high-resolution
- * polar DEM near the site with the global raster as fallback.
- */
-export type TerrainSource = Heightmap | null | ((latDeg: number, lonDeg: number, distanceM: number) => number);
+/** Elevation (metres, relative to 1737.4 km) at a lat/lon, `distanceM` from the observer. */
+export type TerrainSource = (latDeg: number, lonDeg: number, distanceM: number) => number;
+
+/** The global raster (bicubic: continuous slopes, no pixel-edge shading), or a smooth sphere. */
+export const heightmapSource =
+  (hm: Heightmap | null): TerrainSource =>
+  (lat, lon) =>
+    hm ? hm.sampleKmSmooth(lat, lon) * 1000 : 0;
 
 export interface GroundTerrain {
   /** xyz per vertex (metres, eye at the origin); vertex 0 = point under the observer */
   positions: Float32Array;
+  /** shared between builds with the same bearings × rings: do not modify */
   indices: Uint32Array;
-  /** surface elevation under the observer, metres relative to 1737.4 km (0 without raster) */
+  /** surface elevation under the observer, metres relative to 1737.4 km */
   siteElevationM: number;
-  observerHeightM: number;
-  /** Detail-texture coordinates: local metres / DETAIL_PERIOD_M (x = East, y = −North). */
+  /** Detail-texture coordinates: local metres / DETAIL_PERIOD_M (x = East, y = North). */
   uvs: Float32Array;
   /** Optional per-vertex RGB (0..1) from a colour map; undefined without one. */
   colors?: Float32Array;
@@ -64,7 +67,7 @@ export interface GroundTerrain {
 /** Terrain horizon (degrees) in the direction `azimuthDeg`, linear between mesh bearings. */
 export function horizonAt(t: GroundTerrain, azimuthDeg: number): number {
   const B = t.horizonDeg.length;
-  const x = ((((azimuthDeg % 360) + 360) % 360) / 360) * B;
+  const x = (wrap360(azimuthDeg) / 360) * B;
   const j = Math.floor(x) % B;
   const f = x - Math.floor(x);
   return t.horizonDeg[j] * (1 - f) + t.horizonDeg[(j + 1) % B] * f;
@@ -79,10 +82,7 @@ export function buildGroundTerrain(
   color?: ColorSource,
 ): GroundTerrain {
   const { east, north, up } = enuBasis(latDeg, lonDeg);
-  // Bicubic: continuous slopes, so the shading does not show the raster's pixel edges.
-  const elevM: (lat: number, lon: number, d: number) => number =
-    typeof source === "function" ? source : source ? (lat, lon) => source.sampleKmSmooth(lat, lon) * 1000 : () => 0;
-  const siteElevationM = elevM(latDeg, lonDeg, 0);
+  const siteElevationM = source(latDeg, lonDeg, 0);
   const eyeR = MOON_RADIUS_M + siteElevationM + observerHeightM;
 
   const B = opt.bearings;
@@ -91,29 +91,34 @@ export function buildGroundTerrain(
   const positions = new Float32Array((1 + N * B) * 3);
   const uvs = new Float32Array((1 + N * B) * 2);
   const colors = color ? new Float32Array((1 + N * B) * 3) : undefined;
-  if (colors && color) colors.set(color(latDeg, lonDeg), 0);
+  if (colors && color) color(latDeg, lonDeg, colors, 0);
   // Vertex 0: ground point under the eye.
   positions[1] = -observerHeightM;
 
+  // Horizontal unit direction of each bearing (clockwise from north), same for every ring.
+  const horiz = new Float64Array(3 * B);
+  for (let j = 0; j < B; j++) {
+    const b = (j / B) * 2 * Math.PI;
+    for (let k = 0; k < 3; k++) horiz[3 * j + k] = Math.cos(b) * north[k] + Math.sin(b) * east[k];
+  }
+
   const ratio = (opt.maxDistanceM / opt.minDistanceM) ** (1 / (N - 1));
-  const dir: Vec3 = [0, 0, 0];
   for (let i = 0; i < N; i++) {
     const dist = opt.minDistanceM * ratio ** i;
     const delta = dist / MOON_RADIUS_M; // central angle
     const cd = Math.cos(delta);
     const sd = Math.sin(delta);
     for (let j = 0; j < B; j++) {
-      const b = (j / B) * 2 * Math.PI; // bearing, clockwise from north
-      const cb = Math.cos(b);
-      const sb = Math.sin(b);
-      for (let k = 0; k < 3; k++) dir[k] = cd * up[k] + sd * (cb * north[k] + sb * east[k]);
-      const lat = (Math.asin(Math.max(-1, Math.min(1, dir[2]))) * 180) / Math.PI;
-      const lon = (Math.atan2(dir[1], dir[0]) * 180) / Math.PI;
-      const r = MOON_RADIUS_M + elevM(lat, lon, dist);
+      const dx = cd * up[0] + sd * horiz[3 * j];
+      const dy = cd * up[1] + sd * horiz[3 * j + 1];
+      const dz = cd * up[2] + sd * horiz[3 * j + 2];
+      const lat = Math.asin(Math.max(-1, Math.min(1, dz))) / DEG;
+      const lon = Math.atan2(dy, dx) / DEG;
+      const r = MOON_RADIUS_M + source(lat, lon, dist);
       // Position relative to the eye, in ENU (eye = eyeR · up).
-      const px = dir[0] * r - up[0] * eyeR;
-      const py = dir[1] * r - up[1] * eyeR;
-      const pz = dir[2] * r - up[2] * eyeR;
+      const px = dx * r - up[0] * eyeR;
+      const py = dy * r - up[1] * eyeR;
+      const pz = dz * r - up[2] * eyeR;
       const e = px * east[0] + py * east[1] + pz * east[2];
       const n = px * north[0] + py * north[1] + pz * north[2];
       const u = px * up[0] + py * up[1] + pz * up[2];
@@ -123,31 +128,35 @@ export function buildGroundTerrain(
       positions[3 * v + 2] = -n;
       uvs[2 * v] = e / DETAIL_PERIOD_M;
       uvs[2 * v + 1] = n / DETAIL_PERIOD_M;
-      if (colors && color) colors.set(color(lat, lon), 3 * v);
-      const elev = (Math.atan2(u, Math.hypot(e, n)) * 180) / Math.PI;
+      if (colors && color) color(lat, lon, colors, 3 * v);
+      const elev = Math.atan2(u, Math.hypot(e, n)) / DEG;
       if (elev > horizonDeg[j]) horizonDeg[j] = elev;
     }
   }
-
-  const tris: number[] = [];
-  // Counter-clockwise seen from above (+y): centre → next bearing → this bearing.
-  for (let j = 0; j < B; j++) tris.push(0, 1 + ((j + 1) % B), 1 + j);
-  for (let i = 0; i < N - 1; i++) {
-    for (let j = 0; j < B; j++) {
-      const a = 1 + i * B + j;
-      const b2 = 1 + i * B + ((j + 1) % B);
-      const c = a + B;
-      const d = b2 + B;
-      tris.push(a, b2, c, b2, d, c);
-    }
-  }
-  return { positions, indices: Uint32Array.from(tris), siteElevationM, observerHeightM, horizonDeg, uvs, colors };
+  return { positions, indices: gridIndices(B, N), siteElevationM, horizonDeg, uvs, colors };
 }
 
-/** Elevation angle (degrees) of a terrain vertex seen from the eye. */
-export function vertexElevationDeg(t: GroundTerrain, v: number): number {
-  const x = t.positions[3 * v];
-  const y = t.positions[3 * v + 1];
-  const z = t.positions[3 * v + 2];
-  return (Math.atan2(y, Math.hypot(x, z)) * 180) / Math.PI;
+/** Triangle indices depend only on bearings × rings: built once per shape. */
+const indexCache = new Map<string, Uint32Array>();
+function gridIndices(B: number, N: number): Uint32Array {
+  const key = `${B}x${N}`;
+  let idx = indexCache.get(key);
+  if (idx) return idx;
+  idx = new Uint32Array(3 * B + 6 * B * (N - 1));
+  let o = 0;
+  // Counter-clockwise seen from above (+y): centre → next bearing → this bearing.
+  for (let j = 0; j < B; j++) {
+    idx[o++] = 0;
+    idx[o++] = 1 + ((j + 1) % B);
+    idx[o++] = 1 + j;
+  }
+  for (let i = 0; i < N - 1; i++)
+    for (let j = 0; j < B; j++) {
+      const a = 1 + i * B + j;
+      const b = 1 + i * B + ((j + 1) % B);
+      idx.set([a, b, a + B, b, b + B, a + B], o);
+      o += 6;
+    }
+  indexCache.set(key, idx);
+  return idx;
 }

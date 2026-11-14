@@ -1,14 +1,21 @@
 import { describe, expect, it } from "vitest";
 
-import { buildGroundTerrain, horizonAt, MOON_RADIUS_M, vertexElevationDeg } from "./groundTerrain";
+import { buildGroundTerrain, type GroundTerrain, heightmapSource, horizonAt, MOON_RADIUS_M } from "./groundTerrain";
 import { Heightmap } from "./heightmap";
+
+/** Elevation angle (degrees) of a terrain vertex seen from the eye. */
+function vertexElevationDeg(t: GroundTerrain, v: number): number {
+  const [x, y, z] = [t.positions[3 * v], t.positions[3 * v + 1], t.positions[3 * v + 2]];
+  return (Math.atan2(y, Math.hypot(x, z)) * 180) / Math.PI;
+}
+const flat = heightmapSource(null);
 
 const opt = { bearings: 36, rings: 40, minDistanceM: 5, maxDistanceM: 400_000 };
 const ringVertex = (ring: number, bearingIdx: number) => 1 + ring * opt.bearings + bearingIdx;
 const ringDistance = (ring: number) => opt.minDistanceM * (opt.maxDistanceM / opt.minDistanceM) ** (ring / (opt.rings - 1));
 
 describe("buildGroundTerrain on a smooth sphere (no raster)", () => {
-  const t = buildGroundTerrain(null, 10, 20, 2, opt);
+  const t = buildGroundTerrain(flat, 10, 20, 2, opt);
 
   it("vertex 0 is the ground under the eye", () => {
     expect([t.positions[0], t.positions[1], t.positions[2]]).toEqual([0, -2, 0]);
@@ -36,7 +43,7 @@ describe("buildGroundTerrain on a smooth sphere (no raster)", () => {
   });
 
   it("works at the exact south pole (no degenerate ring)", () => {
-    const p = buildGroundTerrain(null, -90, 0, 2, opt);
+    const p = buildGroundTerrain(flat, -90, 0, 2, opt);
     const a = ringVertex(30, 0);
     const b = ringVertex(30, 18);
     expect(Math.hypot(p.positions[3 * a] - p.positions[3 * b], p.positions[3 * a + 2] - p.positions[3 * b + 2])).toBeGreaterThan(1.9 * ringDistance(30) * 0.99);
@@ -48,12 +55,12 @@ describe("buildGroundTerrain with relief", () => {
   it("a raised raster lifts distant terrain above the smooth-sphere dip", () => {
     const W = 360;
     const H = 180;
-    const flat = new Heightmap(new Float32Array(W * H), W, H);
+    const level = new Heightmap(new Float32Array(W * H), W, H);
     const raised = new Heightmap(new Float32Array(W * H).fill(0), W, H);
     // +5 km everywhere north of 12° N; site at 10° N.
     for (let r = 0; r < H; r++) if ((r + 0.5) * (180 / H) - 90 > 12) raised.data.fill(5, r * W, (r + 1) * W);
-    const a = buildGroundTerrain(flat, 10, 0, 2, opt);
-    const b = buildGroundTerrain(raised, 10, 0, 2, opt);
+    const a = buildGroundTerrain(heightmapSource(level), 10, 0, 2, opt);
+    const b = buildGroundTerrain(heightmapSource(raised), 10, 0, 2, opt);
     const v = ringVertex(39, 0); // 400 km north
     expect(vertexElevationDeg(b, v)).toBeGreaterThan(vertexElevationDeg(a, v));
     expect(b.siteElevationM).toBeCloseTo(0);
@@ -62,7 +69,7 @@ describe("buildGroundTerrain with relief", () => {
 
 describe("buildGroundTerrain winding", () => {
   it("every triangle faces up (+y) on a smooth sphere, so lighting from the Sun works", () => {
-    const t = buildGroundTerrain(null, -45, 30, 2, opt);
+    const t = buildGroundTerrain(flat, -45, 30, 2, opt);
     const p = t.positions;
     let down = 0;
     for (let k = 0; k < t.indices.length; k += 3) {
@@ -78,7 +85,7 @@ describe("buildGroundTerrain winding", () => {
 
 describe("terrain horizon profile", () => {
   it("smooth sphere: horizon is the dip of the nearest ring (just below 0°)", () => {
-    const t = buildGroundTerrain(null, 10, 20, 2, opt);
+    const t = buildGroundTerrain(flat, 10, 20, 2, opt);
     for (const az of [0, 90, 123.4, 359]) {
       expect(horizonAt(t, az)).toBeLessThan(0);
       expect(horizonAt(t, az)).toBeGreaterThan(-25); // nearest ring 5 m away, eye 2 m up: atan(2/5) ≈ 21.8°
@@ -90,7 +97,7 @@ describe("terrain horizon profile", () => {
     const H = 180;
     const hm = new Heightmap(new Float32Array(W * H), W, H);
     for (let r = 0; r < H; r++) if ((r + 0.5) * (180 / H) - 90 > 12) hm.data.fill(5, r * W, (r + 1) * W);
-    const t = buildGroundTerrain(hm, 10, 0, 2, opt);
+    const t = buildGroundTerrain(heightmapSource(hm), 10, 0, 2, opt);
     expect(horizonAt(t, 0)).toBeGreaterThan(0.5); // 5 km wall ~2° of latitude north
     expect(horizonAt(t, 180)).toBeLessThan(0);
   });
