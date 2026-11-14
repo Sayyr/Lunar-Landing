@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { localAzEl, type Vec3 } from "./skyGeometry";
+import { mockCelestialState } from "../mock/celestialMock";
+import { localAzEl, moonSky, type Vec3 } from "./skyGeometry";
 
 const close = (a: number, b: number, eps = 1e-9) => expect(Math.abs(a - b)).toBeLessThan(eps);
 
@@ -32,5 +33,31 @@ describe("localAzEl", () => {
     // At the south pole, north = +X: a +X horizon direction is azimuth 0.
     close(localAzEl([1, 0, 0], -90, 123).azimuthDeg, 0);
     expect(localAzEl([0, 0, -1], -90, 0).elevationDeg).toBeCloseTo(90);
+  });
+});
+
+describe("moonSky (from the synthetic mock)", () => {
+  const sky = moonSky(mockCelestialState(new Date("2026-11-15T00:00:00Z")));
+
+  it("returns unit vectors", () => {
+    for (const v of [sky.sun, sky.earth]) close(Math.hypot(...v), 1, 1e-12);
+  });
+
+  it("mean-orientation mock: Earth over lon 0°, within the Moon's ecliptic latitude (≤ 5.3°)", () => {
+    close(sky.earth[1], 0, 1e-12);
+    expect(Math.abs(Math.asin(sky.earth[2]) * 180 / Math.PI)).toBeLessThan(5.3);
+  });
+
+  it("Sun–Moon–Earth angle matches the mock's phase angle", () => {
+    const s = mockCelestialState(new Date("2026-11-15T00:00:00Z"));
+    const ang = (Math.acos(sky.sun[0] * sky.earth[0] + sky.sun[1] * sky.earth[1] + sky.sun[2] * sky.earth[2]) * 180) / Math.PI;
+    close(ang, s.derived.phase_angle_deg, 1e-6);
+  });
+
+  it("earthToBody is a rotation", () => {
+    const m = sky.earthToBody;
+    const det =
+      m[0] * (m[4] * m[8] - m[5] * m[7]) - m[1] * (m[3] * m[8] - m[5] * m[6]) + m[2] * (m[3] * m[7] - m[4] * m[6]);
+    close(det, 1, 1e-9);
   });
 });
