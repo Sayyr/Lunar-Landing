@@ -17,6 +17,7 @@ import { latLonToUnit, MOON_RADIUS_KM, pointToUv, uvToLatLon } from "./geo";
 import type { Heightmap } from "./heightmap";
 import { DATA_BASE } from "./loaders";
 import type { MoonSky, Vec3 } from "./skyGeometry";
+import { TileLayer, type TileStatus } from "./tileLayer";
 
 // Background bodies are drawn at SKY_DIST from the camera (always "at infinity": no parallax when
 // orbiting) with their true mean angular radii as seen from the Moon.
@@ -69,6 +70,7 @@ export class Globe {
   private readonly earthBody: THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial>;
   private sky: { sun: THREE.Vector3; earth: THREE.Vector3 } | null = null;
   private framedOnSun = false;
+  private readonly tiles: TileLayer;
 
   constructor(container: HTMLElement, { colorImage, heightmap, segments, initialView }: GlobeOptions) {
     this.container = container;
@@ -99,10 +101,11 @@ export class Globe {
     controls.maxDistance = 8;
     controls.rotateSpeed = 0.5;
     this.controls = controls;
-    // Slower rotation close to the surface.
+    // Rotation slows down near the surface (proportional to altitude) so close-ups stay usable.
     controls.addEventListener("change", () => {
       const alt = camera.position.length() - 1;
-      controls.rotateSpeed = Math.min(0.5, 0.15 + alt * 0.2);
+      controls.rotateSpeed = Math.min(0.5, Math.max(0.02, alt * 0.8));
+      controls.zoomSpeed = Math.min(1, Math.max(0.3, alt * 2));
     });
 
     // --- Lighting: directional "Sun". Fixed illustrative direction until setSky() is called. -----
@@ -196,6 +199,10 @@ export class Globe {
     this.siteMarker.visible = false;
     scene.add(this.siteMarker);
 
+    // --- Streaming high-resolution imagery (NASA Moon Trek), over the base mesh ------------------
+    this.tiles = new TileLayer(heightmap, renderer.capabilities.getMaxAnisotropy(), colorImage?.width ?? 0);
+    scene.add(this.tiles.group);
+
     this.setExaggeration(this.exaggeration);
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -230,6 +237,9 @@ export class Globe {
     // bumpScale in the same unit as displacement (shaded slopes = displayed slopes); floor at 1×
     // to keep shading of the real slopes at exaggeration 0.
     m.bumpScale = Math.max(x, 1) / MOON_RADIUS_KM;
+    this.tiles.setScale(this.scale);
+    // Closest approach: ~17 km above the highest displayed point.
+    this.controls.minDistance = 1 + (this.heightmap?.maxKm ?? 0) * this.scale + 0.01;
     // The grid floats just above the highest point.
     this.grid.scale.setScalar(1 + (this.heightmap?.maxKm ?? 0) * this.scale + 0.002);
     for (const mk of this.markers.children) this.placeOnSurface(mk, mk.userData.lat, mk.userData.lon);
@@ -440,6 +450,17 @@ export class Globe {
     return ((2 * d * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2))) / h) * MOON_RADIUS_KM;
   }
 
+  /** Streaming imagery on/off (the base mesh always stays as the offline fallback). */
+  setTilesEnabled(on: boolean): void {
+    this.tiles.setEnabled(on);
+  }
+
+  /** Tile download status: "loading", "ok", "offline" (3 failures in a row) or "off". */
+  onTileStatus(cb: (s: TileStatus) => void): void {
+    this.tiles.onStatus = cb;
+    cb(this.tiles.status);
+  }
+
   /** Called whenever the camera moves (orbit, damping, fly-to). Returns an unsubscribe function. */
   onCameraChange(cb: () => void): () => void {
     this.controls.addEventListener("change", cb);
@@ -481,6 +502,7 @@ export class Globe {
     this.resizeObserver.disconnect();
     this.controls.dispose();
     this.clearMarkers();
+    this.tiles.dispose();
     this.scene.traverse((obj) => {
       const o = obj as THREE.Mesh;
       o.geometry?.dispose();
@@ -508,6 +530,7 @@ export class Globe {
     }
     if (this.ring) this.ring.material.opacity = 0.55 + 0.4 * Math.sin(now / 250);
     this.controls.update();
+    this.tiles.update(this.camera, this.renderer.domElement.clientHeight);
     if (this.sky) {
       // Re-centre on the camera every frame: directions, not positions, are what is physical.
       const cam = this.camera.position;

@@ -18,6 +18,8 @@ import { Globe } from "./globe";
 import type { Heightmap } from "./heightmap";
 import { DATA_BASE, loadHeightmap, loadImage, loadJson, type Progress, SETUP_HINT } from "./loaders";
 import { SkyCompass } from "./SkyCompass";
+import { TREK_LAYER } from "./tileScheme";
+import type { TileStatus } from "./tileLayer";
 import { type AzEl, localAzEl, moonSky } from "./skyGeometry";
 
 // Base URL of the elevation rasters: point it at R2/a CDN (CORS required) if ldem_16 exceeds the
@@ -204,6 +206,8 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
   const sunPtrRef = useRef<HTMLDivElement>(null);
   const earthPtrRef = useRef<HTMLDivElement>(null);
   const [kmPerPx, setKmPerPx] = useState<number | null>(null);
+  const [tilesOn, setTilesOn] = useState(true);
+  const [tileStatus, setTileStatus] = useState<TileStatus>("loading");
 
   useEffect(() => {
     onPickRef.current = onPick;
@@ -364,6 +368,8 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
   }, [globe, refine]);
   useEffect(() => globe?.setSite(siteLat, siteLon), [globe, siteLat, siteLon]);
   useEffect(() => globe?.setActive(active), [globe, active]);
+  useEffect(() => globe?.setTilesEnabled(tilesOn), [globe, tilesOn]);
+  useEffect(() => globe?.onTileStatus(setTileStatus), [globe]);
 
   // --- Sky: Sun/Earth for the scenario time -----------------------------------------------------
   const startMs = Date.parse(startUtc);
@@ -604,6 +610,19 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
             <input type="range" min={0} max={10} step={0.5} value={exag} onChange={(e) => setExag(Number(e.target.value))} />
           </label>
           <label className="check">
+            <input type="checkbox" checked={tilesOn} onChange={(e) => setTilesOn(e.target.checked)} /> High-res imagery
+            (NASA Moon Trek, online)
+          </label>
+          {tilesOn && (
+            <p className={tileStatus === "offline" ? "warn" : "muted small"}>
+              {tileStatus === "offline"
+                ? "Tiles unreachable (offline?): showing the local 4k mosaic."
+                : tileStatus === "loading"
+                  ? "Loading tiles… zoom in for detail (down to ≈ 100 m/px)."
+                  : "Tiles loaded for the current view; zoom in for detail (down to ≈ 100 m/px)."}
+            </p>
+          )}
+          <label className="check">
             <input type="checkbox" checked={grid} onChange={(e) => setGrid(e.target.checked)} /> Lat/lon grid (15°)
           </label>
           <label className="check">
@@ -670,7 +689,11 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
             <a href="https://planetarynames.wr.usgs.gov" target="_blank" rel="noopener">
               IAU/USGS Gazetteer of Planetary Nomenclature
             </a>
-            .
+            ; high-res imagery: LRO WAC global mosaic ({TREK_LAYER}, NASA/GSFC/Arizona State University) streamed from{" "}
+            <a href="https://trek.nasa.gov/moon/" target="_blank" rel="noopener">
+              NASA Moon Trek
+            </a>{" "}
+            — imagery only (its built-in shading is fixed; relief, altitude and picking still use LOLA).
           </p>
         </section>
       </aside>
