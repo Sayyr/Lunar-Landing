@@ -14,13 +14,13 @@ JSON Schema (draft 2020-12) contracts shared by `services/api` (Rust), `services
 ## Fixtures
 
 - `fixtures/scenario-request.valid.json`: synthetic example from CLAUDE.md (not a recommended site).
-- `fixtures/invalid-requests/*.json`: must be rejected by the schema, by Pydantic and by the Rust gateway.
-- `fixtures/scenario-response.*.json`: **generated** by `services/science/scripts/generate_fixtures.py`. Do not hand-edit.
+- `fixtures/invalid-requests/*.json`: must be rejected by the schema, by the C++ science service and by the Rust gateway.
+- `fixtures/scenario-response.*.json`: **generated** by `services/science/tools/generate_fixtures.cpp`. Do not hand-edit.
 - `fixtures/sites.json`: served verbatim by the gateway (`include_str!`). Every entry needs a `source`. Real candidate regions need a citation.
 
 ## Changing a contract
 
 1. Edit the schema and bump `schema_version` if the change breaks clients.
-2. Update the Pydantic models, Rust types and TS types.
-3. Regenerate the response fixtures (`cd services/science && .venv/Scripts/python scripts/generate_fixtures.py`, or `.venv/bin/python` on Linux/macOS).
-4. Run `pytest` and `cargo test`. Both validate fixtures and live output against the schemas.
+2. Update the C++ request parsing/response builders (`services/science/src/models.cpp`, `evaluate.cpp`), Rust types and TS types.
+3. Regenerate the response fixtures (`cd services/science && cmake --build build --target generate-fixtures && ./build/generate-fixtures`).
+4. Run `ctest --test-dir build` (live output vs fixtures) and `cargo test` (fixtures and gateway output vs schemas).

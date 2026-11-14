@@ -31,7 +31,8 @@ Build **SELENE**, a scientifically defensible, interactive lunar landing-site an
 ## Stack and boundaries
 - `apps/web`: React + TypeScript + Vite + React Three Fiber / Three.js; 3D, timelines, forms, side-by-side comparison. Use mock API fixtures until real services exist.
 - `services/api`: Rust + Axum + Serde + Tokio; validates inputs, orchestrates calls, caches responses, exposes stable REST contracts. **No astronomy math duplicated here.**
-- `services/science`: Python 3.11+ + FastAPI + NumPy + SpiceyPy + SciPy + pytest; geometry, ephemerides, horizon, windows, optional scenario ranking.
+- `services/science`: C++17 + CMake + cpp-httplib + nlohmann/json (CSPICE planned) + ctest; geometry, ephemerides, horizon, windows, optional scenario ranking.
+- `services/sciencepy`: former Python implementation, kept for reference only. Not built, not tested, not deployed.
 - `packages/contracts`: JSON Schema and sample request/response fixtures shared by services.
 - `data/README.md`: external data provenance and acquisition instructions; data itself ignored.
 - `docs`: scientific validation, design decisions, demo notes.
@@ -71,4 +72,4 @@ P1: lunar DEM terrain horizon → 3D local terrain → delay robustness search.
 P2: solar array energy model, RF link budget, advanced optimization, high-fidelity dynamic shadows.
 
 ## Definition of done
-A new contributor can start all three services from the README; a sample request flows web → Rust → Python (or a clearly labeled synthetic fixture before science is ready); tests execute; assumptions are visible; the demo remains functional without remote live NASA API availability.
+A new contributor can start all three services from the README; a sample request flows web → Rust → C++ science (or a clearly labeled synthetic fixture before science is ready); tests execute; assumptions are visible; the demo remains functional without remote live NASA API availability.

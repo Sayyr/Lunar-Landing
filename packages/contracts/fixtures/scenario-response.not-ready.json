@@ -2,7 +2,7 @@
   "schema_version": "0.1.0",
   "status": "not_ready",
   "synthetic": false,
-  "message": "Ephemerides not available: SPICE provider not implemented yet; spiceypy not installed (pip install -e '.[spice]'); SELENE_KERNEL_DIR not set",
+  "message": "Ephemerides not available: SPICE provider not implemented yet; CSPICE not linked into this build; SELENE_KERNEL_DIR not set",
   "request": {
     "site": {
       "latitude_deg": -89.5,

@@ -29,6 +29,9 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 
+# C++
+services/science/build/
+
 # Rust
 services/api/target/
 

@@ -28,7 +28,7 @@ Geometric visibility is **not** power availability and **not** a radio link. Eve
 
 ## Sampling and windows
 
-- Samples: `start + k·step` for `k = 0 … floor(duration·60/step)`, inclusive of the start (and of the end when it falls on the grid). Max 20 000 samples (checked in both Rust and Python).
+- Samples: `start + k·step` for `k = 0 … floor(duration·60/step)`, inclusive of the start (and of the end when it falls on the grid). Max 20 000 samples (checked in both Rust and the C++ science service).
 - Window edges: linear interpolation of the elevation crossing between bracketing samples (`intervals.extract_intervals`).
 - `clipped_start` / `clipped_end`: the window was already open at the first sample, or still open at the last one. Its true duration is unknown.
 - Known limitation: events shorter than one step can be missed. Planned fix: refine near sign changes (bisection or root-finding on the provider).
@@ -44,9 +44,9 @@ Geometric visibility is **not** power availability and **not** a radio link. Eve
 
 | Check | Method | Tolerance (proposal) | Status |
 |---|---|---|---|
-| Unit/angle helpers | pytest (`tests/test_geometry.py`) | exact / 1e-12 | ✅ automated |
-| Window extraction | pytest incl. analytic sinusoid roots | 1e-5 rad on test signal | ✅ automated |
-| Contract conformance | pytest + Rust tests vs `packages/contracts/schemas` | exact | ✅ automated |
+| Unit/angle helpers | `services/science/tests/tests.cpp` (ctest) | exact / 1e-12 | ✅ automated |
+| Window extraction | ctest incl. analytic sinusoid roots | 1e-5 rad on test signal | ✅ automated |
+| Contract conformance | Rust tests vs `packages/contracts/schemas`; ctest checks live output matches the fixtures | exact | ✅ automated |
 | UTC→ET | compare `str2et` to NAIF-documented example values | < 1 ms | ⏳ |
 | Sun/Earth az/el at a lunar site | JPL Horizons topocentric observer on body 301 (user-defined site), same epochs and frame assumptions; store small reference CSVs in `services/science/tests/fixtures/` with the query used | proposal: < 0.01° | ⏳ |
 | Polar handling | sites at lat −90, −89.999, −89.5 produce finite, continuous az/el | deterministic | ⏳ |
