@@ -19,6 +19,7 @@ import { Heightmap } from "./heightmap";
 import { type BandManifest, bandOrderNear, DATA_BASE, loadHeightmap, loadImage, loadJson, type Progress, SETUP_HINT, streamBands } from "./loaders";
 import { GroundViewBoundary } from "./GroundViewBoundary";
 import { GroundViewPanel } from "./GroundViewPanel";
+import { LANDING_SITES, LANDING_SOURCE, landingLabel, nearestLandingSite, type LandingSite } from "./landingSites";
 import { SkyCompass } from "./SkyCompass";
 import { TREK_LAYER } from "./tileScheme";
 import type { TileStatus } from "./tileLayer";
@@ -33,6 +34,8 @@ export interface MoonPointInfo {
   lon: number;
   altM: number | null;
   feature: PublicFeature | null;
+  /** Past landing site under the pointer (within a few screen pixels), if any. */
+  landing?: { site: LandingSite; distanceKm: number } | null;
 }
 
 type Dem = "4" | "16";
@@ -156,6 +159,9 @@ function infoText(info: MoonPointInfo) {
     elevation: `Elevation ${formatAltM(info.altM)}`,
     feature: f ? f.name : "No named feature",
     detail: f ? `${f.type} · ${f.distanceKm.toFixed(0)} km from centre` : null,
+    landing: info.landing
+      ? `Landing site: ${landingLabel(info.landing.site)} (±${info.landing.site.uncertainty_m} m, LROC)`
+      : null,
   };
 }
 
@@ -168,6 +174,7 @@ function InfoLines({ info }: { info: MoonPointInfo }) {
       <div className={t.detail ? "feat" : "feat none"}>
         {t.feature} {t.detail && <small>{t.detail}</small>}
       </div>
+      {t.landing && <div className="feat landing">{t.landing}</div>}
     </>
   );
 }
@@ -183,7 +190,7 @@ function fillTooltip(el: HTMLElement, info: MoonPointInfo) {
   };
   const featEl = line(t.feature, t.detail ? "feat" : "feat none");
   if (t.detail) featEl.append(Object.assign(document.createElement("small"), { textContent: t.detail }));
-  el.replaceChildren(line(t.coords), line(t.elevation), featEl);
+  el.replaceChildren(line(t.coords), line(t.elevation), featEl, ...(t.landing ? [line(t.landing, "feat landing")] : []));
 }
 
 function placeTooltip(tip: HTMLElement, x: number, y: number) {
@@ -304,6 +311,7 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
         );
         setNotes(allNotes);
         setIndex(idx);
+        g.setLandingSites(LANDING_SITES);
         setGlobe(g);
         const detachPointer = attachPointer(g, idx, root, tip);
         // Streamed ldem_16 bands: upload each one to this globe's GPU texture as it arrives.
@@ -329,7 +337,9 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
       const describe = (x: number, y: number): MoonPointInfo | null => {
         const hit = gl.pick(x, y);
         if (!hit) return null;
-        return { ...hit, feature: publicFeature(idx.nearest(hit.lat, hit.lon)) };
+        // Landing points are drawn 9 px wide: match within ~8 px (scale at the view centre).
+        const landing = nearestLandingSite(hit.lat, hit.lon, Math.max(0.5, 8 * gl.kmPerPixelAtCentre()));
+        return { ...hit, feature: publicFeature(idx.nearest(hit.lat, hit.lon)), landing };
       };
       const hover = (x: number, y: number) => {
         const info = describe(x, y);
@@ -470,9 +480,8 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
     return () => cancelAnimationFrame(raf);
   }, [playing, active, spanMin]);
 
-  // Compass disc lies on the site's horizon as seen by the camera: rotated to the on-screen north,
-  // tilted by how obliquely the site is viewed (CSS 3D, no React re-render). In the ground view it
-  // lies flat and turns with the observer instead (onGroundHeading).
+  // Same flat compass in both views (no CSS 3D re-render): here N points to the on-screen north at
+  // the site; in the ground view the top is where the observer looks (onGroundHeading).
   const hasSky = sky !== null;
   useEffect(() => {
     if (!globe || !hasSky || groundOn) return;
@@ -480,8 +489,7 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
       const el = diskRef.current;
       if (!el) return;
       const a = globe.northScreenAngle(siteLat, siteLon);
-      const tilt = globe.siteViewTilt(siteLat, siteLon);
-      el.style.transform = `rotateX(${tilt.toFixed(1)}deg) rotate(${(a ?? 0).toFixed(1)}deg)`;
+      el.style.transform = `rotate(${(a ?? 0).toFixed(1)}deg)`;
       el.style.opacity = a == null ? "0.45" : "1"; // dimmed: site behind the camera plane
     };
     update();
@@ -827,6 +835,12 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
               NASA Moon Trek
             </a>{" "}
             — imagery only (its built-in shading is fixed; relief, altitude and picking still use LOLA).
+            {" "}Landing sites (white = crewed, green = robotic, {LANDING_SITES.length} soft landings):{" "}
+            <a href={LANDING_SOURCE.url} target="_blank" rel="noopener">
+              LROC Anthropogenic Objects
+            </a>{" "}
+            ({LANDING_SOURCE.citation}; table updated {LANDING_SOURCE.updated}) — positions measured on LROC NAC images;
+            spacecraft not yet located there (e.g. Luna 9, Luna 13) are not shown.
           </p>
         </section>
       </aside>

@@ -4,6 +4,7 @@
 //     has not been installed with scripts/setup-data.sh) so the scenario UI keeps working;
 //   - sizes follow the container (ResizeObserver) and `dispose()` frees GPU resources on unmount;
 //   - `setSite()` shows the scenario's selected site as a distinct marker;
+//   - `setLandingSites()` shows past soft-landing sites as fixed-size points (LROC coordinates);
 //   - `setSky()` places the Sun and Earth in the background and points the light at the Sun.
 //
 // Scene units: 1 unit = reference radius (1737.4 km). The elevation raster is in km, so the
@@ -60,6 +61,7 @@ export class Globe {
   private readonly mesh: THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial>;
   private readonly grid: THREE.Group;
   private readonly markers = new THREE.Group();
+  private landings: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial> | null = null;
   private readonly siteMarker: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
   private readonly textures: THREE.Texture[] = [];
   private readonly resizeObserver: ResizeObserver;
@@ -254,6 +256,7 @@ export class Globe {
     for (const mk of this.markers.children) this.placeOnSurface(mk, mk.userData.lat, mk.userData.lon);
     if (this.siteMarker.visible) this.placeOnSurface(this.siteMarker, this.siteMarker.userData.lat, this.siteMarker.userData.lon);
     if (this.ring) this.placeRing(this.ring);
+    if (this.landings) this.placeLandings(this.landings);
   }
 
   /** Radius of the displayed surface (scene units) at lat/lon. */
@@ -348,6 +351,34 @@ export class Globe {
     }
   }
 
+  /**
+   * Past landing sites as round points of constant screen size (white = crewed, green = robotic),
+   * hidden behind the Moon by the depth test. Replaces any previous set.
+   */
+  setLandingSites(sites: readonly { lat: number; lon: number; crewed: boolean }[]): void {
+    if (this.landings) {
+      this.scene.remove(this.landings);
+      this.landings.geometry.dispose();
+      this.landings.material.dispose();
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(sites.length * 3), 3));
+    const color = new THREE.Color();
+    geo.setAttribute(
+      "color",
+      new THREE.BufferAttribute(new Float32Array(sites.flatMap((s) => color.set(s.crewed ? 0xffffff : 0x39d98a).toArray())), 3),
+    );
+    geo.userData = { sites: sites.map(({ lat, lon }) => ({ lat, lon })) };
+    const dot = makeDotTexture();
+    this.textures.push(dot);
+    this.landings = new THREE.Points(
+      geo,
+      new THREE.PointsMaterial({ size: 9, sizeAttenuation: false, vertexColors: true, map: dot, alphaTest: 0.5, transparent: true }),
+    );
+    this.placeLandings(this.landings);
+    this.scene.add(this.landings);
+  }
+
   /** The scenario's selected site (red marker). */
   setSite(lat: number, lon: number): void {
     this.siteMarker.userData = { lat, lon };
@@ -415,17 +446,6 @@ export class Globe {
     a.project(this.camera);
     b.project(this.camera);
     return THREE.MathUtils.radToDeg(Math.atan2((b.x - a.x) * this.camera.aspect, b.y - a.y));
-  }
-
-  /**
-   * How obliquely the site is seen, degrees: 0 = camera straight above it, 90 = at its horizon.
-   * Clamped to 72° so the compass disc never collapses to a line.
-   */
-  siteViewTilt(lat: number, lon: number): number {
-    const u = latLonToUnit(lat, lon);
-    const up = new THREE.Vector3(u.x, u.y, u.z);
-    const toCam = this.camera.position.clone().sub(up.clone().multiplyScalar(this.surfaceRadius(lat, lon))).normalize();
-    return Math.min(72, THREE.MathUtils.radToDeg(Math.acos(THREE.MathUtils.clamp(toCam.dot(up), -1, 1))));
   }
 
   /**
@@ -586,6 +606,17 @@ export class Globe {
     obj.position.set(u.x, u.y, u.z).multiplyScalar(this.surfaceRadius(lat, lon) + 0.002);
   }
 
+  private placeLandings(pts: THREE.Points): void {
+    const pos = pts.geometry.getAttribute("position") as THREE.BufferAttribute;
+    (pts.geometry.userData.sites as { lat: number; lon: number }[]).forEach(({ lat, lon }, i) => {
+      const u = latLonToUnit(lat, lon);
+      const r = this.surfaceRadius(lat, lon) + 0.002;
+      pos.setXYZ(i, u.x * r, u.y * r, u.z * r);
+    });
+    pos.needsUpdate = true;
+    pts.geometry.computeBoundingSphere();
+  }
+
   private placeRing(ring: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>): void {
     const { lat, lon, ang, n } = ring.userData as { lat: number; lon: number; ang: number; n: number };
     const c = latLonToUnit(lat, lon);
@@ -667,4 +698,20 @@ function makeGrid(): THREE.Group {
     group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lon === 0 ? major : minor));
   }
   return group;
+}
+
+/** Round point sprite: filled disc with a dark rim, so the points read on bright and dark ground. */
+function makeDotTexture(): THREE.CanvasTexture {
+  const c = Object.assign(document.createElement("canvas"), { width: 32, height: 32 });
+  const g = c.getContext("2d");
+  if (g) {
+    g.beginPath();
+    g.arc(16, 16, 14, 0, 2 * Math.PI);
+    g.fillStyle = "#ffffff";
+    g.fill();
+    g.lineWidth = 4;
+    g.strokeStyle = "#202020";
+    g.stroke();
+  }
+  return new THREE.CanvasTexture(c);
 }

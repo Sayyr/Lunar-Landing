@@ -2,8 +2,8 @@
 //   - centre = zenith, ring = ideal horizon, dashed circles = 30° and 60° elevation;
 //   - Sun (yellow) and Earth (blue) at their azimuth, closer to the centre the higher they are;
 //     below the horizon they sit just outside the ring, hollow;
-//   - the parent rotates and tilts the whole disc (CSS 3D) so it matches the camera: N follows the
-//     on-screen north at the site, the tilt follows how obliquely the site is seen.
+//   - the parent rotates the flat disc, the same way in every view: N to the on-screen north at
+//     the site (orbit view), or the top to where the observer looks (ground view).
 // Geometric directions only (ideal horizon, centre of each disc).
 
 import type { Ref } from "react";
@@ -72,7 +72,7 @@ function Body({ v, kind }: { v: AzEl; kind: "sun" | "earth" }) {
 }
 
 /**
- * `diskRef` receives the element the parent rotates/tilts (CSS transform), on every camera move,
+ * `diskRef` receives the element the parent rotates (CSS transform), on every camera move,
  * without re-rendering React.
  */
 export function SkyCompass({ sun, earth, diskRef }: { sun: AzEl; earth: AzEl; diskRef?: Ref<HTMLDivElement> }) {
