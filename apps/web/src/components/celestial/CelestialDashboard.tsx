@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { getCelestialState } from "../../api/celestial";
 import type { CelestialStateResponse } from "../../api/celestialTypes";
 import { AU_M, EARTH_MEAN_RADIUS_M } from "../../lib/constants";
+import { DATA_README_URL } from "../../lib/links";
 import { ScaleBar } from "../ScaleBar";
 import { BODY_ENLARGEMENT, CelestialScene, type SceneView } from "./CelestialScene";
 import { MoonPhaseIcon } from "./MoonPhaseIcon";
@@ -229,6 +230,13 @@ export function CelestialDashboard({ active }: { active: boolean }) {
                 <Row k="Accuracy" v={state.model.nominal_accuracy} />
               </dl>
               <p className="muted small">{state.frame.description}</p>
+              <p className="muted small">
+                Textures need the NASA data: <code>apps/web/scripts/setup-data.sh</code> —{" "}
+                <a href={DATA_README_URL} target="_blank" rel="noopener noreferrer">
+                  setup guide on GitHub
+                </a>
+                .
+              </p>
               <ul className="small">
                 {state.assumptions.map((a) => (
                   <li key={a}>{a}</li>

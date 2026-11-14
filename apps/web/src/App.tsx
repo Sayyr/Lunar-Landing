@@ -6,9 +6,8 @@ import { ResultPanel } from "./components/ResultPanel";
 import { ScenarioForm } from "./components/ScenarioForm";
 import { ServiceStatus } from "./components/ServiceStatus";
 import { CelestialDashboard } from "./components/celestial/CelestialDashboard";
+import { REPO_URL } from "./lib/links";
 import { LunarExplorer } from "./lunar/LunarExplorer";
-
-const REPO_URL = "https://github.com/Sayyr/Lunar-Landing";
 
 type Tab = "scenario" | "sky";
 const tabFromHash = (): Tab => (window.location.hash === "#/sky" ? "sky" : "scenario");

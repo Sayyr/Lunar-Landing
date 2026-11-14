@@ -10,6 +10,7 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import { getCelestialState } from "../api/celestial";
 import { ScaleBar } from "../components/ScaleBar";
+import { DATA_README_URL } from "../lib/links";
 
 import { type Feature, FeatureIndex, type FeaturesJson, type PublicFeature, publicFeature } from "./features";
 import { formatAltM, formatLat, formatLon, roundLon } from "./geo";
@@ -626,6 +627,15 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
         <section className="small">
           <h2>Data &amp; limits</h2>
           <p className="muted">{dataset}</p>
+          <p className="muted">
+            {demLabel === "16" ? "Full relief quality (ldem_16)." : "Light relief (ldem_4): switch to ldem_16 above if installed."} Full
+            quality needs the NASA/IAU data:{" "}
+            <code>apps/web/scripts/setup-data.sh</code> (without <code>--light</code>) —{" "}
+            <a href={DATA_README_URL} target="_blank" rel="noopener noreferrer">
+              setup guide on GitHub
+            </a>
+            .
+          </p>
           {notes.length > 0 && (
             <ul className="warn-list">
               {notes.map((n) => (
