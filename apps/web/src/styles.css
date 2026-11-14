@@ -51,7 +51,7 @@ h4 { margin: 0.8rem 0 0.3rem; font-size: 0.85rem; color: var(--muted); }
   border-radius: 4px; padding: 0.4rem; font: inherit; font-size: 0.9rem; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-top: 0.6rem; }
 .actions { display: flex; gap: 0.6rem; margin-top: 1rem; flex-wrap: wrap; }
-button { background: #2b3546; color: var(--text); border: 1px solid #3b4760; border-radius: 4px;
+button { background: #2b3546; color: var(--text); border: 1px solid #3b4760; border-radius: 2px;
   padding: 0.5rem 0.9rem; font: inherit; cursor: pointer; }
 button:disabled { opacity: 0.5; cursor: wait; }
 .synthetic-btn { border: 1px dashed var(--synthetic); color: var(--synthetic); background: transparent; }
@@ -90,7 +90,7 @@ details ul { padding-left: 1.1rem; margin: 0.3rem 0; }
 /* ---- Tabs ---- */
 .tabs { display: flex; gap: 0.35rem; }
 .tabs a { color: var(--muted); text-decoration: none; padding: 0.35rem 0.8rem; border: 1px solid #3b4760;
-  border-radius: 6px; font-size: 0.85rem; background: rgba(0, 0, 0, 0.45); }
+  border-radius: 2px; font-size: 0.85rem; background: rgba(0, 0, 0, 0.45); }
 .tabs a.active { background: #2b3546; color: var(--text); }
 
 /* ---- Sun · Earth · Moon dashboard ---- */
@@ -167,7 +167,7 @@ details ul { padding-left: 1.1rem; margin: 0.3rem 0; }
 .lunar .row { display: flex; gap: 8px; flex-wrap: wrap; }
 .lunar .warn, .lunar .warn-list { color: var(--l-warn); font-size: 12px; }
 .lunar button, .lunar input, .lunar select { font: inherit; color: var(--text); background: #1a1d23;
-  border: 1px solid var(--l-line); border-radius: 6px; }
+  border: 1px solid var(--l-line); border-radius: 2px; }
 .lunar button { padding: 6px 10px; cursor: pointer; }
 .lunar button:hover:not(:disabled) { border-color: var(--l-accent); }
 .lunar button:disabled { opacity: 0.4; cursor: default; }
