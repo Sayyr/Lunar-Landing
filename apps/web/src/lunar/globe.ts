@@ -3,7 +3,8 @@
 //   - colour image and heightmap are optional (untextured / undisplaced fallback when the data
 //     has not been installed with scripts/setup-data.sh) so the scenario UI keeps working;
 //   - sizes follow the container (ResizeObserver) and `dispose()` frees GPU resources on unmount;
-//   - `setSite()` shows the scenario's selected site as a distinct marker.
+//   - `setSite()` shows the scenario's selected site as a distinct marker;
+//   - `setSky()` places the Sun in the background and points the light at the Sun.
 //
 // Scene units: 1 unit = reference radius (1737.4 km). The elevation raster is in km, so the
 // displacement scale is exaggeration / 1737.4.
@@ -13,6 +14,14 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 import { latLonToUnit, MOON_RADIUS_KM, pointToUv, uvToLatLon } from "./geo";
 import type { Heightmap } from "./heightmap";
+import type { MoonSky, Vec3 } from "./skyGeometry";
+
+// Background bodies are drawn at SKY_DIST from the camera (always "at infinity": no parallax when
+// orbiting) with their true mean angular radii as seen from the Moon.
+const SKY_DIST = 60;
+const SUN_ANG_RADIUS = Math.atan(695_700 / 149_597_871); // ≈ 0.27°
+// Moon body frame (x lon 0, y lon 90° E, z north) → three.js (x, z, −y), as lunar/geo.ts.
+const bodyToThree = (v: Vec3) => new THREE.Vector3(v[0], v[2], -v[1]);
 
 export interface PickResult {
   lat: number;
@@ -49,6 +58,9 @@ export class Globe {
   private readonly resizeObserver: ResizeObserver;
   private ring: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial> | null = null;
   private flight: { from: THREE.Vector3; to: THREE.Vector3; d0: number; d1: number; t0: number; dur: number } | null = null;
+  private readonly sunLight: THREE.DirectionalLight;
+  private readonly sunBody: THREE.Group;
+  private sky: { sun: THREE.Vector3; earth: THREE.Vector3 } | null = null;
 
   constructor(container: HTMLElement, { colorImage, heightmap, segments, initialView }: GlobeOptions) {
     this.container = container;
@@ -85,11 +97,17 @@ export class Globe {
       controls.rotateSpeed = Math.min(0.5, 0.15 + alt * 0.2);
     });
 
-    // --- Lighting: ILLUSTRATIVE directional "Sun" (no ephemeris) --------------------------------
+    // --- Lighting: directional "Sun". Fixed illustrative direction until setSky() is called. -----
     const sun = new THREE.DirectionalLight(0xffffff, 3.0);
     sun.position.set(5, 1.5, 3);
     scene.add(sun);
     scene.add(new THREE.AmbientLight(0xffffff, 0.06));
+    this.sunLight = sun;
+
+    // --- Background Sun (hidden until setSky) ---------------------------------------------------------
+    this.sunBody = makeSun(SKY_DIST * Math.tan(SUN_ANG_RADIUS), this.textures);
+    this.sunBody.visible = false;
+    scene.add(this.sunBody);
 
     // --- Textures -------------------------------------------------------------------------------
     let colorTex: THREE.Texture | null = null;
@@ -289,6 +307,22 @@ export class Globe {
     this.placeOnSurface(this.siteMarker, lat, lon);
   }
 
+  /**
+   * Sun and Earth directions (Moon body frame, from the Moon's centre). The directional light is
+   * pointed at the Sun, so the terminator follows the same state. null = back to
+   * the illustrative fixed light, bodies hidden.
+   */
+  setSky(sky: MoonSky | null): void {
+    this.sunBody.visible = sky !== null;
+    if (!sky) {
+      this.sky = null;
+      this.sunLight.position.set(5, 1.5, 3);
+      return;
+    }
+    this.sky = { sun: bodyToThree(sky.sun).normalize(), earth: bodyToThree(sky.earth).normalize() };
+    this.sunLight.position.copy(this.sky.sun).multiplyScalar(5);
+  }
+
   /** Circle of radius `radiusKm` around a feature (visual cue for search). */
   showRing(lat: number, lon: number, radiusKm: number): void {
     if (this.ring) {
@@ -351,6 +385,11 @@ export class Globe {
     }
     if (this.ring) this.ring.material.opacity = 0.55 + 0.4 * Math.sin(now / 250);
     this.controls.update();
+    if (this.sky) {
+      // Re-centre on the camera every frame: directions, not positions, are what is physical.
+      const cam = this.camera.position;
+      this.sunBody.position.copy(cam).addScaledVector(this.sky.sun, SKY_DIST);
+    }
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -395,6 +434,29 @@ function intersectSphere(o: THREE.Vector3, d: THREE.Vector3, r: number): [number
   const tExit = -b + sq;
   if (tExit < 0) return null;
   return [-b - sq, tExit];
+}
+
+/** Unlit solar disc plus an additive glow sprite (the glow is decoration, not the true corona). */
+function makeSun(radius: number, textures: THREE.Texture[]): THREE.Group {
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(radius, 24, 16), new THREE.MeshBasicMaterial({ color: 0xfff6d5 })));
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const ctx = c.getContext("2d")!;
+  const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grad.addColorStop(0, "rgba(255,240,190,0.9)");
+  grad.addColorStop(0.2, "rgba(255,210,120,0.35)");
+  grad.addColorStop(1, "rgba(255,200,100,0)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 128, 128);
+  const map = new THREE.CanvasTexture(c);
+  textures.push(map); // freed by Globe.dispose()
+  const glow = new THREE.Sprite(
+    new THREE.SpriteMaterial({ map, blending: THREE.AdditiveBlending, depthWrite: false }),
+  );
+  glow.scale.setScalar(radius * 14);
+  g.add(glow);
+  return g;
 }
 
 /** Lat/lon grid every 15°, equator and prime meridian highlighted. Radius 1 (scaled later). */
