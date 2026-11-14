@@ -1,13 +1,18 @@
-FROM rust:1.94-slim-bookworm AS build
+FROM gcc:14 AS calculator
 WORKDIR /src
-# The binary embeds packages/contracts/fixtures/sites.json, so copy contracts too.
-COPY packages/contracts packages/contracts
-COPY services/api services/api
-WORKDIR /src/services/api
-RUN cargo build --release --locked
+COPY simulation/simulate.cpp simulation/simulate-slow.c ./
+RUN g++ -O2 -static -o simulate simulate.cpp \
+  && gcc -O2 -static -o simulate-slow simulate-slow.c
+
+FROM rust:1-slim-bookworm AS build
+WORKDIR /app
+COPY Cargo.toml ./
+COPY src ./src
+RUN cargo build --release
 
 FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*
-COPY --from=build /src/services/api/target/release/selene-api /usr/local/bin/selene-api
-EXPOSE 8080
-CMD ["selene-api"]
+COPY --from=calculator /src/simulate /usr/local/lib/lunar-landing/calc-planete
+COPY --from=calculator /src/simulate-slow /usr/local/lib/lunar-landing/calc-radio
+COPY --from=build /app/target/release/lunar-landing /usr/local/bin/lunar-landing
+EXPOSE 3000
+CMD ["lunar-landing"]
