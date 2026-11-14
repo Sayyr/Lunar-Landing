@@ -138,7 +138,7 @@ export const CelestialScene = memo(function CelestialScene({ state, view, enlarg
         dpr={[1, 2]}
         frameloop={active ? "always" : "never"}
       >
-        <color attach="background" args={["#05070b"]} />
+        <color attach="background" args={["#000000"]} />
         {view === "earth-moon" ? (
           <EarthMoonView {...viewProps} bodyScale={enlargeBodies ? BODY_ENLARGEMENT : 1} />
         ) : (
