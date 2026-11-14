@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { findHighGround, sunClearsTerrain } from "./groundAuto";
-import { buildGroundTerrain, type GroundTerrain, horizonAt, type TerrainSource } from "./groundTerrain";
+import { buildGroundTerrain, type ColorSource, DEFAULT_GROUND, type GroundTerrain, horizonAt, type TerrainSource } from "./groundTerrain";
 import { type GroundSky, GroundView, type GroundViewState } from "./groundView";
 import type { Heightmap } from "./heightmap";
 import { DATA_BASE, loadJson } from "./loaders";
@@ -33,8 +33,38 @@ function terrainSource(hm: Heightmap | null, polar: PolarDem | null): TerrainSou
   };
 }
 
+/**
+ * Ground colour from the LROC WAC colour mosaic (real data, ≈ 2.7 km/px), normalised so its mean
+ * brightness maps to a regolith grey: keeps the true large-scale albedo and tint variations.
+ */
+let colorCache: { img: HTMLImageElement; source: ColorSource } | null = null;
+function colorSourceFrom(img: HTMLImageElement | null): ColorSource | undefined {
+  if (!img) return undefined;
+  if (colorCache?.img === img) return colorCache.source;
+  const W = 2048;
+  const H = 1024;
+  const ctx = Object.assign(document.createElement("canvas"), { width: W, height: H }).getContext("2d", { willReadFrequently: true });
+  if (!ctx) return undefined;
+  ctx.drawImage(img, 0, 0, W, H);
+  const px = ctx.getImageData(0, 0, W, H).data;
+  let mean = 0;
+  for (let i = 0; i < px.length; i += 4) mean += px[i] + px[i + 1] + px[i + 2];
+  mean /= (px.length / 4) * 3 * 255;
+  const k = 0.62 / mean; // mean → 0.62 (linear-ish grey), relative variations kept
+  const source: ColorSource = (lat, lon) => {
+    const x = Math.min(W - 1, Math.max(0, Math.floor(((lon + 180) / 360) * W)));
+    const y = Math.min(H - 1, Math.max(0, Math.floor(((90 - lat) / 180) * H)));
+    const i = 4 * (y * W + x);
+    return [Math.min(1, (px[i] / 255) * k), Math.min(1, (px[i + 1] / 255) * k), Math.min(1, (px[i + 2] / 255) * k)];
+  };
+  colorCache = { img, source };
+  return source;
+}
+
 interface Props {
   heightmap: Heightmap | null;
+  /** LROC WAC colour mosaic (large-scale ground colour); null when not installed */
+  colorImage: HTMLImageElement | null;
   siteLat: number;
   siteLon: number;
   observerHeightM: number;
@@ -122,7 +152,7 @@ function HeadingTape({ view, sun, earth }: { view: GroundViewState; sun?: AzEl; 
 }
 
 export function GroundViewPanel(props: Props) {
-  const { heightmap, siteLat, siteLon, observerHeightM, sky, demVersion, active, onExit, onHeading } = props;
+  const { heightmap, colorImage, siteLat, siteLon, observerHeightM, sky, demVersion, active, onExit, onHeading } = props;
   const { tMin, spanMin, stepMinutes, setTime, sunAt, onMoveSite } = props;
   const hostRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<GroundView | null>(null);
@@ -170,13 +200,13 @@ export function GroundViewPanel(props: Props) {
   useEffect(() => {
     if (!view) return;
     const id = setTimeout(() => {
-      const t = buildGroundTerrain(terrainSource(heightmap, polarReady), siteLat, siteLon, observerHeightM);
+      const t = buildGroundTerrain(terrainSource(heightmap, polarReady), siteLat, siteLon, observerHeightM, DEFAULT_GROUND, colorSourceFrom(colorImage));
       view.setTerrain(t);
       setTerrain({ t, lat: siteLat, lon: siteLon });
       setSiteElevationM(heightmap || polarReady ? t.siteElevationM : null);
     }, 150);
     return () => clearTimeout(id);
-  }, [view, heightmap, polarReady, siteLat, siteLon, observerHeightM, demVersion]);
+  }, [view, heightmap, colorImage, polarReady, siteLat, siteLon, observerHeightM, demVersion]);
 
   useEffect(() => {
     if (!view) return;
@@ -296,7 +326,9 @@ export function GroundViewPanel(props: Props) {
               close), out to 400 km with curvature
             </>
           )}{" "}
-          · cast shadows (GPU, ±30 km around the line to the Sun) · uniform albedo
+          · cast shadows (GPU, ±30 km around the line to the Sun) · colour:{" "}
+          {colorImage ? "LROC WAC mosaic (≈ 2.7 km/px, real)" : "uniform"} × regolith grain, small craters, normal &amp; roughness maps
+          (procedural, ILLUSTRATIVE — not data), metalness 0
           {fill ? " · fill light ON (visual aid, not physical)" : " · Sun light only"} · terrain horizon read from the rendered mesh
           (estimate, not the science computation) · dashed line = ideal horizon 0° · drag to look, wheel to zoom
         </div>

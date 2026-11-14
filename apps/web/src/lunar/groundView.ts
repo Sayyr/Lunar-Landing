@@ -20,6 +20,7 @@ import { bodyRotationToThree } from "../lib/sceneFrame";
 import { makeSun } from "./globe";
 import type { GroundTerrain } from "./groundTerrain";
 import { DATA_BASE } from "./loaders";
+import { normalsFromHeight, regolithFields } from "./regolith";
 import { type AzEl, azElToEnu } from "./skyGeometry";
 
 const SKY_DIST = 1_500_000; // m, beyond the 400 km terrain
@@ -56,6 +57,7 @@ export class GroundView {
   private readonly textures: THREE.Texture[] = [];
   private readonly resizeObserver: ResizeObserver;
   private terrain: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial> | null = null;
+  private readonly ground: THREE.MeshStandardMaterial;
   private az = 0;
   private el = 5;
   private listeners = new Set<(s: GroundViewState) => void>();
@@ -111,6 +113,7 @@ export class GroundView {
     });
 
     this.scene.add(idealHorizon());
+    this.ground = this.makeGroundMaterial();
 
     this.detachPointer = this.attachLook();
     this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -122,18 +125,21 @@ export class GroundView {
   setTerrain(t: GroundTerrain): void {
     if (this.terrain) {
       this.terrain.geometry.dispose();
-      this.terrain.material.dispose();
       this.scene.remove(this.terrain);
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.BufferAttribute(t.positions, 3));
+    g.setAttribute("uv", new THREE.BufferAttribute(t.uvs, 2));
+    if (t.colors) g.setAttribute("color", new THREE.BufferAttribute(t.colors, 3));
     g.setIndex(new THREE.BufferAttribute(t.indices, 1));
     g.computeVertexNormals();
     g.computeBoundingSphere();
-    this.terrain = new THREE.Mesh(
-      g,
-      new THREE.MeshStandardMaterial({ color: 0x8f8f8f, roughness: 1, metalness: 0, side: THREE.DoubleSide }),
-    );
+    if (this.ground.vertexColors !== !!t.colors) {
+      this.ground.vertexColors = !!t.colors;
+      this.ground.color.set(t.colors ? 0xffffff : 0x9a9a9a);
+      this.ground.needsUpdate = true;
+    }
+    this.terrain = new THREE.Mesh(g, this.ground);
     this.terrain.castShadow = true;
     this.terrain.receiveShadow = true;
     this.scene.add(this.terrain);
@@ -148,6 +154,80 @@ export class GroundView {
     this.sunBody.position.copy(sun).multiplyScalar(SKY_DIST);
     this.earthBody.position.copy(earth).multiplyScalar(SKY_DIST);
     if (sky.earthToEnu) this.earthBody.quaternion.setFromRotationMatrix(bodyRotationToThree(sky.earthToEnu));
+  }
+
+  /**
+   * Ground material: large-scale colour from the vertex colours (real colour mosaic) × an
+   * ILLUSTRATIVE regolith detail texture sampled at three scales (4 m, ≈ 48 m, ≈ 560 m repeats,
+   * offset so the tiling is not visible). PBR set from the same procedural patch: normal map
+   * (from its height: grain and small craters catch the grazing Sun), roughness map (0.85–1,
+   * matte regolith) and metalness 0 (regolith is a non-metal, so no metalness map).
+   */
+  private makeGroundMaterial(): THREE.MeshStandardMaterial {
+    const { size, height, albedo, roughness } = regolithFields(512, 7);
+    const rgba = new Uint8Array(size * size * 4);
+    const nrm = new Uint8Array(size * size * 4);
+    const rgh = new Uint8Array(size * size * 4);
+    // Slope gain: the patch spans DETAIL_PERIOD_M (4 m) over 512 px; heights are ~[0, 1].
+    const normals = normalsFromHeight(height, size, 60);
+    let mean = 0;
+    for (let i = 0; i < albedo.length; i++) {
+      const a = Math.max(0, Math.min(1, albedo[i] / 1.4));
+      mean += THREE.SRGBToLinear(a); // the shader multiplies decoded (linear) values
+      // Neutral grey with the faint warm cast of highland regolith.
+      rgba[4 * i] = 255 * Math.min(1, a * 1.03);
+      rgba[4 * i + 1] = 255 * a;
+      rgba[4 * i + 2] = 255 * a * 0.94;
+      rgba[4 * i + 3] = 255;
+      nrm[4 * i] = 255 * normals[3 * i];
+      nrm[4 * i + 1] = 255 * normals[3 * i + 1];
+      nrm[4 * i + 2] = 255 * normals[3 * i + 2];
+      nrm[4 * i + 3] = 255;
+      // three reads roughness from the G channel.
+      rgh[4 * i] = rgh[4 * i + 1] = rgh[4 * i + 2] = 255 * roughness[i];
+      rgh[4 * i + 3] = 255;
+    }
+    mean /= albedo.length;
+    const tex = (data: Uint8Array, srgb: boolean) => {
+      const t = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.magFilter = THREE.LinearFilter;
+      t.minFilter = THREE.LinearMipmapLinearFilter;
+      t.generateMipmaps = true;
+      t.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+      if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+      t.needsUpdate = true;
+      this.textures.push(t);
+      return t;
+    };
+    const m = new THREE.MeshStandardMaterial({
+      color: 0x9a9a9a,
+      map: tex(rgba, true),
+      normalMap: tex(nrm, false),
+      normalScale: new THREE.Vector2(1, 1),
+      roughnessMap: tex(rgh, false),
+      roughness: 1, // multiplied by the map
+      metalness: 0, // non-metal: no metalness map
+      side: THREE.DoubleSide,
+    });
+    // Three scales of the same patch, normalised so the average brightness is unchanged.
+    const gain = (1 / mean) ** 3;
+    m.onBeforeCompile = (shader) => {
+      shader.uniforms.detailGain = { value: gain };
+      shader.fragmentShader = shader.fragmentShader
+        .replace("#include <map_pars_fragment>", "#include <map_pars_fragment>\nuniform float detailGain;")
+        .replace(
+          "#include <map_fragment>",
+          `#ifdef USE_MAP
+            vec3 d1 = texture2D( map, vMapUv ).rgb;
+            vec3 d2 = texture2D( map, vMapUv * 0.083 + vec2( 0.37, 0.71 ) ).rgb;
+            vec3 d3 = texture2D( map, vMapUv * 0.0071 + vec2( 0.13, 0.29 ) ).rgb;
+            diffuseColor.rgb *= d1 * d2 * d3 * detailGain;
+          #endif`,
+        );
+    };
+    m.customProgramCacheKey = () => "ground-regolith";
+    return m;
   }
 
   /** Visual-aid fill light on/off (off = only the Sun lights the terrain, as on the Moon). */

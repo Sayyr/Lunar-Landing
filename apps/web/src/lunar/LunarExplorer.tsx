@@ -231,6 +231,7 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
   const [dataset, setDataset] = useState("");
   const [demStreamState, setDemStream] = useState<DemStreamState | null>(null);
   const [heightmap, setHeightmap] = useState<Heightmap | null>(null);
+  const [colorImage, setColorImage] = useState<HTMLImageElement | null>(null);
   const [demVersion, setDemVersion] = useState(0);
   const [skyBody, setSkyBody] = useState<MoonSky | null>(null);
   const [groundOn, setGroundOn] = useState(false);
@@ -294,6 +295,7 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
         if (data.heightmap && !g.floatLinear) allNotes.push("float32 linear filtering unavailable: relief sampled with 'nearest'.");
         const hm = data.heightmap;
         setHeightmap(hm);
+        setColorImage(data.colorImage);
         if (hm) setDemLabel(hm.width >= 5760 ? "16" : "4");
         setDataset(
           (hm ? `${hm.label} · ${hm.width}×${hm.height} px · ≈ ${hm.kmPerPixel.toFixed(1)} km/px at the equator` : "no elevation raster") +
@@ -601,6 +603,7 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
       {groundOn && (
         <GroundViewPanel
           heightmap={heightmap}
+          colorImage={colorImage}
           siteLat={siteLat}
           siteLon={siteLon}
           observerHeightM={observerHeightM}
