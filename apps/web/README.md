@@ -96,8 +96,9 @@ when the backend lands.
 
 ## Deployment
 
-`npm run build` copies `public/data/` into `dist/data/`. The Docker image (`apps/web/Dockerfile`) therefore contains
-whatever data was installed locally at build time.
+`npm run build` copies `public/data/` into `dist/data/`. The Docker image (`apps/web/Dockerfile`) runs
+`scripts/setup-data.sh` (full, with ldem_16) in its own build stage, so the build needs network access to the SVS and
+USGS servers; the local `public/data/` is ignored (`.dockerignore`).
 
 - **Nginx** (`infra/nginx.conf`, rules ported from moon-explorer): `/data/*.tif|jpg|png` cached 1 year `immutable`
   with gzip for `image/tiff` (the uncompressed float TIFF compresses well); `features.json` 1 day; `/assets/` (hashed)

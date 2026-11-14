@@ -1,0 +1,57 @@
+name: Deploy
+
+# Updates prod (/opt/Lunar-Landing) once CI has passed on a push to main.
+# Required repo secrets:
+#   PROD_HOST         server hostname or IP (must be reachable from GitHub-hosted runners)
+#   PROD_USER         SSH user that owns the checkout and can run docker
+#   PROD_SSH_KEY      private key for that user (dedicated deploy key, no passphrase)
+#   PROD_KNOWN_HOSTS  output of `ssh-keyscan -p <port> <host>`, checked on a trusted machine
+# Optional: PROD_PORT (default 22).
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# One deploy at a time; a queued deploy waits instead of killing a running build.
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.PROD_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      - name: Update and restart prod
+        env:
+          HOST: ${{ secrets.PROD_HOST }}
+          DEPLOY_USER: ${{ secrets.PROD_USER }}
+          PORT: ${{ secrets.PROD_PORT || '22' }}
+          # The exact commit CI tested (manual runs deploy the current main).
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          ssh -i ~/.ssh/id_deploy -p "$PORT" -o StrictHostKeyChecking=yes "$DEPLOY_USER@$HOST" bash -s -- "$SHA" <<'EOF'
+          set -euo pipefail
+          cd /opt/Lunar-Landing
+          git fetch --quiet origin main
+          # ff-only: fails loudly instead of discarding commits or edits made on the server.
+          git merge --ff-only "$1"
+          git log -1 --oneline
+          docker compose -f infra/compose.yaml up -d --build --remove-orphans --wait
+          docker image prune -f
+          EOF
