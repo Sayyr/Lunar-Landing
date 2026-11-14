@@ -480,9 +480,8 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
     return () => cancelAnimationFrame(raf);
   }, [playing, active, spanMin]);
 
-  // Compass disc lies on the site's horizon as seen by the camera: rotated to the on-screen north,
-  // tilted by how obliquely the site is viewed (CSS 3D, no React re-render). In the ground view it
-  // lies flat and turns with the observer instead (onGroundHeading).
+  // Same flat compass in both views (no CSS 3D re-render): here N points to the on-screen north at
+  // the site; in the ground view the top is where the observer looks (onGroundHeading).
   const hasSky = sky !== null;
   useEffect(() => {
     if (!globe || !hasSky || groundOn) return;
@@ -490,10 +489,7 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
       const el = diskRef.current;
       if (!el) return;
       const a = globe.northScreenAngle(siteLat, siteLon);
-      // Capped so the disc stays readable when the site is seen edge-on (e.g. a pole from the front):
-      // past 50° the ellipse gets too flat to read N/E/S/W or the Sun/Earth positions.
-      const tilt = Math.min(50, globe.siteViewTilt(siteLat, siteLon));
-      el.style.transform = `rotateX(${tilt.toFixed(1)}deg) rotate(${(a ?? 0).toFixed(1)}deg)`;
+      el.style.transform = `rotate(${(a ?? 0).toFixed(1)}deg)`;
       el.style.opacity = a == null ? "0.45" : "1"; // dimmed: site behind the camera plane
     };
     update();

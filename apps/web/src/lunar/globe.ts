@@ -449,17 +449,6 @@ export class Globe {
   }
 
   /**
-   * How obliquely the site is seen, degrees: 0 = camera straight above it, 90 = at its horizon.
-   * Clamped to 72° so the compass disc never collapses to a line.
-   */
-  siteViewTilt(lat: number, lon: number): number {
-    const u = latLonToUnit(lat, lon);
-    const up = new THREE.Vector3(u.x, u.y, u.z);
-    const toCam = this.camera.position.clone().sub(up.clone().multiplyScalar(this.surfaceRadius(lat, lon))).normalize();
-    return Math.min(72, THREE.MathUtils.radToDeg(Math.acos(THREE.MathUtils.clamp(toCam.dot(up), -1, 1))));
-  }
-
-  /**
    * Screen-edge pointer for the Sun or Earth: pixel position (relative to the canvas) and arrow
    * angle (degrees clockwise from screen-up). `onScreen` = inside the view (it may still be hidden
    * behind the Moon). null before setSky().
