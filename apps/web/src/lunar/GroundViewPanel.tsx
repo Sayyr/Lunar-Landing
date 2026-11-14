@@ -1,9 +1,9 @@
 // "Standing on the site" view: overlay over the orbit globe, sharing the scenario time bar and the
 // compass. Terrain rebuilt when the site, the observer height or the streamed DEM changes.
 
-import { useEffect, useRef, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 
-import { findHighGround, sunClearsTerrain } from "./groundAuto";
+import { sunClearsTerrain } from "./groundAuto";
 import { buildGroundTerrain, type ColorSource, DEFAULT_GROUND, type GroundTerrain, horizonAt, type TerrainSource } from "./groundTerrain";
 import { type GroundSky, GroundView, type GroundViewState } from "./groundView";
 import type { Heightmap } from "./heightmap";
@@ -94,20 +94,6 @@ interface Props {
   onMoveSite: (lat: number, lon: number) => void;
 }
 
-/**
- * Opening placement, so the view starts on a sunlit landscape:
- *  1. Sun clears the rendered terrain now → keep everything;
- *  2. else first scenario time when it does → move the time bar;
- *  3. else highest ground within 30 km (once) → move the site, then 1–2 again.
- * Every change is reported with an Undo.
- */
-interface AutoPlace {
-  phase: "check" | "done";
-  moved: boolean;
-  notes: string[];
-  undo?: { lat: number; lon: number; tMin: number };
-}
-
 const wrap180 = (d: number) => ((((d + 180) % 360) + 360) % 360) - 180;
 const CARD = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
 
@@ -167,7 +153,10 @@ export function GroundViewPanel(props: Props) {
   const [state, setState] = useState<GroundViewState>({ azimuthDeg: 0, elevationDeg: 5, hfovDeg: 90 });
   const [siteElevationM, setSiteElevationM] = useState<number | null>(null);
   const [terrain, setTerrain] = useState<{ t: GroundTerrain; lat: number; lon: number } | null>(null);
-  const [auto, setAuto] = useState<AutoPlace>({ phase: "check", moved: false, notes: [] });
+  /** null: idle; otherwise the "next sunlit time" search result to show */
+  const [sunSearch, setSunSearch] = useState<string | null>(null);
+  const [gps, setGps] = useState({ lat: String(siteLat), lon: String(siteLon) });
+  useEffect(() => setGps({ lat: String(siteLat), lon: String(siteLon) }), [siteLat, siteLon]);
   const [fill, setFill] = useState(true);
   /** null: polar DEM not used here; otherwise its loading state for this site */
   const [polar, setPolar] = useState<{ dem: PolarDem; done: number; total: number; ready: boolean } | null>(null);
@@ -229,58 +218,29 @@ export function GroundViewPanel(props: Props) {
 
   useEffect(() => view?.setFill(fill), [view, fill]);
 
-  // Opening placement (see AutoPlace). Waits for the terrain of the current site, 20 m data included.
-  useEffect(() => {
-    if (auto.phase !== "check" || !terrain || terrain.lat !== siteLat || terrain.lon !== siteLon) return;
-    if (polar && !polar.ready) return;
-    let stale = false;
-    const t = terrain.t;
-    const clears = async (m: number) => sunClearsTerrain(await sunAt(m, siteLat, siteLon), t);
-    (async () => {
-      if (await clears(tMin)) return !stale && setAuto((a) => ({ ...a, phase: "done" }));
-      const step = Math.max(1, stepMinutes);
-      for (let m = 0; m <= spanMin; m += step) {
-        if (stale) return;
-        if (await clears(m)) {
-          if (stale) return;
-          setTime(m);
-          return setAuto((a) => ({
-            ...a,
-            phase: "done",
-            undo: a.undo ?? { lat: siteLat, lon: siteLon, tMin },
-            notes: [...a.notes, `time moved to +${(m / 60).toFixed(1)} h, when the Sun clears the terrain`],
-          }));
-        }
+  /** Move the time bar to the next scenario time when the whole Sun clears the true terrain. */
+  const nextSunlit = async () => {
+    if (!terrain) return;
+    setSunSearch("searching…");
+    const step = Math.max(1, stepMinutes);
+    for (let m = Math.floor(tMin / step) * step + step; m <= spanMin; m += step) {
+      if (sunClearsTerrain(await sunAt(m, siteLat, siteLon), terrain.t)) {
+        setTime(m);
+        return setSunSearch(`Sun clears the terrain at +${(m / 60).toFixed(1)} h`);
       }
-      const high = auto.moved ? null : findHighGround(terrainSource(heightmap, polarReady), siteLat, siteLon);
-      if (stale) return;
-      if (high && high.distanceM > 100) {
-        setAuto((a) => ({
-          phase: "check",
-          moved: true,
-          undo: a.undo ?? { lat: siteLat, lon: siteLon, tMin },
-          notes: [
-            ...a.notes,
-            `Sun never clears the terrain here during the scenario: site moved ${(high.distanceM / 1000).toFixed(1)} km to the highest ground nearby (${Math.round(high.elevationM)} m)`,
-          ],
-        }));
-        onMoveSite(+high.lat.toFixed(4), +(((high.lon + 540) % 360) - 180).toFixed(4));
-      } else {
-        setAuto((a) => ({ ...a, phase: "done", notes: [...a.notes, "the Sun never clears the terrain from here during the scenario"] }));
-      }
-    })();
-    return () => {
-      stale = true;
-    };
-    // tMin is read once per check on purpose: playback must not restart the search.
-  }, [auto.phase, auto.moved, terrain, polar, siteLat, siteLon]);
+    }
+    setSunSearch("the Sun does not clear the terrain here for the rest of the scenario");
+  };
 
-  const undoAuto = () => {
-    const u = auto.undo;
-    if (!u) return;
-    setAuto({ phase: "done", moved: true, notes: [] });
-    onMoveSite(u.lat, u.lon);
-    setTime(u.tMin);
+  /** Go to a GPS point (planetocentric lat, east-positive lon in degrees). */
+  const goGps = (e: FormEvent) => {
+    e.preventDefault();
+    const lat = Number(gps.lat);
+    let lon = Number(gps.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90) return;
+    lon = ((((lon + 180) % 360) + 360) % 360) - 180;
+    setSunSearch(null);
+    onMoveSite(+lat.toFixed(5), +lon.toFixed(5));
   };
 
   /** "visible / hidden by terrain" from the rendered terrain's horizon in the body's direction. */
@@ -300,20 +260,11 @@ export function GroundViewPanel(props: Props) {
       <div className="ground-hud-top">
         <HeadingTape view={state} sun={sky?.sun} earth={sky?.earth} />
         <div className="ground-readout">
-          View az {state.azimuthDeg.toFixed(0)}° · el {state.elevationDeg.toFixed(0)}° · FOV {state.hfovDeg.toFixed(0)}°
+          Site {siteLat.toFixed(4)}°, {siteLon.toFixed(4)}° · view az {state.azimuthDeg.toFixed(0)}° · el {state.elevationDeg.toFixed(0)}° · FOV{" "}
+          {state.hfovDeg.toFixed(0)}°
           {siteElevationM != null && ` · ground ${Math.round(siteElevationM).toLocaleString("en-US")} m, eye +${observerHeightM} m`}
         </div>
-        {auto.notes.length > 0 && (
-          <div className="ground-auto">
-            Opened on a sunlit view: {auto.notes.join("; ")}.{" "}
-            {auto.undo && (
-              <button type="button" onClick={undoAuto}>
-                Undo
-              </button>
-            )}
-          </div>
-        )}
-        {auto.phase === "check" && <div className="ground-auto muted">Looking for a sunlit view…</div>}
+        {sunSearch && <div className="ground-auto">{sunSearch}</div>}
         {sky && terrain && (
           <div className="ground-visibility">
             <span className="sun">{status("Sun", sky.sun)}</span>
@@ -347,6 +298,18 @@ export function GroundViewPanel(props: Props) {
         </button>
         <button type="button" onClick={() => lookAt(sky?.earth)} disabled={!sky}>
           Look at Earth
+        </button>
+        <form className="ground-gps" onSubmit={goGps} aria-label="Go to a GPS point">
+          <label>
+            Lat <input type="number" step="any" min={-90} max={90} value={gps.lat} onChange={(e) => setGps({ ...gps, lat: e.target.value })} />
+          </label>
+          <label>
+            Lon <input type="number" step="any" value={gps.lon} onChange={(e) => setGps({ ...gps, lon: e.target.value })} />
+          </label>
+          <button type="submit">Go</button>
+        </form>
+        <button type="button" onClick={nextSunlit} disabled={!terrain || !sky}>
+          Next sunlit time
         </button>
         <button type="button" onClick={() => setFill((f) => !f)} aria-pressed={fill} title="Sky-like fill light so shadowed relief stays readable (not physical)">
           Fill light: {fill ? "on" : "off"}

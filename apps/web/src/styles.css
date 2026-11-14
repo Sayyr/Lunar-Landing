@@ -282,3 +282,8 @@ details ul { padding-left: 1.1rem; margin: 0.3rem 0; }
   pointer-events: auto; }
 .ground-auto button { margin-left: 6px; padding: 1px 8px; font-size: 11px; background: rgba(0, 0, 0, 0.45); }
 .ground-error { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--l-warn, #ffb347); }
+.ground-gps { display: flex; gap: 4px; align-items: center; font-size: 12px; color: var(--muted); text-shadow: 0 1px 3px #000; }
+.ground-gps label { display: flex; align-items: center; gap: 3px; margin: 0; }
+.ground-gps input { width: 86px; padding: 3px 5px; font-size: 12px; background: rgba(0, 0, 0, 0.55); color: var(--text);
+  border: 1px solid #3b4760; border-radius: 2px; }
+.ground-gps button { padding: 3px 8px; }
