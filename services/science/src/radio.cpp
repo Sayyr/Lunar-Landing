@@ -17,6 +17,7 @@ namespace {
 
 const char* const EPHEMERIS_PROVIDER = "analytic_meeus_truncated";
 const double LOW_ELEVATION_WARNING_DEG = 5.0;
+const double FD_HALF_STEP_D = 30.0 / 86400.0;  // range-rate central difference, +-30 s
 const int64_t FIXED_TT_OFFSET_VALID_FROM_US = 1483228800LL * 1000000LL;  // 2017-01-01T00:00:00Z
 
 const std::vector<std::string> ASSUMPTIONS = {
@@ -36,7 +37,7 @@ const std::vector<std::string> ASSUMPTIONS = {
     "be included in other_losses_db by the caller; none is added here.",
     "Range is station to site (station to Moon centre minus the site's offset along the "
     "Earth-Moon line, transverse term <= 4 km). Doppler is one-way, first order in v/c, from a "
-    "1 s central difference of that range.",
+    "+-30 s central difference of that range.",
     "The serving station at each sample is the one with the largest elevation above its own "
     "mask. Link windows are the intersection of Earth-visible, any-station-visible and "
     "budget-closes intervals; each edge is linearly interpolated between samples, and events "
@@ -269,10 +270,14 @@ json evaluate_radio_link(const RadioLinkRequest& r) {
         }
         const GroundStation& gs = r.stations[best];
 
-        // Link budget over the station-to-site range (km -> m), Doppler from its 1 s central difference.
-        const double half_s = 0.5 / 86400.0;
+        // Link budget over the station-to-site range (km -> m). Range rate: central difference over
+        // +-30 s. A shorter step loses digits to cancellation (two ~4e8 m ranges) and to the JD
+        // resolution (~40 us near JD 2.46e6), so divide by the step actually represented; the
+        // truncation error (h^2/6 x radial jerk) is far below 1 mm/s.
+        const double jd_minus = jd - FD_HALF_STEP_D, jd_plus = jd + FD_HALF_STEP_D;
         const double range_m = site_range_km(r, gs, jd) * 1000.0;
-        const double range_rate_m_s = (site_range_km(r, gs, jd + half_s) - site_range_km(r, gs, jd - half_s)) * 1000.0;
+        const double range_rate_m_s = (site_range_km(r, gs, jd_plus) - site_range_km(r, gs, jd_minus)) * 1000.0 /
+                                      ((jd_plus - jd_minus) * 86400.0);
         const double doppler = doppler_shift_hz(range_rate_m_s, r.link.frequency_hz);
         const double margin_db = link_margin_db(r.link, range_m);
         const bool available = earth_margin > 0.0 && best_margin > 0.0 && margin_db > 0.0;
