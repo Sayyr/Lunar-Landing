@@ -197,6 +197,8 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
   const [playing, setPlaying] = useState(false);
   const [sky, setSky] = useState<{ sun: AzEl; earth: AzEl; synthetic: boolean } | null>(null);
   const roseRef = useRef<SVGGElement>(null);
+  const sunPtrRef = useRef<HTMLDivElement>(null);
+  const earthPtrRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     onPickRef.current = onPick;
@@ -404,6 +406,29 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
     return globe.onCameraChange(update);
   }, [globe, hasSky, siteLat, siteLon]);
 
+  // Edge pointers "Sun this way / Earth this way", shown only while the body is off-screen.
+  useEffect(() => {
+    if (!globe || !sky) return;
+    const place = (el: HTMLDivElement | null, which: "sun" | "earth") => {
+      const p = globe.edgePointer(which);
+      if (!el || !p) return;
+      el.hidden = p.onScreen;
+      el.style.transform = `translate(${p.x}px, ${p.y}px)`;
+      (el.firstElementChild as HTMLElement).style.transform = `rotate(${p.angle}deg)`;
+    };
+    const update = () => {
+      place(sunPtrRef.current, "sun");
+      place(earthPtrRef.current, "earth");
+    };
+    update();
+    const off = globe.onCameraChange(update);
+    window.addEventListener("resize", update);
+    return () => {
+      off();
+      window.removeEventListener("resize", update);
+    };
+  }, [globe, sky]);
+
   const skyUtc = Number.isNaN(startMs) ? "—" : new Date(startMs + tMin * 60_000).toISOString().slice(0, 16).replace("T", " ") + " UTC";
 
   const results = useMemo(() => index?.search(query, 12) ?? [], [index, query]);
@@ -453,6 +478,18 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
         ☰
       </button>
 
+      {sky && (
+        <>
+          <div ref={sunPtrRef} className="edge-ptr sun" hidden>
+            <span className="edge-arrow">▲</span>
+            <span className="edge-label">Sun</span>
+          </div>
+          <div ref={earthPtrRef} className="edge-ptr earth" hidden>
+            <span className="edge-arrow">▲</span>
+            <span className="edge-label">Earth</span>
+          </div>
+        </>
+      )}
       {sky && (
         <div className="sky-overlay">
           <SkyCompass sun={sky.sun} earth={sky.earth} roseRef={roseRef} />

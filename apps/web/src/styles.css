@@ -206,3 +206,11 @@ details ul { padding-left: 1.1rem; margin: 0.3rem 0; }
 .sky-note { margin-top: 6px; font-size: 10.5px; color: var(--l-warn); }
 .sky-view { display: flex; gap: 6px; margin-top: 6px; }
 .sky-view button { padding: 3px 8px; font-size: 12px; }
+/* "Sun / Earth this way" pointers pinned to the screen edge (positioned by LunarExplorer). */
+.edge-ptr { position: absolute; left: 0; top: 0; z-index: 4; pointer-events: none; width: 0; height: 0; }
+.edge-ptr .edge-arrow { position: absolute; left: -9px; top: -11px; width: 18px; text-align: center; font-size: 18px;
+  line-height: 22px; transform-origin: 50% 50%; text-shadow: 0 0 6px currentColor; }
+.edge-ptr .edge-label { position: absolute; left: -30px; top: 12px; width: 60px; text-align: center; font-size: 11px;
+  text-shadow: 0 1px 3px #000; }
+.edge-ptr.sun { color: #ffd400; }
+.edge-ptr.earth { color: #4aa3ff; }
