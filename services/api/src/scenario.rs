@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::FieldIssue;
+use crate::envelope::FieldIssue;
 
 /// Keep in sync with `services/science/src/models.hpp::MAX_SAMPLES`.
 pub const MAX_SAMPLES: u64 = 20_000;

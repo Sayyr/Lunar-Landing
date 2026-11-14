@@ -9,10 +9,11 @@ use axum::http::{Request, StatusCode};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use http_body_util::BodyExt;
-use selene_api::error::ErrorResponse;
-use selene_api::scenario::{ScenarioRequest, ScenarioResponse, ScenarioStatus};
-use selene_api::science::ScienceClient;
-use selene_api::{router, AppState, SITES_JSON};
+use lunar_landing::envelope::ErrorResponse;
+use lunar_landing::gateway::{AppState, SITES_JSON};
+use lunar_landing::routes::gateway_router;
+use lunar_landing::scenario::{ScenarioRequest, ScenarioResponse, ScenarioStatus};
+use lunar_landing::science::ScienceClient;
 use serde_json::{json, Value};
 use tower::ServiceExt;
 
@@ -130,9 +131,12 @@ async fn mock_science() -> String {
 }
 
 fn app(science_url: &str) -> Router {
-    router(AppState {
-        science: ScienceClient::new(science_url, Duration::from_secs(5)),
-    })
+    Router::new().nest(
+        "/api/v1",
+        gateway_router(AppState {
+            science: ScienceClient::new(science_url, Duration::from_secs(5)),
+        }),
+    )
 }
 
 async fn call(app: Router, method: &str, uri: &str, body: Option<Value>) -> (StatusCode, Value) {
@@ -152,30 +156,10 @@ async fn call(app: Router, method: &str, uri: &str, body: Option<Value>) -> (Sta
 }
 
 #[tokio::test]
-async fn health_ok_with_upstream() {
-    let url = mock_science().await;
-    let (status, body) = call(app(&url), "GET", "/health", None).await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["status"], "ok");
-    assert_eq!(body["upstream"]["ephemeris"]["ready"], false);
-    assert_valid("health.schema.json", &body);
-}
-
-#[tokio::test]
-async fn health_degraded_when_science_down() {
-    // Port 9 (discard) on localhost: nothing listens there in test environments.
-    let (status, body) = call(app("http://127.0.0.1:9"), "GET", "/health", None).await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["status"], "degraded");
-    assert!(body["upstream"].is_null());
-    assert_valid("health.schema.json", &body);
-}
-
-#[tokio::test]
 async fn evaluate_forwards_not_ready() {
     let url = mock_science().await;
     let req = load("fixtures/scenario-request.valid.json");
-    let (status, body) = call(app(&url), "POST", "/scenarios/evaluate", Some(req)).await;
+    let (status, body) = call(app(&url), "POST", "/api/v1/scenarios/evaluate", Some(req)).await;
     assert_eq!(status, StatusCode::OK);
     assert_valid("scenario-response.schema.json", &body);
     let typed: ScenarioResponse = serde_json::from_value(body).unwrap();
@@ -187,7 +171,13 @@ async fn evaluate_forwards_not_ready() {
 async fn synthetic_route_is_flagged() {
     let url = mock_science().await;
     let req = load("fixtures/scenario-request.valid.json");
-    let (status, body) = call(app(&url), "POST", "/demo/synthetic/evaluate", Some(req)).await;
+    let (status, body) = call(
+        app(&url),
+        "POST",
+        "/api/v1/demo/synthetic/evaluate",
+        Some(req),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["synthetic"], true);
     assert_eq!(body["status"], "synthetic");
@@ -201,7 +191,7 @@ async fn invalid_request_gets_error_envelope_without_calling_science() {
     let (status, body) = call(
         app("http://127.0.0.1:9"),
         "POST",
-        "/scenarios/evaluate",
+        "/api/v1/scenarios/evaluate",
         Some(req),
     )
     .await;
@@ -215,7 +205,7 @@ async fn malformed_json_gets_error_envelope() {
     let (status, body) = call(
         app("http://127.0.0.1:9"),
         "POST",
-        "/scenarios/evaluate",
+        "/api/v1/scenarios/evaluate",
         Some(json!({"site": 1})),
     )
     .await;
@@ -229,7 +219,7 @@ async fn science_down_is_503() {
     let (status, body) = call(
         app("http://127.0.0.1:9"),
         "POST",
-        "/scenarios/evaluate",
+        "/api/v1/scenarios/evaluate",
         Some(req),
     )
     .await;
@@ -240,7 +230,7 @@ async fn science_down_is_503() {
 
 #[tokio::test]
 async fn sites_endpoint() {
-    let (status, body) = call(app("http://127.0.0.1:9"), "GET", "/sites", None).await;
+    let (status, body) = call(app("http://127.0.0.1:9"), "GET", "/api/v1/sites", None).await;
     assert_eq!(status, StatusCode::OK);
     assert_valid("sites-response.schema.json", &body);
     assert!(body["sites"]

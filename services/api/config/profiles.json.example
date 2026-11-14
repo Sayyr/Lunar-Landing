@@ -1,0 +1,7 @@
+{
+  "default": "min",
+  "profiles": {
+    "min": ["calc-planete"],
+    "basic": ["calc-planete", "calc-radio"]
+  }
+}

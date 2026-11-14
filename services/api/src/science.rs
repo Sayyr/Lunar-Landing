@@ -7,7 +7,7 @@ use axum::http::StatusCode;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-use crate::error::{ApiError, ErrorCode, ErrorResponse};
+use crate::envelope::{ApiError, ErrorCode, ErrorResponse};
 use crate::scenario::{ScenarioRequest, ScenarioResponse};
 
 #[derive(Clone)]

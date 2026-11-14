@@ -1,36 +1,85 @@
-use std::time::Duration;
+use std::{path::PathBuf, process::exit, time::Duration};
 
-use selene_api::science::ScienceClient;
-use selene_api::{router, AppState};
-use tracing_subscriber::EnvFilter;
+use lunar_landing::{
+    config::ProfilesConfig, gateway::AppState, repository::CalculatorRepository, routes,
+    science::ScienceClient, service::SiteService,
+};
+use tokio::{
+    net::TcpListener,
+    signal::unix::{signal, SignalKind},
+};
 
-fn env_or(key: &str, default: &str) -> String {
-    std::env::var(key).unwrap_or_else(|_| default.to_owned())
+const ADDRESS: &str = "0.0.0.0:8080";
+const DEFAULT_PROFILES_FILE: &str = "/etc/lunar-landing/profiles.json";
+const DEFAULT_SCRIPTS_DIR: &str = "/usr/local/lib/lunar-landing";
+const DEFAULT_SCIENCE_URL: &str = "http://127.0.0.1:8000";
+const DEFAULT_SCIENCE_TIMEOUT_S: &str = "30";
+
+fn env_path(name: &str, default: &str) -> PathBuf {
+    PathBuf::from(std::env::var(name).unwrap_or_else(|_| default.into()))
+}
+
+async fn shutdown_signal() {
+    let interrupt = async {
+        let _ = tokio::signal::ctrl_c().await;
+    };
+    let terminate = async {
+        match signal(SignalKind::terminate()) {
+            Ok(mut stream) => {
+                stream.recv().await;
+            }
+            Err(_) => std::future::pending::<()>().await,
+        }
+    };
+    tokio::select! {
+        _ = interrupt => {}
+        _ = terminate => {}
+    }
 }
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
-        .init();
+    let profiles_file = env_path("PROFILES_FILE", DEFAULT_PROFILES_FILE);
+    let scripts_dir = env_path("SCRIPTS_DIR", DEFAULT_SCRIPTS_DIR);
+    let config = match ProfilesConfig::load(&profiles_file, scripts_dir) {
+        Ok(config) => config,
+        Err(error) => {
+            eprintln!("{error}");
+            exit(1);
+        }
+    };
+    let service = SiteService::new(config, CalculatorRepository);
 
-    let bind = env_or("SELENE_API_BIND", "127.0.0.1:8080");
-    let science_url = env_or("SELENE_SCIENCE_URL", "http://127.0.0.1:8000");
-    let timeout_s: u64 = env_or("SELENE_SCIENCE_TIMEOUT_S", "30")
+    let science_url =
+        std::env::var("SELENE_SCIENCE_URL").unwrap_or_else(|_| DEFAULT_SCIENCE_URL.into());
+    let timeout_s: u64 = match std::env::var("SELENE_SCIENCE_TIMEOUT_S")
+        .unwrap_or_else(|_| DEFAULT_SCIENCE_TIMEOUT_S.into())
         .parse()
-        .expect("SELENE_SCIENCE_TIMEOUT_S must be an integer number of seconds");
-
+    {
+        Ok(timeout_s) => timeout_s,
+        Err(_) => {
+            eprintln!("SELENE_SCIENCE_TIMEOUT_S must be an integer number of seconds");
+            exit(1);
+        }
+    };
     let state = AppState {
         science: ScienceClient::new(&science_url, Duration::from_secs(timeout_s)),
     };
-    let listener = tokio::net::TcpListener::bind(&bind)
+
+    let listener = match TcpListener::bind(ADDRESS).await {
+        Ok(listener) => listener,
+        Err(error) => {
+            eprintln!("cannot bind {ADDRESS}: {error}");
+            exit(1);
+        }
+    };
+
+    println!("listening on {ADDRESS}");
+    if let Err(error) = axum::serve(listener, routes::router(service, state))
+        .with_graceful_shutdown(shutdown_signal())
         .await
-        .unwrap_or_else(|e| panic!("cannot bind {bind}: {e}"));
-    tracing::info!(%bind, %science_url, "selene-api listening");
-    axum::serve(listener, router(state))
-        .with_graceful_shutdown(async {
-            let _ = tokio::signal::ctrl_c().await;
-        })
-        .await
-        .expect("server error");
+    {
+        eprintln!("server error: {error}");
+        exit(1);
+    }
 }

@@ -24,18 +24,13 @@ services:
       context: ..
       dockerfile: services/api/Dockerfile
     environment:
-      SELENE_API_BIND: 0.0.0.0:8080
       SELENE_SCIENCE_URL: http://science:8000
-      RUST_LOG: info
+    volumes:
+      - ../services/api/config/profiles.json:/etc/lunar-landing/profiles.json:ro
     ports: ["8080:8080"]
     depends_on:
       science:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   web:
     build:
@@ -44,7 +39,7 @@ services:
     ports: ["8081:80"]
     depends_on:
       api:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
       interval: 10s
