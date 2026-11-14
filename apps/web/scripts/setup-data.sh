@@ -62,9 +62,19 @@ get_svs() { # get_svs BASE_URL NAME DEST
   fi
 }
 
-# 1. LOLA elevation (float32 TIFF, km relative to 1737.4 km) — served as is.
+# 1. LOLA elevation (float32 TIFF, km relative to 1737.4 km). ldem_4 is served as is; ldem_16 is
+#    split into 16 latitude bands (lossless, ~4 MB each) that the app streams after the first view.
 get_svs "$SVS_MOON" ldem_4.tif "$DATA/ldem_4.tif"
-if [[ $LIGHT == 0 ]]; then get_svs "$SVS_MOON" ldem_16.tif "$DATA/ldem_16.tif"; fi
+if [[ $LIGHT == 0 ]]; then
+  # Older installs served the whole TIFF from public/: keep it as the raw source instead.
+  [[ -f "$DATA/ldem_16.tif" && ! -f "$RAW/ldem_16.tif" ]] && mv "$DATA/ldem_16.tif" "$RAW/ldem_16.tif"
+  rm -f "$DATA/ldem_16.tif"
+  get_svs "$SVS_MOON" ldem_16.tif "$RAW/ldem_16.tif"
+  if [[ ! -f "$DATA/ldem_16/manifest.json" ]]; then
+    echo "⚙ splitting ldem_16 into streamable bands"
+    "$PYTHON" -I "$HERE/scripts/split_ldem.py" "$RAW/ldem_16.tif" "$DATA/ldem_16"
+  fi
+fi
 
 # 2. LROC WAC 4k colour → JPEG (also used by the Sun–Earth–Moon dashboard).
 get_svs "$SVS_MOON" lroc_color_poles_4k.tif "$RAW/lroc_color_poles_4k.tif"

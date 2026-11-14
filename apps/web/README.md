@@ -62,6 +62,12 @@ Nomenclature, IAU WGPSN / USGS Astrogeology. Cite these if the site is published
 - **Memory**: the TIFF is downloaded, decoded into one `Float32Array`, then the raw buffer is released. Rows are flipped
   *in place* and the same array feeds the `DataTexture` (displacement + bump) and elevation look-ups: one CPU copy in
   steady state, shared across tab switches. Transient peak ≈ 2× while decoding. Changing quality reloads the page.
+- **ldem_16 streaming**: `setup-data.sh` splits `ldem_16.tif` (66 MB) with `scripts/split_ldem.py` into
+  `public/data/ldem_16/band_NN.f32` (16 × 180 rows, raw float32 LE, **lossless**, already south-first) plus
+  `manifest.json`. The app first shows ldem_4 (4 MB) resampled to the ldem_16 grid, then streams the bands (3 at a time,
+  nearest to the selected site first); each band overwrites its rows in the same array and is uploaded alone to the GPU
+  (`copyTextureToTexture`, no full re-upload). Until a band arrives, its latitudes show ldem_4 detail. Without a manifest,
+  the single-file `ldem_16.tif` path is used.
 - If the GPU can't do 5760 px textures, ldem_4 is used automatically. Without `OES_texture_float_linear`, relief is
   sampled "nearest".
 - **Lighting is illustrative**: a fixed directional light, not the computed Sun direction.
@@ -104,5 +110,5 @@ USGS servers; the local `public/data/` is ignored (`.dockerignore`).
   with gzip for `image/tiff` (the uncompressed float TIFF compresses well); `features.json` 1 day; `/assets/` (hashed)
   immutable; HTML `no-cache`. `loaders.ts` switches to an indeterminate progress bar when the response is compressed.
 - **Cloudflare Pages**: deploy `dist/` (`npx wrangler pages deploy apps/web/dist`); `public/_headers` is applied
-  automatically. **25 MiB per-file limit**: `ldem_16.tif` (63 MiB) does not fit — host it on R2 (CORS allowed for your
-  domain) and set `VITE_LUNAR_DEM_BASE` at build time, or deploy with `--light` data (ldem_4 only).
+  automatically. The ldem_16 bands (4.1 MB each) fit Pages' 25 MiB per-file limit; to host them elsewhere (R2, CDN, CORS
+  allowed for your domain) set `VITE_LUNAR_DEM_BASE` at build time (the app reads `<base>ldem_16/manifest.json`).
