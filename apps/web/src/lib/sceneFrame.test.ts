@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import { earthFixedToEcliptic } from "../mock/lowPrecisionEphemeris";
 import { latLonToUnit } from "../lunar/geo";
-import { bodyRotationToThree, eclToThree } from "./sceneFrame";
+import { getMoonTrack } from "../api/celestial";
+import { bodyRotationToThree, closeLoop, eclToThree } from "./sceneFrame";
 
 describe("eclToThree", () => {
   it("maps the ecliptic plane onto the Three.js XZ plane", () => {
@@ -38,6 +39,24 @@ describe("bodyRotationToThree", () => {
       expect(world.x).toBeCloseTo(want[0], 12);
       expect(world.y).toBeCloseTo(want[1], 12);
       expect(world.z).toBeCloseTo(want[2], 12);
+    }
+  });
+});
+
+describe("closeLoop", () => {
+  it("makes the last point equal the first and keeps the first", () => {
+    const out = closeLoop([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0.1, 0.1, 0]]);
+    expect(out[0]).toEqual([0, 0, 0]);
+    expect(out[3][0]).toBeCloseTo(0);
+    expect(out[3][1]).toBeCloseTo(0);
+  });
+
+  it("one-sidereal-month Moon track: residual is small (< 3 % of the distance) before closing", () => {
+    for (const d of ["2026-11-13T13:04:00Z", "2026-11-20T00:00:00Z", "2027-03-01T00:00:00Z"]) {
+      const t = getMoonTrack(new Date(d));
+      const [a, b] = [t[0], t[t.length - 1]];
+      const gap = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+      expect(gap / Math.hypot(...a)).toBeLessThan(0.03);
     }
   });
 });

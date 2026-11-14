@@ -41,6 +41,19 @@ export function bodyRotationToThree(m: readonly number[]): Matrix4 {
   );
 }
 
+/**
+ * VISUALIZATION ONLY: makes an almost-closed trace end exactly where it starts by spreading the
+ * residual (last − first) linearly along it. Used for the Moon's path over one sidereal month,
+ * which does not close in reality (solar perturbations, apsidal precession).
+ */
+export function closeLoop(points: readonly V3[]): V3[] {
+  const n = points.length - 1;
+  if (n < 1) return [...points];
+  const [a, b] = [points[0], points[n]];
+  const d: V3 = [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  return points.map((p, i) => [p[0] + (d[0] * i) / n, p[1] + (d[1] * i) / n, p[2] + (d[2] * i) / n]);
+}
+
 export function normalize(v: readonly number[]): V3 {
   const r = Math.hypot(v[0], v[1], v[2]);
   if (r === 0) throw new Error("zero vector has no direction");

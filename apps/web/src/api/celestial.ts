@@ -12,8 +12,11 @@ export async function getCelestialState(date: Date): Promise<CelestialStateRespo
 // shortcut: the orbit traces are synchronous and not in the draft contract; when the backend lands,
 // add them to the response (or an async call) and fetch them in CelestialDashboard, not the scene.
 
-/** Earth→Moon positions (metres, ecliptic of date) for an orbit trace. Mock for now. */
-export function getMoonTrack(center: Date, halfSpanDays = 13.7, stepHours = 3): [number, number, number][] {
+/** Mean sidereal month (days): the Moon returns to the same ecliptic longitude after this time. */
+export const SIDEREAL_MONTH_DAYS = 27.321662;
+
+/** Earth→Moon positions (metres, ecliptic of date) over one sidereal month by default. Mock for now. */
+export function getMoonTrack(center: Date, halfSpanDays = SIDEREAL_MONTH_DAYS / 2, stepHours = (SIDEREAL_MONTH_DAYS * 24) / 216): [number, number, number][] {
   return mockMoonTrack(center, halfSpanDays, stepHours);
 }
 

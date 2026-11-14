@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { getCelestialState } from "../../api/celestial";
 import type { CelestialStateResponse } from "../../api/celestialTypes";
 import { AU_M, EARTH_MEAN_RADIUS_M } from "../../lib/constants";
+import { DATA_README_URL } from "../../lib/links";
+import { ScaleBar } from "../ScaleBar";
 import { BODY_ENLARGEMENT, CelestialScene, type SceneView } from "./CelestialScene";
 import { MoonPhaseIcon } from "./MoonPhaseIcon";
 
@@ -49,6 +51,8 @@ export function CelestialDashboard({ active }: { active: boolean }) {
   const [speed, setSpeed] = useState(SPEEDS[1].hoursPerSecond);
   const [state, setState] = useState<CelestialStateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [panelOpen, setPanelOpen] = useState(false); // opened from the "⋯" button
+  const [kmPerPx, setKmPerPx] = useState<number | null>(null);
 
   useEffect(() => {
     let current = true;
@@ -81,8 +85,27 @@ export function CelestialDashboard({ active }: { active: boolean }) {
   const offsetHours = (date.getTime() - anchor.getTime()) / HOUR_MS;
 
   return (
-    <div className="dash">
-      <section className="dash-scene">
+    <div className={`dash${panelOpen ? "" : " panel-collapsed"}`}>
+      {state ? (
+        <CelestialScene state={state} view={view} enlargeBodies={enlargeBodies} active={active} onScale={setKmPerPx} />
+      ) : (
+        <div className="celestial-canvas placeholder">Loading…</div>
+      )}
+
+      {/* Top-left overlay: phase summary, view, time controls (same place as the scenario compass). */}
+      <div className="dash-overlay">
+        {state && (
+          <div className="phase-row">
+            <MoonPhaseIcon fraction={state.derived.illuminated_fraction} waxing={state.derived.waxing} />
+            <div>
+              <div className="big">{state.derived.phase_name}</div>
+              <div className="muted">
+                {(state.derived.illuminated_fraction * 100).toFixed(0)} % illuminated · {state.derived.waxing ? "waxing" : "waning"}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="view-toggle" role="tablist" aria-label="3D view">
           <button role="tab" aria-selected={view === "earth-moon"} className={view === "earth-moon" ? "active" : ""} onClick={() => setView("earth-moon")}>
             Earth–Moon (to scale)
@@ -90,85 +113,88 @@ export function CelestialDashboard({ active }: { active: boolean }) {
           <button role="tab" aria-selected={view === "solar"} className={view === "solar" ? "active" : ""} onClick={() => setView("solar")}>
             Sun–Earth–Moon (schematic)
           </button>
-          {view === "earth-moon" && (
-            <label className="check">
-              <input type="checkbox" checked={enlargeBodies} onChange={(e) => setEnlargeBodies(e.target.checked)} />
-              Enlarge Earth &amp; Moon ×{BODY_ENLARGEMENT}
-            </label>
-          )}
         </div>
-        {state ? <CelestialScene state={state} view={view} enlargeBodies={enlargeBodies} active={active} /> : <div className="celestial-canvas placeholder">Loading…</div>}
-      </section>
-
-      <aside className="dash-side">
-        <div className="card">
-          <h3>Date &amp; time (UTC)</h3>
-          <input
-            className="date-input"
-            type="datetime-local"
-            step={60}
-            value={toInputUtc(date)}
-            onChange={(e) => setAbsolute(fromInputUtc(e.target.value))}
-            aria-label="Date and time, UTC"
-          />
-          <div className="step-buttons">
-            <button onClick={() => jump(-DAY_MS)}>−1 d</button>
-            <button onClick={() => jump(-HOUR_MS)}>−1 h</button>
-            <button onClick={() => setAbsolute(nowMinute())}>Now</button>
-            <button onClick={() => jump(HOUR_MS)}>+1 h</button>
-            <button onClick={() => jump(DAY_MS)}>+1 d</button>
-          </div>
-          <label className="scrub">
-            <span>
-              Scrub ±{SLIDER_HALF_SPAN_DAYS} days around {toInputUtc(anchor).replace("T", " ")}{" "}
-              <b>{offsetHours >= 0 ? "+" : "−"}{(Math.abs(offsetHours) / 24).toFixed(1)} d</b>
-            </span>
-            <input
-              type="range"
-              min={-SLIDER_HALF_SPAN_DAYS * 24}
-              max={SLIDER_HALF_SPAN_DAYS * 24}
-              step={1}
-              value={Math.round(offsetHours)}
-              onChange={(e) => setDate(new Date(anchor.getTime() + Number(e.target.value) * HOUR_MS))}
-            />
+        {view === "earth-moon" && (
+          <label className="check">
+            <input type="checkbox" checked={enlargeBodies} onChange={(e) => setEnlargeBodies(e.target.checked)} />
+            Enlarge Earth &amp; Moon ×{BODY_ENLARGEMENT}
           </label>
-          <div className="play-row">
-            <button onClick={() => setPlaying((p) => !p)} className={playing ? "active" : ""}>
-              {playing ? "❚❚ Pause" : "▶ Play"}
-            </button>
-            <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))} aria-label="Playback speed">
-              {SPEEDS.map((s) => (
-                <option key={s.hoursPerSecond} value={s.hoursPerSecond}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-          </div>
+        )}
+
+        <input
+          className="date-input"
+          type="datetime-local"
+          step={60}
+          value={toInputUtc(date)}
+          onChange={(e) => setAbsolute(fromInputUtc(e.target.value))}
+          aria-label="Date and time, UTC"
+        />
+        <div className="step-buttons">
+          <button onClick={() => jump(-DAY_MS)}>−1 d</button>
+          <button onClick={() => jump(-HOUR_MS)}>−1 h</button>
+          <button onClick={() => setAbsolute(nowMinute())}>Now</button>
+          <button onClick={() => jump(HOUR_MS)}>+1 h</button>
+          <button onClick={() => jump(DAY_MS)}>+1 d</button>
+        </div>
+        <label className="scrub">
+          <span>
+            ±{SLIDER_HALF_SPAN_DAYS} d around {toInputUtc(anchor).replace("T", " ")} UTC{" "}
+            <b>{offsetHours >= 0 ? "+" : "−"}{(Math.abs(offsetHours) / 24).toFixed(1)} d</b>
+          </span>
+          <input
+            type="range"
+            min={-SLIDER_HALF_SPAN_DAYS * 24}
+            max={SLIDER_HALF_SPAN_DAYS * 24}
+            step={1}
+            value={Math.round(offsetHours)}
+            onChange={(e) => setDate(new Date(anchor.getTime() + Number(e.target.value) * HOUR_MS))}
+            aria-label="Scrub date"
+          />
+        </label>
+        <div className="play-row">
+          <button onClick={() => setPlaying((p) => !p)} className={playing ? "active" : ""} aria-label={playing ? "Pause" : "Play"}>
+            {playing ? "❚❚" : "▶"}
+          </button>
+          <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))} aria-label="Playback speed">
+            {SPEEDS.map((s) => (
+              <option key={s.hoursPerSecond} value={s.hoursPerSecond}>
+                {s.label}
+              </option>
+            ))}
+          </select>
         </div>
 
+        {state?.synthetic && (
+          <div className="sky-note">SYNTHETIC MOCK — low-precision formulae in the browser, not SPICE. Not for analysis.</div>
+        )}
         {error && <div className="error" role="alert">{error}</div>}
+      </div>
 
+      <ScaleBar
+        kmPerPx={view === "earth-moon" ? kmPerPx : null}
+        note={`distances at Earth's centre${enlargeBodies ? `; radii ×${BODY_ENLARGEMENT}` : ""}`}
+        fallback="Schematic — not to scale"
+      />
+
+      <button
+        className="dash-panel-toggle"
+        type="button"
+        aria-expanded={panelOpen}
+        title="Details"
+        aria-label="Details"
+        onClick={() => setPanelOpen((o) => !o)}
+      >
+        ⋯
+      </button>
+
+      {/* "⋯" panel: the detailed numbers, frame and assumptions. */}
+      <aside className="dash-panel">
         {state && (
           <>
-            {state.synthetic && (
-              <div className="synthetic-banner">
-                SYNTHETIC MOCK — low-precision formulae in the browser, not SPICE. Not for analysis.
-              </div>
-            )}
-
-            <div className="card">
-              <h3>
+            <section>
+              <h2>
                 <span className="dot moon" /> Moon relative to Earth
-              </h3>
-              <div className="phase-row">
-                <MoonPhaseIcon fraction={state.derived.illuminated_fraction} waxing={state.derived.waxing} />
-                <div>
-                  <div className="big">{state.derived.phase_name}</div>
-                  <div className="muted">
-                    {(state.derived.illuminated_fraction * 100).toFixed(0)} % illuminated · {state.derived.waxing ? "waxing" : "waning"}
-                  </div>
-                </div>
-              </div>
+              </h2>
               <dl className="kv">
                 <Row k="Distance (centre–centre)" v={`${fmtKm(state.moon_from_earth.distance_m, 100)} · ${(state.moon_from_earth.distance_m / EARTH_MEAN_RADIUS_M).toFixed(1)} R⊕`} hint="Rounded to 100 km: the mock's stated accuracy is ~0.3 %." />
                 <Row k="Ecliptic longitude λ" v={fmtDeg(state.moon_from_earth.longitude_deg)} />
@@ -177,12 +203,12 @@ export function CelestialDashboard({ active }: { active: boolean }) {
                 <Row k="Declination δ" v={fmtSignedDeg(state.moon_from_earth.declination_deg)} />
                 <Row k="Elongation (Sun–Earth–Moon)" v={fmtDeg(state.derived.elongation_deg)} />
               </dl>
-            </div>
+            </section>
 
-            <div className="card">
-              <h3>
+            <section>
+              <h2>
                 <span className="dot sun" /> Moon relative to Sun
-              </h3>
+              </h2>
               <dl className="kv">
                 <Row k="Distance Sun–Moon" v={`${(state.moon_from_sun.distance_m / AU_M).toFixed(4)} AU`} />
                 <Row k="" v={fmtKm(state.moon_from_sun.distance_m, 1000)} />
@@ -192,10 +218,10 @@ export function CelestialDashboard({ active }: { active: boolean }) {
                 <Row k="Sun–Earth distance" v={`${(state.sun_from_earth.distance_m / AU_M).toFixed(4)} AU`} />
                 <Row k="Sun ecliptic λ (from Earth)" v={fmtDeg(state.sun_from_earth.longitude_deg, 2)} />
               </dl>
-            </div>
+            </section>
 
-            <details className="card">
-              <summary>Frame, model &amp; assumptions</summary>
+            <section className="small">
+              <h2>Frame, model &amp; assumptions</h2>
               <dl className="kv small">
                 <Row k="Status" v={state.status} />
                 <Row k="Provider" v={state.model.provider} />
@@ -204,6 +230,13 @@ export function CelestialDashboard({ active }: { active: boolean }) {
                 <Row k="Accuracy" v={state.model.nominal_accuracy} />
               </dl>
               <p className="muted small">{state.frame.description}</p>
+              <p className="muted small">
+                Textures need the NASA data: <code>apps/web/scripts/setup-data.sh</code> —{" "}
+                <a href={DATA_README_URL} target="_blank" rel="noopener noreferrer">
+                  setup guide on GitHub
+                </a>
+                .
+              </p>
               <ul className="small">
                 {state.assumptions.map((a) => (
                   <li key={a}>{a}</li>
@@ -216,7 +249,7 @@ export function CelestialDashboard({ active }: { active: boolean }) {
                   ))}
                 </ul>
               )}
-            </details>
+            </section>
           </>
         )}
       </aside>

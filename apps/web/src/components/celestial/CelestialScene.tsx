@@ -1,12 +1,12 @@
 import { Html, Line, OrbitControls } from "@react-three/drei";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
 import { memo, useMemo } from "react";
-import type { Matrix4, Texture } from "three";
+import { type Matrix4, type PerspectiveCamera, type Texture } from "three";
 
 import { getMoonTrack, getSunTrack } from "../../api/celestial";
 import type { CelestialStateResponse } from "../../api/celestialTypes";
 import { AU_M, EARTH_MEAN_RADIUS_M, MOON_RADIUS_KM, SUN_RADIUS_M } from "../../lib/constants";
-import { bodyRotationToThree, eclToThree, normalize, type V3 } from "../../lib/sceneFrame";
+import { bodyRotationToThree, closeLoop, eclToThree, normalize, type V3 } from "../../lib/sceneFrame";
 import { DATA_BASE, SETUP_HINT } from "../../lunar/loaders";
 import { Earth, Moon, Sun } from "./Bodies";
 import { useOptionalTexture } from "./useOptionalTexture";
@@ -30,6 +30,26 @@ interface Props {
   enlargeBodies: boolean;
   /** false while the tab is hidden: the render loop is paused. */
   active: boolean;
+  /** km per pixel at the orbit target (Earth–Moon view); null in the schematic view. Must be stable. */
+  onScale?: (kmPerPx: number | null) => void;
+}
+
+/**
+ * Reports km per pixel at the orbit target (the Earth's centre), Earth–Moon view only.
+ * Reported when it changes by more than 1 %, so React does not re-render every frame.
+ */
+function ScaleProbe({ onScale }: { onScale: (kmPerPx: number) => void }) {
+  let last = 0;
+  useFrame(({ camera, size }) => {
+    const cam = camera as PerspectiveCamera;
+    const unitsPerPx = (2 * cam.position.length() * Math.tan(((cam.fov / 2) * Math.PI) / 180)) / size.height;
+    const k = (unitsPerPx * EARTH_MEAN_RADIUS_M) / 1000; // 1 unit = 1 Earth radius
+    if (Math.abs(k / (last || 1) - 1) > 0.01) {
+      last = k;
+      onScale(k);
+    }
+  });
+  return null;
 }
 
 interface ViewProps {
@@ -63,7 +83,7 @@ function EarthMoonView({ state, earthTex, moonTex, earthOrientation, moonOrienta
   const moonPos = eclToThree(state.moon_from_earth.position_m, s);
   const sunDir = normalize(eclToThree(state.sun_from_earth.position_m));
   const sunRadius = (SUN_PROXY_DIST * SUN_RADIUS_M) / state.sun_from_earth.distance_m;
-  const track = useMemo(() => scaleTrack(getMoonTrack(new Date(day * DAY_MS)), s), [day, s]);
+  const track = useMemo(() => closeLoop(scaleTrack(getMoonTrack(new Date(day * DAY_MS)), s)), [day, s]);
 
   return (
     <>
@@ -72,7 +92,8 @@ function EarthMoonView({ state, earthTex, moonTex, earthOrientation, moonOrienta
       <EclipticFrameHints radius={70} />
       <Line points={track} color="#7d8aa5" lineWidth={1} transparent opacity={0.55} />
       <Line points={[[0, 0, 0], moonPos]} color="#c9ced8" lineWidth={1} dashed dashSize={1.2} gapSize={0.8} />
-      <Line points={[[0, 0, 0], times(sunDir, 90)]} color="#f2c14e" lineWidth={1.2} dashed dashSize={2} gapSize={1.2} />
+      {/* Dashed line all the way to the (distance-compressed) Sun proxy, stopping at its limb. */}
+      <Line points={[[0, 0, 0], times(sunDir, SUN_PROXY_DIST - sunRadius)]} color="#f2c14e" lineWidth={1.2} dashed dashSize={2} gapSize={1.2} />
       <Html position={[sunDir[0] * 92, sunDir[1] * 92 + 2, sunDir[2] * 92]} center className="axis-label sun">
         → toward Sun
       </Html>
@@ -92,7 +113,7 @@ function SolarView({ state, earthTex, moonTex, earthOrientation, moonOrientation
   const moonPos: V3 = [earthPos[0] + moonRel[0], earthPos[1] + moonRel[1], earthPos[2] + moonRel[2]];
   // Earth's orbit = −(Earth→Sun track).
   const earthOrbit = useMemo(() => scaleTrack(getSunTrack(new Date(day * DAY_MS)), -earthScale), [day, earthScale]);
-  const moonTrack = useMemo(() => scaleTrack(getMoonTrack(new Date(day * DAY_MS)), moonScale), [day, moonScale]);
+  const moonTrack = useMemo(() => closeLoop(scaleTrack(getMoonTrack(new Date(day * DAY_MS)), moonScale)), [day, moonScale]);
 
   return (
     <>
@@ -115,7 +136,7 @@ function SolarView({ state, earthTex, moonTex, earthOrientation, moonOrientation
 }
 
 // memo: the dashboard re-renders on every date change before the new state arrives.
-export const CelestialScene = memo(function CelestialScene({ state, view, enlargeBodies, active }: Props) {
+export const CelestialScene = memo(function CelestialScene({ state, view, enlargeBodies, active, onScale }: Props) {
   const earthTex = useOptionalTexture(`${DATA_BASE}earth_bluemarble_2048.png`);
   const moonTex = useOptionalTexture(`${DATA_BASE}moon_color.jpg`);
   const earthOrientation = useMemo(() => bodyRotationToThree(state.earth_orientation), [state.earth_orientation]);
@@ -138,9 +159,12 @@ export const CelestialScene = memo(function CelestialScene({ state, view, enlarg
         dpr={[1, 2]}
         frameloop={active ? "always" : "never"}
       >
-        <color attach="background" args={["#05070b"]} />
+        <color attach="background" args={["#000000"]} />
         {view === "earth-moon" ? (
-          <EarthMoonView {...viewProps} bodyScale={enlargeBodies ? BODY_ENLARGEMENT : 1} />
+          <>
+            <EarthMoonView {...viewProps} bodyScale={enlargeBodies ? BODY_ENLARGEMENT : 1} />
+            {onScale && <ScaleProbe onScale={onScale} />}
+          </>
         ) : (
           <SolarView {...viewProps} />
         )}
@@ -150,7 +174,7 @@ export const CelestialScene = memo(function CelestialScene({ state, view, enlarg
           <>
             <b>Earth–Moon, distances to scale</b> (1 unit = 1 Earth radius);{" "}
             {enlargeBodies ? <b className="warn-text">Earth &amp; Moon radii enlarged ×{BODY_ENLARGEMENT}.</b> : <>Earth &amp; Moon at true size.</>} The Sun is drawn at a compressed distance with its true
-            angular size; lighting follows the mock Sun direction. Grey trace: mock Moon path over ±13.7 days.
+            angular size; lighting follows the mock Sun direction. Grey trace: mock Moon path over one sidereal month (27.3 d); the real path does not quite close (solar perturbations), the small residual is spread along the trace for display.
           </>
         ) : (
           <>
