@@ -24,11 +24,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  health: () => request<HealthResponse>("/health"),
-  sites: () => request<{ sites: PresetSite[] }>("/sites").then((r) => r.sites),
+  health: () => request<HealthResponse>("/v1/health"),
+  sites: () => request<{ sites: PresetSite[] }>("/v1/sites").then((r) => r.sites),
   evaluate: (req: ScenarioRequest) =>
-    request<ScenarioResponse>("/scenarios/evaluate", { method: "POST", body: JSON.stringify(req) }),
+    request<ScenarioResponse>("/v1/scenarios/evaluate", { method: "POST", body: JSON.stringify(req) }),
   /** SYNTHETIC demo data only — never for analysis. */
   evaluateSynthetic: (req: ScenarioRequest) =>
-    request<ScenarioResponse>("/demo/synthetic/evaluate", { method: "POST", body: JSON.stringify(req) }),
+    request<ScenarioResponse>("/v1/demo/synthetic/evaluate", { method: "POST", body: JSON.stringify(req) }),
 };

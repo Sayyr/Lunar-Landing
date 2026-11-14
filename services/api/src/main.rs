@@ -1,16 +1,9 @@
-mod config;
-mod error;
-mod handler;
-mod model;
-mod repository;
-mod routes;
-mod service;
+use std::{path::PathBuf, process::exit, time::Duration};
 
-use std::{path::PathBuf, process::exit};
-
-use config::ProfilesConfig;
-use repository::CalculatorRepository;
-use service::SiteService;
+use lunar_landing::{
+    config::ProfilesConfig, gateway::AppState, repository::CalculatorRepository, routes,
+    science::ScienceClient, service::SiteService,
+};
 use tokio::{
     net::TcpListener,
     signal::unix::{signal, SignalKind},
@@ -19,6 +12,8 @@ use tokio::{
 const ADDRESS: &str = "0.0.0.0:3000";
 const DEFAULT_PROFILES_FILE: &str = "/etc/lunar-landing/profiles.json";
 const DEFAULT_SCRIPTS_DIR: &str = "/usr/local/lib/lunar-landing";
+const DEFAULT_SCIENCE_URL: &str = "http://127.0.0.1:8000";
+const DEFAULT_SCIENCE_TIMEOUT_S: &str = "30";
 
 fn env_path(name: &str, default: &str) -> PathBuf {
     PathBuf::from(std::env::var(name).unwrap_or_else(|_| default.into()))
@@ -55,6 +50,22 @@ async fn main() {
     };
     let service = SiteService::new(config, CalculatorRepository);
 
+    let science_url =
+        std::env::var("SELENE_SCIENCE_URL").unwrap_or_else(|_| DEFAULT_SCIENCE_URL.into());
+    let timeout_s: u64 = match std::env::var("SELENE_SCIENCE_TIMEOUT_S")
+        .unwrap_or_else(|_| DEFAULT_SCIENCE_TIMEOUT_S.into())
+        .parse()
+    {
+        Ok(timeout_s) => timeout_s,
+        Err(_) => {
+            eprintln!("SELENE_SCIENCE_TIMEOUT_S must be an integer number of seconds");
+            exit(1);
+        }
+    };
+    let state = AppState {
+        science: ScienceClient::new(&science_url, Duration::from_secs(timeout_s)),
+    };
+
     let listener = match TcpListener::bind(ADDRESS).await {
         Ok(listener) => listener,
         Err(error) => {
@@ -64,7 +75,7 @@ async fn main() {
     };
 
     println!("listening on {ADDRESS}");
-    if let Err(error) = axum::serve(listener, routes::router(service))
+    if let Err(error) = axum::serve(listener, routes::router(service, state))
         .with_graceful_shutdown(shutdown_signal())
         .await
     {

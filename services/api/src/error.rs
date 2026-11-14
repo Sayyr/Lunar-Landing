@@ -2,9 +2,9 @@ use axum::{
     extract::rejection::JsonRejection,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
-use serde_json::json;
+
+use crate::envelope::{ApiError, ErrorCode};
 
 #[derive(Debug)]
 pub enum AppError {
@@ -38,6 +38,10 @@ impl From<JsonRejection> for AppError {
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        (self.status(), Json(json!({ "error": self.message() }))).into_response()
+        let code = match self {
+            AppError::InvalidBody(_) | AppError::Validation(_) => ErrorCode::ValidationError,
+            AppError::Calculator(_) => ErrorCode::InternalError,
+        };
+        ApiError::new(self.status(), code, self.message()).into_response()
     }
 }

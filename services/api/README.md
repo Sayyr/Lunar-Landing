@@ -14,12 +14,12 @@ API Rust (axum) qui reçoit un site lunaire, valide les données, puis exécute 
    ```
 2. Construire l'image :
    ```sh
-   docker build -t lunar-landing .
+   docker build -t lunar-landing -f services/api/Dockerfile .
    ```
 3. Lancer le conteneur :
    ```sh
    docker run --rm -p 3000:3000 \
-     -v "$PWD/config/profiles.json:/etc/lunar-landing/profiles.json:ro" \
+     -v "$PWD/services/api/config/profiles.json:/etc/lunar-landing/profiles.json:ro" \
      lunar-landing
    ```
 
@@ -71,7 +71,7 @@ Contrat entre le back et un programme :
 {"status":"ok"}
 ```
 
-### `POST /api/v1/site`
+### `POST /api/v1/calcule`
 
 Corps (`Content-Type: application/json`) :
 
@@ -95,7 +95,7 @@ Réponse (`application/x-ndjson`), une ligne par message :
 
 Un programme en échec produit `{"type":"error","data":{"step":"...","message":"..."}}` ; les autres ne sont pas affectés. Les lignes `result` et `error` arrivent dans l'ordre de fin des programmes, pas dans l'ordre du profil.
 
-Erreurs avant le flux, au format `{"error":"..."}` :
+Erreurs avant le flux, au format `{"error":{"code":"validation_error","message":"...","details":[]}}` :
 
 - 400 : JSON mal formé
 - 415 : `Content-Type` absent
@@ -105,7 +105,7 @@ Erreurs avant le flux, au format `{"error":"..."}` :
 
 ```sh
 curl localhost:3000/api/v1/health
-curl -N -X POST localhost:3000/api/v1/site -H 'Content-Type: application/json' \
+curl -N -X POST localhost:3000/api/v1/calcule -H 'Content-Type: application/json' \
   -d '{"lat":89.5,"ns":"S","lon":45,"ew":"E","height":2,"profile":"basic"}'
 ```
 

@@ -3,12 +3,30 @@ use axum::{
     Router,
 };
 
-use crate::{handler, service::SiteService};
+use crate::{
+    gateway::{self, AppState},
+    handler,
+    service::SiteService,
+};
 
-pub fn router(service: SiteService) -> Router {
-    let api = Router::new()
+pub fn site_router(service: SiteService) -> Router {
+    Router::new()
         .route("/health", get(handler::health))
-        .route("/site", post(handler::site));
+        .route("/calcule", post(handler::site))
+        .with_state(service)
+}
 
-    Router::new().nest("/api/v1", api).with_state(service)
+pub fn gateway_router(state: AppState) -> Router {
+    Router::new()
+        .route("/sites", get(gateway::sites))
+        .route("/scenarios/evaluate", post(gateway::evaluate_real))
+        .route(
+            "/demo/synthetic/evaluate",
+            post(gateway::evaluate_synthetic),
+        )
+        .with_state(state)
+}
+
+pub fn router(service: SiteService, state: AppState) -> Router {
+    Router::new().nest("/api/v1", site_router(service).merge(gateway_router(state)))
 }

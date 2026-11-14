@@ -53,7 +53,9 @@ impl ProfilesConfig {
             }
             for script in scripts {
                 if script.is_empty() || script.contains('/') || script.contains("..") {
-                    return Err(format!("profile '{profile}': invalid script name '{script}'"));
+                    return Err(format!(
+                        "profile '{profile}': invalid script name '{script}'"
+                    ));
                 }
                 let command = self.scripts_dir.join(script);
                 if !command.is_file() {

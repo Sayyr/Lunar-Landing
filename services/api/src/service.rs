@@ -58,7 +58,9 @@ fn validate(query: &SiteQuery) -> Result<Coordinates, AppError> {
         )));
     }
     if !query.height.is_finite() {
-        return Err(AppError::Validation("height must be a finite number".into()));
+        return Err(AppError::Validation(
+            "height must be a finite number".into(),
+        ));
     }
 
     let lat = match query.ns {

@@ -41,23 +41,24 @@ pub async fn site(
         query,
     }));
 
-    let results = stream::iter(plan.steps).map(move |step| {
-        let service = service.clone();
-        async move {
-            let message = match service.run(&step, coordinates).await {
-                Ok(output) => Message::Result(StepResult {
-                    step: step.name,
-                    output,
-                }),
-                Err(error) => Message::Error(StepError {
-                    step: step.name,
-                    message: error.message(),
-                }),
-            };
-            Ok::<_, Infallible>(to_line(&message))
-        }
-    })
-    .buffer_unordered(concurrency);
+    let results = stream::iter(plan.steps)
+        .map(move |step| {
+            let service = service.clone();
+            async move {
+                let message = match service.run(&step, coordinates).await {
+                    Ok(output) => Message::Result(StepResult {
+                        step: step.name,
+                        output,
+                    }),
+                    Err(error) => Message::Error(StepError {
+                        step: step.name,
+                        message: error.message(),
+                    }),
+                };
+                Ok::<_, Infallible>(to_line(&message))
+            }
+        })
+        .buffer_unordered(concurrency);
 
     let lines = stream::once(async move { Ok::<_, Infallible>(received) })
         .chain(results)
