@@ -3,7 +3,7 @@
 #
 # Downloads LOLA LDEM_85S_20M (PDS Geosciences Node: 20 m/px, 85°S–90°S, MEAN EARTH/POLAR AXIS
 # OF DE421, km relative to 1737.4 km; 920 MB) into data-raw/lola_polar/, then tiles it with
-# scripts/tile_polar_dem.py into public/data/polar_s/ (~620 MB: 20/40/80/160 m levels).
+# scripts/tile_polar_dem.py into public/data/polar_s/ (~620 MB: 20 m … 1280 m levels).
 # The tiler first checks its projection against ldem_16 and refuses to write tiles if they
 # disagree; the result is recorded in public/data/polar_s/manifest.json ("validation").
 #
@@ -60,7 +60,9 @@ for S in ${PGDA_SITES:-Site01 Site04}; do
   [[ -f "$TIF" ]] || { echo "↓ PGDA $S (5 m)"; fetch "https://pgda.gsfc.nasa.gov/data/LOLA_5mpp/$S/${S}_final_adj_5mpp_surf.tif" "$TIF"; }
   if [[ ! -f "$OUT/sites/$S/manifest.json" ]]; then
     echo "⚙ tiling $S (validated against the 20 m product)"
-    "$PYTHON" "$HERE/scripts/tile_site_dem.py" "$TIF" "$RAW/$NAME.img" "$RAW/$NAME.lbl" "$OUT/manifest.json" "$OUT/sites/$S"
+    # One site failing its validation must not lose the others: warn and skip it.
+    "$PYTHON" "$HERE/scripts/tile_site_dem.py" "$TIF" "$RAW/$NAME.img" "$RAW/$NAME.lbl" "$OUT/manifest.json" "$OUT/sites/$S" \
+      || { echo "⚠ $S skipped (see the validation above)"; continue; }
   fi
   SITES_DONE+=("\"$S\"")
 done

@@ -7,7 +7,7 @@ Output (OUT_DIR):
                            + TILE×TILE uint16 LE; height_km = offset_km + value × step_km,
                            value 65535 = no data. Per-tile adaptive step: quantisation error
                            ≤ step/2 (≈ cm for a 20 m tile), far below the product's accuracy.
-Levels: 0 = native (20 m for LDEM_85S_20M), then ×2 coarser (2×2 mean) up to MAX_LEVELS.
+Levels: 0 = native (20 m for LDEM_85S_20M), then ×2 coarser (2×2 mean), --levels in all (default 7: up to 1280 m).
 
 Projection (spherical polar stereographic, from the label: CENTER_LATITUDE ±90, A_AXIS_RADIUS,
 MAP_SCALE, LINE/SAMPLE_PROJECTION_OFFSET, 0-based pixel centres):
@@ -162,7 +162,7 @@ def main() -> None:
     ap.add_argument("lbl")
     ap.add_argument("out")
     ap.add_argument("--check", required=True, help="global ldem_16.tif used to validate the projection")
-    ap.add_argument("--levels", type=int, default=4)
+    ap.add_argument("--levels", type=int, default=7)  # 20 m … 1280 m: prefiltered data for the far terrain
     ap.add_argument("--tile", type=int, default=256)
     ap.add_argument("--max-rms-m", type=float, default=300.0)
     a = ap.parse_args()
@@ -188,6 +188,13 @@ def main() -> None:
         "source": os.path.basename(a.img),
         "frame": lab["frame"],
         "units": "km relative to a 1737.4 km sphere (label OFFSET)",
+        "provenance": {
+            "product": "LOLA gridded polar DEM (PDS LRO-L-LOLA-3-RDR, " + os.path.basename(a.img) + ")",
+            "producer": "LRO LOLA team, NASA GSFC; PDS Geosciences Node",
+            "url": "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/lola_gdr/polar/",
+            "license": "NASA PDS data, public; credit NASA/GSFC LOLA team",
+            "time_coverage": "LRO LOLA altimetry from 2009 on (see the product label)",
+        },
         "projection": {
             "type": "polar_stereographic_sphere",
             "center_lat": lab["center_lat"],

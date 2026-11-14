@@ -32,14 +32,38 @@ from split_ldem import read_float_tiff, read_tiff_tags  # noqa: E402
 from tile_polar_dem import bilinear, downsample, parse_label, project, write_tiles  # noqa: E402
 
 
+def geokeys(tags: dict) -> dict[int, float]:
+    """GeoKeyDirectory (34735) → {key: value}, values inline or from GeoDoubleParams (34736)."""
+    d = tags[34735]
+    dbl = tags.get(34736, [])
+    out: dict[int, float] = {}
+    for k in range(d[3]):
+        key, loc, count, val = d[4 + 4 * k : 8 + 4 * k]
+        if loc == 0:
+            out[key] = val
+        elif loc == 34736 and count == 1:
+            out[key] = dbl[val]
+    return out
+
+
 def site_label(path: str) -> dict:
+    """Grid and projection from the GeoTIFF keys; refuses anything this tiler does not handle."""
     with open(path, "rb") as fh:
-        _, tags = read_tiff_tags(fh.read(65536))
+        _, tags = read_tiff_tags(fh.read())
+    keys = geokeys(tags)
     sx, sy, _ = tags[33550]
-    _, _, _, x0, y0, _ = tags[33922][:6]
-    geo = tags[34736]  # [lat_origin, lon_origin, scale_factor, false_easting, false_northing, a, b, …]
-    if abs(sx - sy) > 1e-9 or abs(geo[2] - 1) > 1e-9 or geo[3] or geo[4] or abs(geo[5] - geo[6]) > 1e-3:
-        raise SystemExit(f"unsupported GeoTIFF grid/projection: scale {sx}/{sy}, params {geo}")
+    i0, j0, _, x0, y0, _ = tags[33922][:6]
+    expect = {
+        1025: 1,  # GTRasterTypeGeoKey: RasterPixelIsArea (tiepoint at the pixel's corner)
+        3075: 15,  # ProjCoordTransGeoKey: CT_PolarStereographic
+        3076: 9001,  # ProjLinearUnitsGeoKey: metre
+        3092: 1.0,  # ProjScaleAtNatOriginGeoKey
+        3082: 0.0,  # ProjFalseEastingGeoKey
+        3083: 0.0,  # ProjFalseNorthingGeoKey
+    }
+    bad = {k: keys.get(k) for k, v in expect.items() if keys.get(k) != v}
+    if bad or i0 or j0 or abs(sx - sy) > 1e-9 or abs(keys.get(2057, 0) - keys.get(2058, -1)) > 1e-3:
+        raise SystemExit(f"unsupported GeoTIFF: keys {bad}, tiepoint raster ({i0}, {j0}), scale {sx}/{sy}")
     return {
         "lines": tags[257][0],
         "samples": tags[256][0],
@@ -47,9 +71,9 @@ def site_label(path: str) -> dict:
         # Pixel-is-area: centre of pixel (row, col) at x = x0 + (col + 0.5)·s, y = y0 − (row + 0.5)·s.
         "line_off": y0 / sx - 0.5,
         "sample_off": -x0 / sx - 0.5,
-        "radius_km": geo[5] / 1000,
-        "center_lat": geo[0],
-        "center_lon": geo[1],
+        "radius_km": keys[2057] / 1000,
+        "center_lat": keys[3081],  # ProjNatOriginLatGeoKey
+        "center_lon": keys[3095],  # ProjStraightVertPoleLongGeoKey
     }
 
 
@@ -100,7 +124,7 @@ def main() -> None:
     ap.add_argument("--levels", type=int, default=2)
     ap.add_argument("--tile", type=int, default=256)
     ap.add_argument("--max-rms-m", type=float, default=15.0)
-    ap.add_argument("--max-offset-m", type=float, default=20.0)
+    ap.add_argument("--max-offset-m", type=float, default=5.0)
     a = ap.parse_args()
 
     site = site_label(a.tif)
@@ -115,7 +139,9 @@ def main() -> None:
     if fit["rms_m"] > a.max_rms_m or abs(fit["median_offset_m"]) > a.max_offset_m:
         raise SystemExit("validation against the 20 m product failed — not writing tiles")
 
-    km = img * (0.001 if fit["unit"] == "m" else 1.0)
+    # Heights in km on the reference sphere; the (small, validated) median offset to the 20 m
+    # product is removed so the two join without a step where the ground view switches products.
+    km = img * (0.001 if fit["unit"] == "m" else 1.0) - fit["median_offset_m"] / 1000
     levels = []
     for lv in range(a.levels):
         if lv:
@@ -127,7 +153,14 @@ def main() -> None:
     manifest = {
         "source": os.path.basename(a.tif),
         "frame": "MEAN EARTH/POLAR AXIS OF DE421 (PGDA product page)",
-        "units": "km relative to a 1737.4 km sphere (validated against the 20 m product)",
+        "units": "km relative to a 1737.4 km sphere (validated against the 20 m product; its median offset removed)",
+        "provenance": {
+            "product": "LOLA 5 m/pixel south-pole site DEM (High-Resolution LOLA Topography for Lunar South Pole Sites)",
+            "producer": "NASA GSFC Planetary Geodesy Data Archive (PGDA), M. K. Barker",
+            "url": "https://pgda.gsfc.nasa.gov/products/78",
+            "license": "NASA data, public; credit NASA/GSFC PGDA",
+            "time_coverage": "LRO LOLA altimetry from 2009 on (cut-off date not stated on the product page)",
+        },
         "projection": {
             "type": "polar_stereographic_sphere",
             "center_lat": site["center_lat"],
