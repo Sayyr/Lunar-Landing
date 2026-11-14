@@ -36,7 +36,8 @@ FetchContent_MakeAvailable(nlohmann_json httplib)
 find_package(Threads REQUIRED)
 
 add_library(selene_science_core STATIC
-  src/app.cpp src/ephemeris.cpp src/evaluate.cpp src/geometry.cpp src/intervals.cpp src/models.cpp src/terrain.cpp)
+  src/app.cpp src/ephemeris.cpp src/evaluate.cpp src/geometry.cpp src/intervals.cpp src/link.cpp
+  src/lunar_ephemeris.cpp src/models.cpp src/radio.cpp src/terrain.cpp)
 target_include_directories(selene_science_core PUBLIC src)
 target_link_libraries(selene_science_core PUBLIC nlohmann_json::nlohmann_json)
 if(MSVC)

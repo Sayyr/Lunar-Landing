@@ -1,6 +1,7 @@
 #include "app.hpp"
 
 #include "evaluate.hpp"
+#include "radio.hpp"
 
 namespace selene {
 
@@ -35,6 +36,10 @@ HttpResponse App::handle(const std::string& method, const std::string& path,
         if (method != "POST") return {405, error_response("not_found", "Method Not Allowed")};
         return slope_check_route(body);
     }
+    if (path == "/radio/evaluate") {
+        if (method != "POST") return {405, error_response("not_found", "Method Not Allowed")};
+        return radio_route(body);
+    }
     return {404, error_response("not_found", "Not Found")};
 }
 
@@ -59,6 +64,29 @@ HttpResponse App::slope_check_route(const std::string& body) const {
     } catch (const std::exception& e) {  // DEM I/O failure: never a fabricated verdict
         return {500, error_response("internal_error", std::string("Slope check failed: ") + e.what())};
     }
+}
+
+HttpResponse App::radio_route(const std::string& body) const {
+    static const char* RADIO_INVALID = "Radio link request is invalid.";
+    if (body.empty()) return validation_error({{"", "Field required"}}, RADIO_INVALID);
+    json parsed = json::parse(body, nullptr, /*allow_exceptions=*/false);
+    if (parsed.is_discarded()) return validation_error({{"", "JSON decode error"}}, RADIO_INVALID);
+    RadioLinkRequest req;
+    try {
+        req = parse_radio_link_request(parsed);
+    } catch (const ValidationError& e) {
+        return validation_error(e.details, RADIO_INVALID);
+    }
+    if (req.scenario.sample_count() > MAX_SAMPLES)
+        return validation_error({{"step_minutes", std::to_string(req.scenario.sample_count()) +
+                                                      " samples exceeds the maximum of " +
+                                                      std::to_string(MAX_SAMPLES)}},
+                                RADIO_INVALID);
+    static const int64_t LAST_US = parse_utc("9999-12-31T23:59:59.999999Z");
+    if (sample_times(req.scenario).back() > LAST_US)
+        return validation_error({{"duration_hours", "scenario would end after 9999-12-31T23:59:59Z"}},
+                                RADIO_INVALID);
+    return {200, evaluate_radio_link(req)};
 }
 
 HttpResponse App::evaluate_with(const EphemerisProvider& provider, const std::string& body) const {

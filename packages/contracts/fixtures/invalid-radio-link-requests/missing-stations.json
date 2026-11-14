@@ -1,0 +1,1 @@
+{"site": {"latitude_deg": -89.5, "longitude_deg": 0.0, "observer_height_m": 2.0}, "start_utc": "2026-11-15T00:00:00Z", "duration_hours": 72, "step_minutes": 60, "min_earth_elevation_deg": 0.0, "link": {"frequency_hz": 2250000000.0, "eirp_dbw": 13.0, "rx_g_over_t_db_k": 30.0, "other_losses_db": 3.0, "data_rate_bps": 100000.0, "required_ebn0_db": 4.0}}

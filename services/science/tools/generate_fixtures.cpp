@@ -1,4 +1,4 @@
-// Regenerate packages/contracts/fixtures/{scenario,slope-check}-response.*.json from the service code.
+// Regenerate packages/contracts/fixtures/{scenario,slope-check,radio-link}-response.*.json from the service code.
 //
 // Build and run from services/science:
 //   cmake --build build --target generate-fixtures && ./build/generate-fixtures
@@ -35,5 +35,7 @@ int main() {
     const selene::App tilted(std::nullopt, selene::testing::tilted_plane_dem(8.0));
     write("slope-check-response.synthetic-dem.json",
           tilted.handle("POST", "/terrain/slope/check", selene::testing::synthetic_fixture_request().dump()).body);
+    json radio = json::parse(std::ifstream(FIXTURES / "radio-link-request.valid.json"));
+    write("radio-link-response.computed.json", app.handle("POST", "/radio/evaluate", radio.dump()).body);
     return 0;
 }

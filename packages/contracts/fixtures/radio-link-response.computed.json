@@ -1,0 +1,1612 @@
+{
+  "schema_version": "0.1.0",
+  "status": "computed",
+  "message": "Radio-link windows from an analytic low-precision ephemeris and the request's link budget. Engineering estimate, not a link guarantee.",
+  "request": {
+    "site": {
+      "latitude_deg": -89.5,
+      "longitude_deg": 0.0,
+      "observer_height_m": 2.0
+    },
+    "start_utc": "2026-11-15T00:00:00Z",
+    "duration_hours": 72.0,
+    "step_minutes": 60.0,
+    "min_earth_elevation_deg": 0.0,
+    "link": {
+      "frequency_hz": 2250000000.0,
+      "eirp_dbw": 13.0,
+      "rx_g_over_t_db_k": 30.0,
+      "other_losses_db": 3.0,
+      "data_rate_bps": 100000.0,
+      "required_ebn0_db": 4.0
+    },
+    "stations": [
+      {
+        "name": "Station A (illustrative, 35.4N 116.9W)",
+        "latitude_deg": 35.4,
+        "longitude_deg": -116.9,
+        "altitude_m": 1000.0,
+        "min_elevation_deg": 10.0
+      },
+      {
+        "name": "Station B (illustrative, 40.4N 4.2W)",
+        "latitude_deg": 40.4,
+        "longitude_deg": -4.2,
+        "altitude_m": 800.0,
+        "min_elevation_deg": 10.0
+      },
+      {
+        "name": "Station C (illustrative, 35.4S 149.0E)",
+        "latitude_deg": -35.4,
+        "longitude_deg": 149.0,
+        "altitude_m": 700.0,
+        "min_elevation_deg": 10.0
+      }
+    ]
+  },
+  "model": {
+    "tier": "engineering",
+    "ephemeris_provider": "analytic_meeus_truncated",
+    "horizon_model": "ideal_geometric",
+    "body_fixed_frame": "MOON_ME (mean Earth/polar axis; analytic, optical librations only)",
+    "time_scale_note": "UTC at the API boundary; TT = UTC + 69.184 s (fixed offset, no leap-second kernel); UT1 ~= UTC for the Earth's rotation."
+  },
+  "data_provenance": [
+    {
+      "name": "Meeus, Astronomical Algorithms (2nd ed., 1998), ch. 12, 22, 47, 53",
+      "kind": "other",
+      "source": "services/science/src/lunar_ephemeris.cpp",
+      "version": null,
+      "license": null,
+      "notes": "Truncated ELP-2000/82 series and optical librations. No SPICE kernel, no DEM."
+    },
+    {
+      "name": "Link-budget formulas",
+      "kind": "other",
+      "source": "SCIENTIFIC_REFERENCE.md section 11; services/science/src/link.cpp",
+      "version": null,
+      "license": null,
+      "notes": "Free-space path loss, C/N0, Eb/N0. Hardware figures and ground stations are taken verbatim from the request."
+    }
+  ],
+  "assumptions": [
+    "ENGINEERING tier: a window means the modelled budget closes with the hardware figures of the request. It is a necessary condition, not a guaranteed radio link.",
+    "Ephemeris: analytic truncated series (Meeus, Astronomical Algorithms, ch. 47 and 53), optical librations only. Earth direction from the site is good to ~0.1 deg; near the lunar poles that can shift a window edge by hours. Not cross-checked against SPICE yet.",
+    "Lunar side: ideal geometric horizon (elevation 0 deg) on a 1737.4 km sphere; local terrain is ignored. Visibility is tested on the Earth's CENTRE against min_earth_elevation_deg; a ground station can be up to ~0.95 deg away from that direction.",
+    "Earth side: a station is usable when the Moon's centre is above its min_elevation_deg (WGS84 geodetic horizon, no refraction, no local mask). Station availability, scheduling and weather are not modelled.",
+    "Link budget: free-space path loss only (EIRP + G/T - FSPL - other_losses_db - 10log10(k_B) - 10log10(bit rate)). Pointing, polarisation, atmosphere and lunar-surface multipath must be included in other_losses_db by the caller; none is added here.",
+    "Range is station to site (station to Moon centre minus the site's offset along the Earth-Moon line, transverse term <= 4 km). Doppler is one-way, first order in v/c, from a 1 s central difference of that range.",
+    "The serving station at each sample is the one with the largest elevation above its own mask. Link windows are the intersection of Earth-visible, any-station-visible and budget-closes intervals; each edge is linearly interpolated between samples, and events shorter than the sampling step may be missed.",
+    "Time: UTC at the API boundary; TT = UTC + 69.184 s (fixed, no leap-second table); Earth rotation from Greenwich mean sidereal time with UT1 ~= UTC."
+  ],
+  "warnings": [
+    "|latitude| >= 89.0 deg: azimuth is ill-conditioned near the pole. Convention used: local north lies in the meridian plane of the request longitude.",
+    "During link windows the Earth is as low as 0.025 deg above the ideal horizon: real terrain can block it and lunar-surface multipath (not modelled) can cause deep fades."
+  ],
+  "summary": {
+    "span_hours": 72.0,
+    "earth_visible_fraction": 0.22838774194046252,
+    "ground_station_visible_fraction": 0.9817342887211453,
+    "link_available_fraction": 0.22438432878617312,
+    "longest_link_outage_hours": 55.5560825802867,
+    "link_margin_db_min": 3.0038607082051385,
+    "link_margin_db_max": 3.2520078625228166,
+    "max_abs_doppler_hz": 2621.4477434110427
+  },
+  "samples": [
+    {
+      "utc": "2026-11-15T00:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 357.3586875688429,
+        "elevation_deg": -3.0212585157748144
+      },
+      "earth_visible": false,
+      "station": "Station A (illustrative, 35.4N 116.9W)",
+      "station_elevation_deg": 30.294101917023752,
+      "station_visible": true,
+      "range_m": 401552444.49301666,
+      "range_rate_m_s": -23.932947602588683,
+      "doppler_hz": 179.62137028085124,
+      "fspl_db": 211.56627906539654,
+      "cn0_dbhz": 57.03288810782112,
+      "ebn0_db": 7.0328881078211225,
+      "margin_db": 3.0328881078211225,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-15T01:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 357.300978751301,
+        "elevation_deg": -2.9721513873027203
+      },
+      "earth_visible": false,
+      "station": "Station A (illustrative, 35.4N 116.9W)",
+      "station_elevation_deg": 28.959167119074664,
+      "station_visible": true,
+      "range_m": 401619173.236689,
+      "range_rate_m_s": 60.61764224432409,
+      "doppler_hz": -454.947052236148,
+      "fspl_db": 211.5677223397647,
+      "cn0_dbhz": 57.03144483345295,
+      "ebn0_db": 7.031444833452952,
+      "margin_db": 3.0314448334529516,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-15T02:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 357.24333593055474,
+        "elevation_deg": -2.922794241011195
+      },
+      "earth_visible": false,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 31.728702132051776,
+      "station_visible": true,
+      "range_m": 401310974.1391073,
+      "range_rate_m_s": -325.791712035425,
+      "doppler_hz": 2445.1293970834527,
+      "fspl_db": 211.56105430397517,
+      "cn0_dbhz": 57.0381128692425,
+      "ebn0_db": 7.038112869242497,
+      "margin_db": 3.0381128692424966,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-15T03:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 357.1857650211559,
+        "elevation_deg": -2.873190124061115
+      },
+      "earth_visible": false,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 43.59365333380801,
+      "station_visible": true,
+      "range_m": 400210147.39073277,
+      "range_rate_m_s": -282.62233891291544,
+      "doppler_hz": 2121.1349571511223,
+      "fspl_db": 211.53719550499358,
+      "cn0_dbhz": 57.06197166822409,
+      "ebn0_db": 7.061971668224089,
+      "margin_db": 3.061971668224089,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-15T04:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 357.1282719716001,
+        "elevation_deg": -2.8233420902597595
+      },
+      "earth_visible": false,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 55.433101882722,
+      "station_visible": true,
+      "range_m": 399297210.36871326,
+      "range_rate_m_s": -221.95505595300347,
+      "doppler_hz": 1665.8153418064232,
+      "fspl_db": 211.5173591055177,
+      "cn0_dbhz": 57.08180806769997,
+      "ebn0_db": 7.081808067699967,
+      "margin_db": 3.081808067699967,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-15T05:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 357.07086276593026,
+        "elevation_deg": -2.7732532017656926
+      },
+      "earth_visible": false,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 66.71160781896822,
+      "station_visible": true,
+      "range_m": 398628512.2140901,
+      "range_rate_m_s": -147.6656695595011,
+      "doppler_hz": 1108.2592228149965,
+      "fspl_db": 211.502800758625,
+      "cn0_dbhz": 57.096366414592666,
+      "ebn0_db": 7.096366414592666,
+      "margin_db": 3.0963664145926657,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-15T06:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 357.0135434250213,
+        "elevation_deg": -2.7229265308665274
+      },
+      "earth_visible": false,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 75.48881709424332,
+      "station_visible": true,
+      "range_m": 398244603.006456,
+      "range_rate_m_s": -64.60742373019457,
+      "doppler_hz": 484.89112889203426,
+      "fspl_db": 211.4944315635729,
+      "cn0_dbhz": 57.10473560964476,
+      "ebn0_db": 7.104735609644763,
+      "margin_db": 3.104735609644763,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-15T07:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 356.95632000255324,
+        "elevation_deg": -2.6723651566999003
+      },
+      "earth_visible": false,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 75.60478444083446,
+      "station_visible": true,
+      "range_m": 398167288.96601975,
+      "range_rate_m_s": 21.720783901400864,
+      "doppler_hz": -163.01865665397077,
+      "fspl_db": 211.4927451467035,
+      "cn0_dbhz": 57.10642202651417,
+      "ebn0_db": 7.106422026514167,
+      "margin_db": 3.106422026514167,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-15T08:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 356.8991985862367,
+        "elevation_deg": -2.621572167021643
+      },
+      "earth_visible": false,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 66.89863326917306,
+      "station_visible": true,
+      "range_m": 398398003.81891936,
+      "range_rate_m_s": 105.56839156197384,
+      "doppler_hz": -792.3110627901157,
+      "fspl_db": 211.497776658431,
+      "cn0_dbhz": 57.10139051478666,
+      "ebn0_db": 7.101390514786658,
+      "margin_db": 3.101390514786658,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-15T09:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 356.8421852995644,
+        "elevation_deg": -2.5705506600099013
+      },
+      "earth_visible": false,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 55.57501747563035,
+      "station_visible": true,
+      "range_m": 398917655.8441511,
+      "range_rate_m_s": 181.35238892864436,
+      "doppler_hz": -1361.0845243126491,
+      "fspl_db": 211.50909875081877,
+      "cn0_dbhz": 57.0900684223989,
+      "ebn0_db": 7.0900684223989,
+      "margin_db": 3.0900684223989003,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-15T10:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 356.78528629718335,
+        "elevation_deg": -2.5193037409683288
+      },
+      "earth_visible": false,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 43.63309005793117,
+      "station_visible": true,
+      "range_m": 399687968.3771139,
+      "range_rate_m_s": 244.06094325240701,
+      "doppler_hz": -1831.7242734569252,
+      "fspl_db": 211.52585508591147,
+      "cn0_dbhz": 57.07331208730619,
+      "ebn0_db": 7.073312087306192,
+      "margin_db": 3.073312087306192,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-15T11:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 356.7285077666739,
+        "elevation_deg": -2.4678345241294033
+      },
+      "earth_visible": false,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 31.61613349985895,
+      "station_visible": true,
+      "range_m": 400654186.48251927,
+      "range_rate_m_s": 289.6029951516539,
+      "doppler_hz": -2173.526123499815,
+      "fspl_db": 211.54682728600403,
+      "cn0_dbhz": 57.052339887213634,
+      "ebn0_db": 7.052339887213634,
+      "margin_db": 3.052339887213634,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-15T12:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 356.67185592979297,
+        "elevation_deg": -2.4161461345153805
+      },
+      "earth_visible": false,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 19.772598205712963,
+      "station_visible": true,
+      "range_m": 401748898.720305,
+      "range_rate_m_s": 315.0742510333657,
+      "doppler_hz": -2364.692792989051,
+      "fspl_db": 211.57052748296883,
+      "cn0_dbhz": 57.02863969024884,
+      "ebn0_db": 7.028639690248838,
+      "margin_db": 3.0286396902488377,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-15T13:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 356.61533703838103,
+        "elevation_deg": -2.364241704607087
+      },
+      "earth_visible": false,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 8.293588948285539,
+      "station_visible": false,
+      "range_m": 402896638.5966677,
+      "range_rate_m_s": 318.92258825246245,
+      "doppler_hz": -2393.575303245422,
+      "fspl_db": 211.59530646501253,
+      "cn0_dbhz": 57.00386070820514,
+      "ebn0_db": 7.0038607082051385,
+      "margin_db": 3.0038607082051385,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-15T14:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 356.5589573755581,
+        "elevation_deg": -2.3121243762042423
+      },
+      "earth_visible": false,
+      "station": "Station B (illustrative, 40.4N 4.2W)",
+      "station_elevation_deg": 14.593276498838494,
+      "station_visible": true,
+      "range_m": 402102369.30046225,
+      "range_rate_m_s": -253.18587268702686,
+      "doppler_hz": 1900.2086221455593,
+      "fspl_db": 211.57816622602883,
+      "cn0_dbhz": 57.02100094718884,
+      "ebn0_db": 7.021000947188838,
+      "margin_db": 3.0210009471888384,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-15T15:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 356.50272325737814,
+        "elevation_deg": -2.259797302311947
+      },
+      "earth_visible": false,
+      "station": "Station B (illustrative, 40.4N 4.2W)",
+      "station_elevation_deg": 21.332920634383385,
+      "station_visible": true,
+      "range_m": 401300729.7841245,
+      "range_rate_m_s": -190.0146568659693,
+      "doppler_hz": 1426.0965095673985,
+      "fspl_db": 211.56083257449782,
+      "cn0_dbhz": 57.03833459871984,
+      "ebn0_db": 7.0383345987198425,
+      "margin_db": 3.0383345987198425,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-15T16:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 356.4466410284085,
+        "elevation_deg": -2.207263643800322
+      },
+      "earth_visible": false,
+      "station": "Station B (illustrative, 40.4N 4.2W)",
+      "station_elevation_deg": 25.870976391688032,
+      "station_visible": true,
+      "range_m": 400747309.0936449,
+      "range_rate_m_s": -116.0379481734708,
+      "doppler_hz": 870.8870968005116,
+      "fspl_db": 211.54884588150492,
+      "cn0_dbhz": 57.05032129171275,
+      "ebn0_db": 7.0503212917127485,
+      "margin_db": 3.0503212917127485,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-15T17:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 356.39071706329383,
+        "elevation_deg": -2.1545265713012487
+      },
+      "earth_visible": false,
+      "station": "Station B (illustrative, 40.4N 4.2W)",
+      "station_elevation_deg": 27.691876499627195,
+      "station_visible": true,
+      "range_m": 400472424.7462174,
+      "range_rate_m_s": -36.12667118432,
+      "doppler_hz": 271.1376086876742,
+      "fspl_db": 211.5428859304507,
+      "cn0_dbhz": 57.05628124276697,
+      "ebn0_db": 7.056281242766971,
+      "margin_db": 3.056281242766971,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-15T18:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 356.33495776794297,
+        "elevation_deg": -2.101589267146762
+      },
+      "earth_visible": false,
+      "station": "Station B (illustrative, 40.4N 4.2W)",
+      "station_elevation_deg": 26.549111402378905,
+      "station_visible": true,
+      "range_m": 400487955.6984037,
+      "range_rate_m_s": 44.40730792703107,
+      "doppler_hz": -333.28537849948145,
+      "fspl_db": 211.54322277641708,
+      "cn0_dbhz": 57.055944396800584,
+      "ebn0_db": 7.055944396800584,
+      "margin_db": 3.0559443968005837,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-15T19:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 356.2793695754842,
+        "elevation_deg": -2.048454922011285
+      },
+      "earth_visible": false,
+      "station": "Station B (illustrative, 40.4N 4.2W)",
+      "station_elevation_deg": 22.600638924409164,
+      "station_visible": true,
+      "range_m": 400786435.77572536,
+      "range_rate_m_s": 120.19355385564268,
+      "doppler_hz": -902.0757159114257,
+      "fspl_db": 211.54969388084342,
+      "cn0_dbhz": 57.049473292374245,
+      "ebn0_db": 7.049473292374245,
+      "margin_db": 3.0494732923742447,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-15T20:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 356.22395894746506,
+        "elevation_deg": -1.9951267368364496
+      },
+      "earth_visible": false,
+      "station": "Station B (illustrative, 40.4N 4.2W)",
+      "station_elevation_deg": 16.320593938388807,
+      "station_visible": true,
+      "range_m": 401341546.21402794,
+      "range_rate_m_s": 186.1918109934777,
+      "doppler_hz": -1397.4053167652564,
+      "fspl_db": 211.56171597427996,
+      "cn0_dbhz": 57.0374511989377,
+      "ebn0_db": 7.037451198937703,
+      "margin_db": 3.0374511989377027,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-15T21:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 356.16873237547804,
+        "elevation_deg": -1.9416079248294094
+      },
+      "earth_visible": false,
+      "station": "Station A (illustrative, 35.4N 116.9W)",
+      "station_elevation_deg": 12.435915566331666,
+      "station_visible": true,
+      "range_m": 401657412.8792247,
+      "range_rate_m_s": -316.79254840128124,
+      "doppler_hz": 2377.588944892279,
+      "fspl_db": 211.56854931597906,
+      "cn0_dbhz": 57.03061785723861,
+      "ebn0_db": 7.03061785723861,
+      "margin_db": 3.03061785723861,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-15T22:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 356.11369637654246,
+        "elevation_deg": -1.887901708072278
+      },
+      "earth_visible": false,
+      "station": "Station A (illustrative, 35.4N 116.9W)",
+      "station_elevation_deg": 21.28177948693182,
+      "station_visible": true,
+      "range_m": 400613617.42161864,
+      "range_rate_m_s": -260.25353086879477,
+      "doppler_hz": 1953.252754793412,
+      "fspl_db": 211.54594773391347,
+      "cn0_dbhz": 57.0532194393042,
+      "ebn0_db": 7.0532194393042005,
+      "margin_db": 3.0532194393042005,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-15T23:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 356.05885749478676,
+        "elevation_deg": -1.8340113195148653
+      },
+      "earth_visible": false,
+      "station": "Station A (illustrative, 35.4N 116.9W)",
+      "station_elevation_deg": 28.291582008582576,
+      "station_visible": true,
+      "range_m": 399801871.1281354,
+      "range_rate_m_s": -188.56837745988742,
+      "doppler_hz": 1415.2419047337964,
+      "fspl_db": 211.52833003101435,
+      "cn0_dbhz": 57.07083714220332,
+      "ebn0_db": 7.070837142203317,
+      "margin_db": 3.0708371422033167,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-16T00:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 356.0042223025645,
+        "elevation_deg": -1.7799400049873269
+      },
+      "earth_visible": false,
+      "station": "Station A (illustrative, 35.4N 116.9W)",
+      "station_elevation_deg": 32.74055563469856,
+      "station_visible": true,
+      "range_m": 399268573.0168727,
+      "range_rate_m_s": -106.40821361448616,
+      "doppler_hz": 798.6140886592746,
+      "fspl_db": 211.51673613648273,
+      "cn0_dbhz": 57.08243103673493,
+      "ebn0_db": 7.082431036734931,
+      "margin_db": 3.0824310367349312,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-16T01:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 355.94979739644367,
+        "elevation_deg": -1.725691019819554
+      },
+      "earth_visible": false,
+      "station": "Station A (illustrative, 35.4N 116.9W)",
+      "station_elevation_deg": 33.987073458995106,
+      "station_visible": true,
+      "range_m": 399041815.934048,
+      "range_rate_m_s": -19.21303349081427,
+      "doppler_hz": 144.19750797844324,
+      "fspl_db": 211.5118017473622,
+      "cn0_dbhz": 57.08736542585547,
+      "ebn0_db": 7.087365425855467,
+      "margin_db": 3.0873654258554666,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-16T02:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 355.8955893982349,
+        "elevation_deg": -1.67126763085388
+      },
+      "earth_visible": false,
+      "station": "Station A (illustrative, 35.4N 116.9W)",
+      "station_elevation_deg": 31.817193455388278,
+      "station_visible": true,
+      "range_m": 399129297.974314,
+      "range_rate_m_s": 67.19522591447458,
+      "doppler_hz": -504.3130815104355,
+      "fspl_db": 211.51370574848892,
+      "cn0_dbhz": 57.08546142472875,
+      "ebn0_db": 7.085461424728749,
+      "margin_db": 3.0854614247287486,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-16T03:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 355.8416049565008,
+        "elevation_deg": -1.6166731185198953
+      },
+      "earth_visible": false,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 32.61395384601332,
+      "station_visible": true,
+      "range_m": 398955555.2499903,
+      "range_rate_m_s": -339.4069080823101,
+      "doppler_hz": 2547.314059465758,
+      "fspl_db": 211.50992391966045,
+      "cn0_dbhz": 57.089243253557214,
+      "ebn0_db": 7.089243253557214,
+      "margin_db": 3.089243253557214,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-16T04:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 355.7878507422066,
+        "elevation_deg": -1.5619107734344382
+      },
+      "earth_visible": false,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 44.468475975398796,
+      "station_visible": true,
+      "range_m": 397815965.9985176,
+      "range_rate_m_s": -290.554644074291,
+      "doppler_hz": 2180.668431515895,
+      "fspl_db": 211.4850777675164,
+      "cn0_dbhz": 57.114089405701264,
+      "ebn0_db": 7.1140894057012645,
+      "margin_db": 3.1140894057012645,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-16T05:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 355.73433345008283,
+        "elevation_deg": -1.5069838984510369
+      },
+      "earth_visible": false,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 56.01009005768417,
+      "station_visible": true,
+      "range_m": 396884357.36298674,
+      "range_rate_m_s": -224.4738091249019,
+      "doppler_hz": 1684.7190683196882,
+      "fspl_db": 211.46471322691434,
+      "cn0_dbhz": 57.134453946303324,
+      "ebn0_db": 7.134453946303324,
+      "margin_db": 3.1344539463033243,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-16T06:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 355.68105979985984,
+        "elevation_deg": -1.451895810789163
+      },
+      "earth_visible": false,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 66.33959967359097,
+      "station_visible": true,
+      "range_m": 396215408.6454859,
+      "range_rate_m_s": -145.4261684557423,
+      "doppler_hz": 1091.4513367291586,
+      "fspl_db": 211.4500608052124,
+      "cn0_dbhz": 57.14910636800528,
+      "ebn0_db": 7.1491063680052775,
+      "margin_db": 3.1491063680052775,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-16T07:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 355.6280365319422,
+        "elevation_deg": -1.3966498386005588
+      },
+      "earth_visible": false,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 72.7044327303259,
+      "station_visible": true,
+      "range_m": 395846663.4620015,
+      "range_rate_m_s": -58.61614114837721,
+      "doppler_hz": 439.9254019387263,
+      "fspl_db": 211.4419733577446,
+      "cn0_dbhz": 57.15719381547308,
+      "ebn0_db": 7.157193815473079,
+      "margin_db": 3.1571938154730788,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-16T08:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 355.5752704087723,
+        "elevation_deg": -1.341249323096313
+      },
+      "earth_visible": false,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 70.52231588713752,
+      "station_visible": true,
+      "range_m": 395795767.70765984,
+      "range_rate_m_s": 30.172384926117957,
+      "doppler_hz": -226.44954625164522,
+      "fspl_db": 211.4408565027392,
+      "cn0_dbhz": 57.15831067047847,
+      "ebn0_db": 7.158310670478471,
+      "margin_db": 3.158310670478471,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-16T09:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 355.522768215934,
+        "elevation_deg": -1.285697620678158
+      },
+      "earth_visible": false,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 61.703114866328264,
+      "station_visible": true,
+      "range_m": 396059128.43521786,
+      "range_rate_m_s": 114.99626998556778,
+      "doppler_hz": -863.0691018502123,
+      "fspl_db": 211.4466341327319,
+      "cn0_dbhz": 57.152533040485764,
+      "ebn0_db": 7.152533040485764,
+      "margin_db": 3.152533040485764,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-16T10:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 355.4705367580114,
+        "elevation_deg": -1.2299980995279933
+      },
+      "earth_visible": false,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 50.536770492029135,
+      "station_visible": true,
+      "range_m": 396612128.4285657,
+      "range_rate_m_s": 190.1899913791567,
+      "doppler_hz": -1427.4124287779869,
+      "fspl_db": 211.45875340071274,
+      "cn0_dbhz": 57.14041377250493,
+      "ebn0_db": 7.140413772504928,
+      "margin_db": 3.140413772504928,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-16T11:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 355.4185828597794,
+        "elevation_deg": -1.1741541417458163
+      },
+      "earth_visible": false,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 38.64865734233064,
+      "station_visible": true,
+      "range_m": 397410878.0553476,
+      "range_rate_m_s": 250.77575154136866,
+      "doppler_hz": -1882.1201998619974,
+      "fspl_db": 211.4762285957392,
+      "cn0_dbhz": 57.122938577478465,
+      "ebn0_db": 7.122938577478465,
+      "margin_db": 3.1229385774784646,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-16T12:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 355.36691336714534,
+        "elevation_deg": -1.118169145550074
+      },
+      "earth_visible": false,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 26.60136617419966,
+      "station_visible": true,
+      "range_m": 398395335.9261898,
+      "range_rate_m_s": 292.8081500576809,
+      "doppler_hz": -2197.581426914289,
+      "fspl_db": 211.4977184927294,
+      "cn0_dbhz": 57.10144868048826,
+      "ebn0_db": 7.101448680488261,
+      "margin_db": 3.101448680488261,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-16T13:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 355.31553514328164,
+        "elevation_deg": -1.0620465218356647
+      },
+      "earth_visible": false,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 14.673585851769108,
+      "station_visible": true,
+      "range_m": 399493508.28699917,
+      "range_rate_m_s": 313.62520868424326,
+      "doppler_hz": -2353.8174517370526,
+      "fspl_db": 211.52162811377963,
+      "cn0_dbhz": 57.07753905943804,
+      "ebn0_db": 7.077539059438038,
+      "margin_db": 3.0775390594380383,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-16T14:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 355.26445506952393,
+        "elevation_deg": -1.0057896963744355
+      },
+      "earth_visible": false,
+      "station": "Station B (illustrative, 40.4N 4.2W)",
+      "station_elevation_deg": 11.635979354203023,
+      "station_visible": true,
+      "range_m": 399666938.1921606,
+      "range_rate_m_s": -313.7167628156021,
+      "doppler_hz": 2354.5045830842905,
+      "fspl_db": 211.52539805271104,
+      "cn0_dbhz": 57.073769120506626,
+      "ebn0_db": 7.0737691205066255,
+      "margin_db": 3.0737691205066255,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-16T15:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 355.2136800463854,
+        "elevation_deg": -0.9494021120304821
+      },
+      "earth_visible": false,
+      "station": "Station B (illustrative, 40.4N 4.2W)",
+      "station_elevation_deg": 20.03838775417394,
+      "station_visible": true,
+      "range_m": 398629720.8551799,
+      "range_rate_m_s": -259.8106720834039,
+      "doppler_hz": 1949.9290145172993,
+      "fspl_db": 211.50282709419028,
+      "cn0_dbhz": 57.096340079027385,
+      "ebn0_db": 7.096340079027385,
+      "margin_db": 3.096340079027385,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-16T16:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 355.16321698962764,
+        "elevation_deg": -0.8928872253252292
+      },
+      "earth_visible": false,
+      "station": "Station B (illustrative, 40.4N 4.2W)",
+      "station_elevation_deg": 26.661385098958743,
+      "station_visible": true,
+      "range_m": 397813710.14428246,
+      "range_rate_m_s": -191.48563517956063,
+      "doppler_hz": 1437.1364844475554,
+      "fspl_db": 211.4850285131924,
+      "cn0_dbhz": 57.114138660025276,
+      "ebn0_db": 7.114138660025276,
+      "margin_db": 3.114138660025276,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-16T17:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 355.1130728310844,
+        "elevation_deg": -0.836248508668135
+      },
+      "earth_visible": false,
+      "station": "Station B (illustrative, 40.4N 4.2W)",
+      "station_elevation_deg": 30.84711225972684,
+      "station_visible": true,
+      "range_m": 397263050.62515116,
+      "range_rate_m_s": -113.20281238295138,
+      "doppler_hz": 849.6088579441201,
+      "fspl_db": 211.47299704953483,
+      "cn0_dbhz": 57.12617012368284,
+      "ebn0_db": 7.12617012368284,
+      "margin_db": 3.12617012368284,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-16T18:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 355.0632545198509,
+        "elevation_deg": -0.7794894526161918
+      },
+      "earth_visible": false,
+      "station": "Station B (illustrative, 40.4N 4.2W)",
+      "station_elevation_deg": 32.03288466657187,
+      "station_visible": true,
+      "range_m": 397004414.6457476,
+      "range_rate_m_s": -30.15162399969995,
+      "doppler_hz": 226.293731509833,
+      "fspl_db": 211.46734030605444,
+      "cn0_dbhz": 57.13182686716323,
+      "ebn0_db": 7.131826867163227,
+      "margin_db": 3.131826867163227,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-16T19:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 355.013769017942,
+        "elevation_deg": -0.7226135624384558
+      },
+      "earth_visible": false,
+      "station": "Station B (illustrative, 40.4N 4.2W)",
+      "station_elevation_deg": 30.033650982835418,
+      "station_visible": true,
+      "range_m": 397045027.67226005,
+      "range_rate_m_s": 52.11868754122406,
+      "doppler_hz": -391.1607641835811,
+      "fspl_db": 211.46822881562994,
+      "cn0_dbhz": 57.13093835758772,
+      "ebn0_db": 7.130938357587723,
+      "margin_db": 3.1309383575877234,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-16T20:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 354.96462330140685,
+        "elevation_deg": -0.6656243603662372
+      },
+      "earth_visible": false,
+      "station": "Station B (illustrative, 40.4N 4.2W)",
+      "station_elevation_deg": 25.159697732630057,
+      "station_visible": true,
+      "range_m": 397372095.27711517,
+      "range_rate_m_s": 128.10307554900646,
+      "doppler_hz": -961.4381959711092,
+      "fspl_db": 211.4753809104134,
+      "cn0_dbhz": 57.12378626280426,
+      "ebn0_db": 7.123786262804259,
+      "margin_db": 3.123786262804259,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-16T21:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 354.9158243611521,
+        "elevation_deg": -0.6085253878966389
+      },
+      "earth_visible": false,
+      "station": "Station B (illustrative, 40.4N 4.2W)",
+      "station_elevation_deg": 18.028919307115345,
+      "station_visible": true,
+      "range_m": 397953690.0620723,
+      "range_rate_m_s": 192.7411265205592,
+      "doppler_hz": -1446.5591881943146,
+      "fspl_db": 211.48808430595216,
+      "cn0_dbhz": 57.11108286726551,
+      "ebn0_db": 7.111082867265509,
+      "margin_db": 3.111082867265509,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-16T22:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 354.86737919897575,
+        "elevation_deg": -0.5513202023462177
+      },
+      "earth_visible": false,
+      "station": "Station A (illustrative, 35.4N 116.9W)",
+      "station_elevation_deg": 18.171643807531908,
+      "station_visible": true,
+      "range_m": 397785176.288349,
+      "range_rate_m_s": -326.2612825492397,
+      "doppler_hz": 2448.65361401383,
+      "fspl_db": 211.48440548083798,
+      "cn0_dbhz": 57.11476169237969,
+      "ebn0_db": 7.1147616923796875,
+      "margin_db": 3.1147616923796875,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-16T23:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 354.8192948282714,
+        "elevation_deg": -0.4940123791541106
+      },
+      "earth_visible": false,
+      "station": "Station A (illustrative, 35.4N 116.9W)",
+      "station_elevation_deg": 27.078415797879337,
+      "station_visible": true,
+      "range_m": 396718548.37131673,
+      "range_rate_m_s": -263.54860613355413,
+      "doppler_hz": 1977.9829277776455,
+      "fspl_db": 211.46108370738207,
+      "cn0_dbhz": 57.13808346583559,
+      "ebn0_db": 7.138083465835592,
+      "margin_db": 3.1380834658355923,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-17T00:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 354.77157827496745,
+        "elevation_deg": -0.43660551419245397
+      },
+      "earth_visible": false,
+      "station": "Station A (illustrative, 35.4N 116.9W)",
+      "station_elevation_deg": 33.956444247118945,
+      "station_visible": true,
+      "range_m": 395905085.05858606,
+      "range_rate_m_s": -186.37674255296588,
+      "doppler_hz": 1398.7932636523271,
+      "fspl_db": 211.44325518261525,
+      "cn0_dbhz": 57.15591199060242,
+      "ebn0_db": 7.155911990602419,
+      "margin_db": 3.1559119906024193,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-17T01:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 354.7242365733956,
+        "elevation_deg": -0.37910322032950255
+      },
+      "earth_visible": false,
+      "station": "Station A (illustrative, 35.4N 116.9W)",
+      "station_elevation_deg": 37.94424989838326,
+      "station_visible": true,
+      "range_m": 395387975.720571,
+      "range_rate_m_s": -99.81706104008481,
+      "doppler_hz": 749.1462221514286,
+      "fspl_db": 211.43190273810933,
+      "cn0_dbhz": 57.167264435108336,
+      "ebn0_db": 7.167264435108336,
+      "margin_db": 3.1672644351083363,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-17T02:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 354.6772767671542,
+        "elevation_deg": -0.321509129757376
+      },
+      "earth_visible": false,
+      "station": "Station A (illustrative, 35.4N 116.9W)",
+      "station_elevation_deg": 38.341811010955446,
+      "station_visible": true,
+      "range_m": 395190781.3225599,
+      "range_rate_m_s": -9.638280957005918,
+      "doppler_hz": 72.33715050050832,
+      "fspl_db": 211.4275696876735,
+      "cn0_dbhz": 57.17159748554417,
+      "ebn0_db": 7.171597485544169,
+      "margin_db": 3.1715974855441686,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-17T03:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 354.63070590978225,
+        "elevation_deg": -0.26382689633937806
+      },
+      "earth_visible": false,
+      "station": "Station A (illustrative, 35.4N 116.9W)",
+      "station_elevation_deg": 35.07023716300436,
+      "station_visible": true,
+      "range_m": 395315660.5433657,
+      "range_rate_m_s": 78.11104931170121,
+      "doppler_hz": -586.2384334943067,
+      "fspl_db": 211.43031397179715,
+      "cn0_dbhz": 57.16885320142052,
+      "ebn0_db": 7.168853201420518,
+      "margin_db": 3.168853201420518,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-17T04:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 354.5845310607266,
+        "elevation_deg": -0.2060601921700982
+      },
+      "earth_visible": false,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 33.28535182606414,
+      "station_visible": true,
+      "range_m": 395324974.7675042,
+      "range_rate_m_s": -349.284561118111,
+      "doppler_hz": 2621.4477434110427,
+      "fspl_db": 211.43051862184757,
+      "cn0_dbhz": 57.1686485513701,
+      "ebn0_db": 7.168648551370097,
+      "margin_db": 3.1686485513700973,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-17T05:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 354.538759285969,
+        "elevation_deg": -0.14821270991657035
+      },
+      "earth_visible": false,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 44.92253496519115,
+      "station_visible": true,
+      "range_m": 394161618.1180264,
+      "range_rate_m_s": -293.93993655685335,
+      "doppler_hz": 2206.075702054253,
+      "fspl_db": 211.40492022696176,
+      "cn0_dbhz": 57.1942469462559,
+      "ebn0_db": 7.194246946255902,
+      "margin_db": 3.1942469462559018,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-17T06:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 354.49339765887305,
+        "elevation_deg": -0.0902881652062434
+      },
+      "earth_visible": false,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 55.79258415823741,
+      "station_visible": true,
+      "range_m": 393228711.61919457,
+      "range_rate_m_s": -221.94258199306205,
+      "doppler_hz": 1665.7217223402918,
+      "fspl_db": 211.38433799124687,
+      "cn0_dbhz": 57.2148291819708,
+      "ebn0_db": 7.214829181970799,
+      "margin_db": 3.2148291819707993,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-17T07:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 354.4484532558986,
+        "elevation_deg": -0.03229029317024291
+      },
+      "earth_visible": false,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 64.54643704934242,
+      "station_visible": true,
+      "range_m": 392578077.7568018,
+      "range_rate_m_s": -137.98228034283966,
+      "doppler_hz": 1035.5835261585842,
+      "fspl_db": 211.3699544677361,
+      "cn0_dbhz": 57.22921270548156,
+      "ebn0_db": 7.229212705481558,
+      "margin_db": 3.229212705481558,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-17T08:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 354.40393315738646,
+        "elevation_deg": 0.025777149175451635
+      },
+      "earth_visible": true,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 68.1987148615642,
+      "station_visible": true,
+      "range_m": 392242965.7461149,
+      "range_rate_m_s": -47.628086409531534,
+      "doppler_hz": 357.45793985733275,
+      "fspl_db": 211.3625368630676,
+      "cn0_dbhz": 57.236630310150076,
+      "ebn0_db": 7.236630310150076,
+      "margin_db": 3.236630310150076,
+      "link_available": true
+    },
+    {
+      "utc": "2026-11-17T09:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 354.35984444795076,
+        "elevation_deg": 0.08391038053752037
+      },
+      "earth_visible": true,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 64.37415312336046,
+      "station_visible": true,
+      "range_m": 392235579.6964224,
+      "range_rate_m_s": 43.068396335002035,
+      "doppler_hz": -323.23658974020816,
+      "fspl_db": 211.362373303687,
+      "cn0_dbhz": 57.23679386953066,
+      "ebn0_db": 7.236793869530658,
+      "margin_db": 3.2367938695306577,
+      "link_available": true
+    },
+    {
+      "utc": "2026-11-17T10:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 354.31619421268357,
+        "elevation_deg": 0.1421055987831989
+      },
+      "earth_visible": true,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 55.49088364344649,
+      "station_visible": true,
+      "range_m": 392546135.3585583,
+      "range_rate_m_s": 128.01862211199477,
+      "doppler_hz": -960.8043566992877,
+      "fspl_db": 211.36924770531192,
+      "cn0_dbhz": 57.229919467905745,
+      "ebn0_db": 7.229919467905745,
+      "margin_db": 3.229919467905745,
+      "link_available": true
+    },
+    {
+      "utc": "2026-11-17T11:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 354.27298953741223,
+        "elevation_deg": 0.20035897856461354
+      },
+      "earth_visible": true,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 44.49039568447554,
+      "station_visible": true,
+      "range_m": 393143542.650842,
+      "range_rate_m_s": 201.5470482292585,
+      "doppler_hz": -1512.649322605146,
+      "fspl_db": 211.38245652033137,
+      "cn0_dbhz": 57.21671065288629,
+      "ebn0_db": 7.216710652886292,
+      "margin_db": 3.2167106528862917,
+      "link_available": true
+    },
+    {
+      "utc": "2026-11-17T12:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 354.2302375092769,
+        "elevation_deg": 0.2586666688918146
+      },
+      "earth_visible": true,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 32.690119030486755,
+      "station_visible": true,
+      "range_m": 393977647.8434585,
+      "range_rate_m_s": 258.8006351143122,
+      "doppler_hz": -1942.3484929937845,
+      "fspl_db": 211.4008652442966,
+      "cn0_dbhz": 57.19830192892107,
+      "ebn0_db": 7.198301928921069,
+      "margin_db": 3.198301928921069,
+      "link_available": true
+    },
+    {
+      "utc": "2026-11-17T13:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 354.1879452126831,
+        "elevation_deg": 0.31702479659446403
+      },
+      "earth_visible": true,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 20.645297027360286,
+      "station_visible": true,
+      "range_m": 394982817.8351649,
+      "range_rate_m_s": 296.0795073886402,
+      "doppler_hz": -2222.1335922481426,
+      "fspl_db": 211.42299765959285,
+      "cn0_dbhz": 57.176169513624814,
+      "ebn0_db": 7.176169513624814,
+      "margin_db": 3.1761695136248136,
+      "link_available": true
+    },
+    {
+      "utc": "2026-11-17T14:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 354.14611972978753,
+        "elevation_deg": 0.37542946389297066
+      },
+      "earth_visible": true,
+      "station": "Station C (illustrative, 35.4S 149.0E)",
+      "station_elevation_deg": 8.656173163143004,
+      "station_visible": false,
+      "range_m": 396082533.4383142,
+      "range_rate_m_s": 311.06387078762054,
+      "doppler_hz": -2334.5941186824193,
+      "fspl_db": 211.44714740777778,
+      "cn0_dbhz": 57.15201976543989,
+      "ebn0_db": 7.1520197654398885,
+      "margin_db": 3.1520197654398885,
+      "link_available": false
+    },
+    {
+      "utc": "2026-11-17T15:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 354.1047681407369,
+        "elevation_deg": 0.4338767460010216
+      },
+      "earth_visible": true,
+      "station": "Station B (illustrative, 40.4N 4.2W)",
+      "station_elevation_deg": 18.00810598437759,
+      "station_visible": true,
+      "range_m": 394873882.13553506,
+      "range_rate_m_s": -320.880776271224,
+      "doppler_hz": 2408.271880576309,
+      "fspl_db": 211.4206017731728,
+      "cn0_dbhz": 57.178565400044874,
+      "ebn0_db": 7.178565400044874,
+      "margin_db": 3.1785654000448744,
+      "link_available": true
+    },
+    {
+      "utc": "2026-11-17T16:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 354.06389751962917,
+        "elevation_deg": 0.49236269456234716
+      },
+      "earth_visible": true,
+      "station": "Station B (illustrative, 40.4N 4.2W)",
+      "station_elevation_deg": 26.427522709983432,
+      "station_visible": true,
+      "range_m": 393822005.0666732,
+      "range_rate_m_s": -260.8907566755079,
+      "doppler_hz": 1958.035256910608,
+      "fspl_db": 211.39743316357732,
+      "cn0_dbhz": 57.20173400964035,
+      "ebn0_db": 7.201734009640347,
+      "margin_db": 3.2017340096403473,
+      "link_available": true
+    },
+    {
+      "utc": "2026-11-17T17:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 354.02351493495166,
+        "elevation_deg": 0.5508833352390033
+      },
+      "earth_visible": true,
+      "station": "Station B (illustrative, 40.4N 4.2W)",
+      "station_elevation_deg": 32.87470664617214,
+      "station_visible": true,
+      "range_m": 393011908.0944851,
+      "range_rate_m_s": -187.28828214807436,
+      "doppler_hz": 1405.6345434586192,
+      "fspl_db": 211.37954777438634,
+      "cn0_dbhz": 57.21961939883133,
+      "ebn0_db": 7.219619398831327,
+      "margin_db": 3.219619398831327,
+      "link_available": true
+    },
+    {
+      "utc": "2026-11-17T18:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 353.98362744971314,
+        "elevation_deg": 0.6094346652748139
+      },
+      "earth_visible": true,
+      "station": "Station B (illustrative, 40.4N 4.2W)",
+      "station_elevation_deg": 36.568215498640804,
+      "station_visible": true,
+      "range_m": 392484124.857662,
+      "range_rate_m_s": -104.91689381888136,
+      "doppler_hz": 787.4214470481544,
+      "fspl_db": 211.3678754872062,
+      "cn0_dbhz": 57.231291686011474,
+      "ebn0_db": 7.231291686011474,
+      "margin_db": 3.231291686011474,
+      "link_available": true
+    },
+    {
+      "utc": "2026-11-17T19:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 353.9442421175001,
+        "elevation_deg": 0.6680126569569154
+      },
+      "earth_visible": true,
+      "station": "Station B (illustrative, 40.4N 4.2W)",
+      "station_elevation_deg": 36.90062925529345,
+      "station_visible": true,
+      "range_m": 392260476.5625557,
+      "range_rate_m_s": -19.267328665591776,
+      "doppler_hz": 144.60500369752964,
+      "fspl_db": 211.36292461667298,
+      "cn0_dbhz": 57.23624255654468,
+      "ebn0_db": 7.236242556544681,
+      "margin_db": 3.2362425565446813,
+      "link_available": true
+    },
+    {
+      "utc": "2026-11-17T20:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 353.9053659826204,
+        "elevation_deg": 0.726613255199221
+      },
+      "earth_visible": true,
+      "station": "Station B (illustrative, 40.4N 4.2W)",
+      "station_elevation_deg": 33.814756716455285,
+      "station_visible": true,
+      "range_m": 392342442.30582374,
+      "range_rate_m_s": 63.9190265792422,
+      "doppler_hz": -479.72457600416004,
+      "fspl_db": 211.36473940829714,
+      "cn0_dbhz": 57.234427764920525,
+      "ebn0_db": 7.234427764920525,
+      "margin_db": 3.2344277649205253,
+      "link_available": true
+    },
+    {
+      "utc": "2026-11-17T21:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 353.86700608018407,
+        "elevation_deg": 0.7852323751005053
+      },
+      "earth_visible": true,
+      "station": "Station B (illustrative, 40.4N 4.2W)",
+      "station_elevation_deg": 27.847847414544763,
+      "station_visible": true,
+      "range_m": 392711014.4535322,
+      "range_rate_m_s": 139.07192944316193,
+      "doppler_hz": -1043.761552023815,
+      "fspl_db": 211.37289522802203,
+      "cn0_dbhz": 57.226271945195634,
+      "ebn0_db": 7.226271945195634,
+      "margin_db": 3.2262719451956343,
+      "link_available": true
+    },
+    {
+      "utc": "2026-11-17T22:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 353.8291694322577,
+        "elevation_deg": 0.8438659054186687
+      },
+      "earth_visible": true,
+      "station": "Station B (illustrative, 40.4N 4.2W)",
+      "station_elevation_deg": 19.784195508907896,
+      "station_visible": true,
+      "range_m": 393328055.82290846,
+      "range_rate_m_s": 201.1977841029875,
+      "doppler_hz": -1510.0280282291887,
+      "fspl_db": 211.38653209300773,
+      "cn0_dbhz": 57.212635080209935,
+      "ebn0_db": 7.212635080209935,
+      "margin_db": 3.2126350802099353,
+      "link_available": true
+    },
+    {
+      "utc": "2026-11-17T23:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 353.7918630478548,
+        "elevation_deg": 0.90250970613807
+      },
+      "earth_visible": true,
+      "station": "Station A (illustrative, 35.4N 116.9W)",
+      "station_elevation_deg": 24.785047216039036,
+      "station_visible": true,
+      "range_m": 392615626.7488115,
+      "range_rate_m_s": -329.4790589134209,
+      "doppler_hz": 2472.803643896862,
+      "fspl_db": 211.37078520898885,
+      "cn0_dbhz": 57.22838196422882,
+      "ebn0_db": 7.2283819642288165,
+      "margin_db": 3.2283819642288165,
+      "link_available": true
+    },
+    {
+      "utc": "2026-11-18T00:00:00.000Z",
+      "earth": {
+        "azimuth_deg": 353.75509392283635,
+        "elevation_deg": 0.9611596060525914
+      },
+      "earth_visible": true,
+      "station": "Station A (illustrative, 35.4N 116.9W)",
+      "station_elevation_deg": 33.74736302710754,
+      "station_visible": true,
+      "range_m": 391549150.73840344,
+      "range_rate_m_s": -260.3863230906427,
+      "doppler_hz": 1954.249385933338,
+      "fspl_db": 211.34715931069485,
+      "cn0_dbhz": 57.25200786252282,
+      "ebn0_db": 7.252007862522817,
+      "margin_db": 3.2520078625228166,
+      "link_available": true
+    }
+  ],
+  "windows": {
+    "earth_visible": [
+      {
+        "start_utc": "2026-11-17T07:33:21.897Z",
+        "end_utc": "2026-11-18T00:00:00.000Z",
+        "clipped_start": false,
+        "clipped_end": true
+      }
+    ],
+    "ground_station_visible": [
+      {
+        "start_utc": "2026-11-15T00:00:00.000Z",
+        "end_utc": "2026-11-15T12:51:04.842Z",
+        "clipped_start": true,
+        "clipped_end": false
+      },
+      {
+        "start_utc": "2026-11-15T13:27:04.976Z",
+        "end_utc": "2026-11-16T13:24:10.932Z",
+        "clipped_start": false,
+        "clipped_end": false
+      },
+      {
+        "start_utc": "2026-11-16T13:49:47.585Z",
+        "end_utc": "2026-11-17T13:53:16.486Z",
+        "clipped_start": false,
+        "clipped_end": false
+      },
+      {
+        "start_utc": "2026-11-17T14:10:34.170Z",
+        "end_utc": "2026-11-18T00:00:00.000Z",
+        "clipped_start": false,
+        "clipped_end": true
+      }
+    ],
+    "link_available": [
+      {
+        "start_utc": "2026-11-17T07:33:21.897Z",
+        "end_utc": "2026-11-17T13:53:16.486Z",
+        "clipped_start": false,
+        "clipped_end": false
+      },
+      {
+        "start_utc": "2026-11-17T14:10:34.170Z",
+        "end_utc": "2026-11-18T00:00:00.000Z",
+        "clipped_start": false,
+        "clipped_end": true
+      }
+    ],
+    "stations": [
+      {
+        "name": "Station A (illustrative, 35.4N 116.9W)",
+        "windows": [
+          {
+            "start_utc": "2026-11-15T00:00:00.000Z",
+            "end_utc": "2026-11-15T03:55:10.693Z",
+            "clipped_start": true,
+            "clipped_end": false
+          },
+          {
+            "start_utc": "2026-11-15T20:45:30.535Z",
+            "end_utc": "2026-11-16T04:58:29.993Z",
+            "clipped_start": false,
+            "clipped_end": false
+          },
+          {
+            "start_utc": "2026-11-16T21:12:04.374Z",
+            "end_utc": "2026-11-17T06:01:16.623Z",
+            "clipped_start": false,
+            "clipped_end": false
+          },
+          {
+            "start_utc": "2026-11-17T21:36:29.141Z",
+            "end_utc": "2026-11-18T00:00:00.000Z",
+            "clipped_start": false,
+            "clipped_end": true
+          }
+        ]
+      },
+      {
+        "name": "Station B (illustrative, 40.4N 4.2W)",
+        "windows": [
+          {
+            "start_utc": "2026-11-15T13:27:04.976Z",
+            "end_utc": "2026-11-15T20:47:11.324Z",
+            "clipped_start": false,
+            "clipped_end": false
+          },
+          {
+            "start_utc": "2026-11-16T13:49:47.585Z",
+            "end_utc": "2026-11-16T21:55:08.017Z",
+            "clipped_start": false,
+            "clipped_end": false
+          },
+          {
+            "start_utc": "2026-11-17T14:10:34.170Z",
+            "end_utc": "2026-11-17T23:01:56.582Z",
+            "clipped_start": false,
+            "clipped_end": false
+          }
+        ]
+      },
+      {
+        "name": "Station C (illustrative, 35.4S 149.0E)",
+        "windows": [
+          {
+            "start_utc": "2026-11-15T00:06:00.158Z",
+            "end_utc": "2026-11-15T12:51:04.842Z",
+            "clipped_start": false,
+            "clipped_end": false
+          },
+          {
+            "start_utc": "2026-11-16T01:03:29.368Z",
+            "end_utc": "2026-11-16T13:24:10.932Z",
+            "clipped_start": false,
+            "clipped_end": false
+          },
+          {
+            "start_utc": "2026-11-17T02:01:18.328Z",
+            "end_utc": "2026-11-17T13:53:16.486Z",
+            "clipped_start": false,
+            "clipped_end": false
+          }
+        ]
+      }
+    ]
+  }
+}
