@@ -20,7 +20,7 @@ import { bodyRotationToThree } from "../lib/sceneFrame";
 import { makeSun } from "./globe";
 import type { GroundTerrain } from "./groundTerrain";
 import { DATA_BASE } from "./loaders";
-import { normalsFromHeight, regolithFields } from "./regolith";
+import { WANG_LAYERS, type WangBank } from "./wangBank";
 import { type AzEl, azElToEnu } from "./skyGeometry";
 
 const SKY_DIST = 1_500_000; // m, beyond the 400 km terrain
@@ -30,8 +30,59 @@ const SUN_ANG_RADIUS = Math.atan(695_700 / 149_597_871);
 const EARTH_ANG_RADIUS = Math.atan(6371 / 384_400);
 const DEG = Math.PI / 180;
 
-/** sRGB transfer function → linear (IEC 61966-2-1). three's typings declare SRGBToLinear but r187 does not export it. */
-const srgbToLinear = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+/**
+ * GLSL assembly of the Wang bank: integer hashes of the cell's four edges give their colours,
+ * hence the tile layer; shared edges hash identically from both cells, so neighbours match.
+ * textureGrad with the continuous UV derivatives avoids mip seams at cell borders.
+ */
+const WANG_GLSL = `
+uniform highp sampler2DArray bankAR;
+uniform highp sampler2DArray bankN;
+uniform float detailMean;
+uniform float detailOn;
+uint wangHash( ivec2 p, uint salt ) {
+  uvec2 q = uvec2( p ) * uvec2( 1597334673u, 3812015801u );
+  uint n = ( q.x ^ q.y ^ salt ) * 1597334673u;
+  return n ^ ( n >> 16u );
+}
+float wangLayer( vec2 uv, uint salt ) {
+  ivec2 c = ivec2( floor( uv ) );
+  uint n = wangHash( c + ivec2( 0, 1 ), salt ) & 1u;           // horizontal edge above (north)
+  uint s = wangHash( c, salt ) & 1u;                             // horizontal edge below (south)
+  uint e = wangHash( c + ivec2( 1, 0 ), salt + 7919u ) & 1u;     // vertical edge right (east)
+  uint w = wangHash( c, salt + 7919u ) & 1u;                     // vertical edge left (west)
+  return float( n | ( e << 1u ) | ( s << 2u ) | ( w << 3u ) );   // = wangLayer(n, e, s, w) in wangBank.ts
+}
+vec4 wangSample( highp sampler2DArray t, vec2 uv, uint salt ) {
+  return textureGrad( t, vec3( fract( uv ), wangLayer( uv, salt ) ), dFdx( uv ), dFdy( uv ) );
+}
+`;
+
+/** Applies shader text replacements, failing loudly if three's chunks changed (upgrade guard). */
+function patch(src: string, ...pairs: [string, string][]): string {
+  for (const [from, to] of pairs) {
+    if (!src.includes(from)) throw new Error(`ground shader patch: "${from.slice(0, 40)}…" not found (three.js changed?)`);
+    src = src.replace(from, to);
+  }
+  return src;
+}
+
+/** One bank per page, generated in a worker (deterministic, ~2 s). */
+let bankPromise: Promise<WangBank> | null = null;
+function loadWangBank(): Promise<WangBank> {
+  return (bankPromise ??= new Promise<WangBank>((resolve, reject) => {
+    const w = new Worker(new URL("./wangBank.worker.ts", import.meta.url), { type: "module" });
+    w.onmessage = (e: MessageEvent<WangBank>) => {
+      resolve(e.data);
+      w.terminate();
+    };
+    w.onerror = (e) => {
+      reject(new Error(e.message));
+      w.terminate();
+    };
+    w.postMessage({ size: 512, seed: 7 });
+  }));
+}
 
 /** ENU → three.js (x = E, y = U, z = −N). */
 const enuToThree = ([e, n, u]: number[]) => new THREE.Vector3(e, u, -n);
@@ -61,6 +112,12 @@ export class GroundView {
   private readonly resizeObserver: ResizeObserver;
   private terrain: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial> | null = null;
   private readonly ground: THREE.MeshStandardMaterial;
+  private detail!: {
+    bankAR: { value: THREE.DataArrayTexture };
+    bankN: { value: THREE.DataArrayTexture };
+    detailMean: { value: number };
+    detailOn: { value: number };
+  };
   private az = 0;
   private el = 5;
   private listeners = new Set<(s: GroundViewState) => void>();
@@ -161,82 +218,101 @@ export class GroundView {
   }
 
   /**
-   * Ground material: large-scale colour from the vertex colours (real colour mosaic) × an
-   * ILLUSTRATIVE regolith detail texture sampled at three scales (4 m, ≈ 48 m, ≈ 560 m repeats,
-   * offset so the tiling is not visible). PBR set from the same procedural patch: normal map
-   * (from its height: grain and small craters catch the grazing Sun), roughness map (0.85–1,
-   * matte regolith) and metalness 0 (regolith is a non-metal, so no metalness map).
+   * Ground material: large-scale colour from the vertex colours (real colour mosaic) × close-up
+   * detail from the Wang tile bank (wangBank.ts, ILLUSTRATIVE), assembled in the shader: each
+   * cell of the 4 m grid takes the tile whose edge colours match hashes of its four edges, so
+   * neighbours always connect and nothing repeats periodically. Sampled at three scales (4 m,
+   * ≈ 48 m, ≈ 560 m) for albedo; normal and roughness at 4 m. Metalness 0 (regolith is a
+   * non-metal). Fine albedo and normals fade where a pixel covers ≳ 1 m (no far-field shimmer).
+   * Until the bank arrives from its worker, the ground is plain (detailOn = 0).
    */
   private makeGroundMaterial(): THREE.MeshStandardMaterial {
-    const { size, height, albedo, roughness } = regolithFields(1024, 7);
-    const rgba = new Uint8Array(size * size * 4);
-    const nrm = new Uint8Array(size * size * 4);
-    const rgh = new Uint8Array(size * size * 4);
-    // Slope gain: the patch spans DETAIL_PERIOD_M (4 m) over 1024 px; heights are ~[0, 1].
-    const normals = normalsFromHeight(height, size, 90);
-    let mean = 0;
-    for (let i = 0; i < albedo.length; i++) {
-      const a = Math.max(0, Math.min(1, albedo[i] / 1.4));
-      mean += srgbToLinear(a); // the shader multiplies decoded (linear) values
-      // Neutral grey: the (real) colour mosaic carries the tint.
-      rgba[4 * i] = rgba[4 * i + 1] = rgba[4 * i + 2] = 255 * a;
-      rgba[4 * i + 3] = 255;
-      nrm[4 * i] = 255 * normals[3 * i];
-      nrm[4 * i + 1] = 255 * normals[3 * i + 1];
-      nrm[4 * i + 2] = 255 * normals[3 * i + 2];
-      nrm[4 * i + 3] = 255;
-      // three reads roughness from the G channel.
-      rgh[4 * i] = rgh[4 * i + 1] = rgh[4 * i + 2] = 255 * roughness[i];
-      rgh[4 * i + 3] = 255;
-    }
-    mean /= albedo.length;
-    const tex = (data: Uint8Array, srgb: boolean) => {
-      const t = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
-      t.wrapS = t.wrapT = THREE.RepeatWrapping;
-      t.magFilter = THREE.LinearFilter;
-      t.minFilter = THREE.LinearMipmapLinearFilter;
-      t.generateMipmaps = true;
-      t.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
-      if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+    const placeholder = new THREE.DataArrayTexture(new Uint8Array([255, 255, 255, 255]), 1, 1, 1);
+    placeholder.needsUpdate = true;
+    this.textures.push(placeholder);
+    this.detail = {
+      bankAR: { value: placeholder },
+      bankN: { value: placeholder },
+      detailMean: { value: 1 },
+      detailOn: { value: 0 },
+    };
+    // 1×1 stand-ins only switch on three's map / normal-map / roughness-map shader paths (and
+    // their UV varyings); the patched shader samples the tile bank instead.
+    const stand = () => {
+      const t = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
       t.needsUpdate = true;
       this.textures.push(t);
       return t;
     };
     const m = new THREE.MeshStandardMaterial({
       color: 0x9a9a9a,
-      map: tex(rgba, true),
-      normalMap: tex(nrm, false),
-      normalScale: new THREE.Vector2(1, 1),
-      roughnessMap: tex(rgh, false),
-      roughness: 1, // multiplied by the map
+      map: stand(),
+      normalMap: stand(),
+      roughnessMap: stand(),
+      roughness: 1, // multiplied by the bank's roughness
       metalness: 0, // non-metal: no metalness map
       side: THREE.DoubleSide,
     });
-    // Three scales of the same patch, each pulled toward the mean (softer contrast, fine scale
-    // strongest) and normalised so the average brightness is unchanged. The finest scale is
-    // blended with a rotated copy through a low-frequency mask (hides the 4 m repeat), and the
-    // fine albedo and the normal map fade out where one pixel covers ≳ 1 m (no far-field shimmer).
     m.onBeforeCompile = (shader) => {
-      shader.uniforms.detailMean = { value: mean };
-      shader.fragmentShader = shader.fragmentShader
-        .replace("#include <map_pars_fragment>", "#include <map_pars_fragment>\nuniform float detailMean;")
-        .replace("mapN.xy *= normalScale;", "mapN.xy *= normalScale * clamp( 1.0 - 4.0 * length( fwidth( vNormalMapUv ) ), 0.0, 1.0 );")
-        .replace(
+      Object.assign(shader.uniforms, this.detail);
+      shader.fragmentShader = patch(
+        shader.fragmentShader,
+        ["#include <map_pars_fragment>", `#include <map_pars_fragment>\n${WANG_GLSL}`],
+        [
           "#include <map_fragment>",
           `#ifdef USE_MAP
-            float fine = clamp( 1.0 - 4.0 * length( fwidth( vMapUv ) ), 0.0, 1.0 );
-            vec2 uvR = mat2( 0.8, -0.6, 0.6, 0.8 ) * vMapUv * 1.37 + vec2( 0.21, 0.53 );
-            float w = smoothstep( 0.35, 0.65, texture2D( map, vMapUv * 0.031 + vec2( 0.5, 0.17 ) ).g / ( 2.0 * detailMean ) );
-            vec3 a1 = mix( texture2D( map, vMapUv ).rgb, texture2D( map, uvR ).rgb, w );
-            vec3 d1 = mix( vec3( detailMean ), a1, 0.7 * fine );
-            vec3 d2 = mix( vec3( detailMean ), texture2D( map, vMapUv * 0.083 + vec2( 0.37, 0.71 ) ).rgb, 0.45 );
-            vec3 d3 = mix( vec3( detailMean ), texture2D( map, vMapUv * 0.0071 + vec2( 0.13, 0.29 ) ).rgb, 0.35 );
+            float fine = clamp( 1.0 - 4.0 * length( fwidth( vMapUv ) ), 0.0, 1.0 ) * detailOn;
+            vec3 d1 = mix( vec3( detailMean ), wangSample( bankAR, vMapUv, 0u ).rgb, 0.7 * fine );
+            vec3 d2 = mix( vec3( detailMean ), wangSample( bankAR, vMapUv * 0.083 + vec2( 0.37, 0.71 ), 101u ).rgb, 0.45 * detailOn );
+            vec3 d3 = mix( vec3( detailMean ), wangSample( bankAR, vMapUv * 0.0071 + vec2( 0.13, 0.29 ), 211u ).rgb, 0.35 * detailOn );
             diffuseColor.rgb *= d1 * d2 * d3 / ( detailMean * detailMean * detailMean );
           #endif`,
-        );
+        ],
+        // onBeforeCompile sees "#include <chunk>" lines, not their code: inline the chunk, patched.
+        [
+          "#include <normal_fragment_maps>",
+          patch(
+            THREE.ShaderChunk.normal_fragment_maps,
+            [
+              "vec3 mapN = texture2D( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0;",
+              "vec3 mapN = mix( vec3( 0.5, 0.5, 1.0 ), wangSample( bankN, vNormalMapUv, 0u ).xyz, detailOn ) * 2.0 - 1.0;",
+            ],
+            ["mapN.xy *= normalScale;", "mapN.xy *= normalScale * clamp( 1.0 - 4.0 * length( fwidth( vNormalMapUv ) ), 0.0, 1.0 );"],
+          ),
+        ],
+        [
+          "#include <roughnessmap_fragment>",
+          patch(THREE.ShaderChunk.roughnessmap_fragment, [
+            "vec4 texelRoughness = texture2D( roughnessMap, vRoughnessMapUv );",
+            "vec4 texelRoughness = vec4( 1.0, mix( 1.0, wangSample( bankAR, vRoughnessMapUv, 0u ).a, detailOn ), 1.0, 1.0 );",
+          ]),
+        ],
+      );
     };
-    m.customProgramCacheKey = () => "ground-regolith";
+    m.customProgramCacheKey = () => "ground-wang";
+    loadWangBank()
+      .then((bank) => this.applyBank(bank))
+      .catch((e) => console.warn("Regolith tile bank unavailable, plain ground:", e));
     return m;
+  }
+
+  private applyBank(bank: WangBank): void {
+    if (!this.renderer.domElement.isConnected) return; // view disposed meanwhile
+    const arr = (data: Uint8Array, srgb: boolean) => {
+      const t = new THREE.DataArrayTexture(data, bank.size, bank.size, WANG_LAYERS);
+      t.magFilter = THREE.LinearFilter;
+      t.minFilter = THREE.LinearMipmapLinearFilter;
+      t.generateMipmaps = true;
+      t.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+      if (srgb) t.colorSpace = THREE.SRGBColorSpace; // RGB albedo decoded to linear; alpha (roughness) untouched
+      t.needsUpdate = true;
+      this.textures.push(t);
+      return t;
+    };
+    this.detail.bankAR.value = arr(bank.albedoRough, true);
+    this.detail.bankN.value = arr(bank.normal, false);
+    this.detail.detailMean.value = bank.meanLinear;
+    this.detail.detailOn.value = 1;
   }
 
   /** Visual-aid fill light on/off (off = only the Sun lights the terrain, as on the Moon). */
