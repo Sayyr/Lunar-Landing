@@ -4,11 +4,11 @@
 import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import { sunClearsTerrain } from "./groundAuto";
-import { buildGroundTerrain, type ColorSource, DEFAULT_GROUND, type GroundTerrain, horizonAt, type TerrainSource } from "./groundTerrain";
+import { buildGroundTerrain, type ColorSource, DEFAULT_GROUND, type GroundTerrain, horizonAt, ringSpacingPerMetre, type TerrainSource } from "./groundTerrain";
 import { type GroundSky, GroundView, type GroundViewState } from "./groundView";
 import type { Heightmap } from "./heightmap";
 import { DATA_BASE, loadJson } from "./loaders";
-import { POLAR_PLAN, PolarDem, polarLevelFor, type PolarManifest, SITE_PLAN } from "./polarDem";
+import { PolarDem, type PolarManifest } from "./polarDem";
 import type { AzEl } from "./skyGeometry";
 
 // High-resolution south-polar DEM (scripts/setup-polar-dem.sh), shared by every ground view of the
@@ -29,20 +29,27 @@ const loadSites = () =>
     )
     .catch(() => []));
 
+/** Mesh sample spacing per metre of distance, and how far the 20 m pyramid is used. */
+const SPACING = ringSpacingPerMetre(DEFAULT_GROUND);
+const POLAR_MAX_M = 150_000;
+
 /**
- * Finest data first, by distance from the observer: 5 m site DEM (if the site has one), 20 m polar
- * DEM pyramid, then the global raster. A product is skipped where it has no data.
+ * Finest useful data first: at distance d the mesh samples every d × SPACING, so each product
+ * gives its level matching that spacing (prefiltered, no aliasing). The 5 m site DEM only while
+ * it is finer than the spacing allows; the polar pyramid's coarsest level out to POLAR_MAX_M;
+ * then the global raster. A product is skipped where it has no data.
  */
 function terrainSource(hm: Heightmap | null, polar: PolarDem | null, site: PolarDem | null): TerrainSource {
   if (!polar && !site) return hm;
-  const layers: [PolarDem, typeof POLAR_PLAN][] = [];
-  if (site) layers.push([site, SITE_PLAN]);
-  if (polar) layers.push([polar, POLAR_PLAN]);
   return (lat, lon, d) => {
-    for (const [dem, plan] of layers) {
-      const lv = polarLevelFor(d, plan);
-      if (lv < 0) continue;
-      const v = dem.sampleKm(lat, lon, lv);
+    const spacing = d * SPACING;
+    if (site) {
+      const l = site.levelForSpacing(spacing);
+      const v = l < site.manifest.levels.length ? site.sampleKm(lat, lon, l) : NaN;
+      if (Number.isFinite(v)) return v * 1000;
+    }
+    if (polar && d <= POLAR_MAX_M) {
+      const v = polar.sampleKm(lat, lon, Math.min(polar.levelForSpacing(spacing), polar.manifest.levels.length - 1));
       if (Number.isFinite(v)) return v * 1000;
     }
     return hm ? hm.sampleKmSmooth(lat, lon) * 1000 : 0;
@@ -172,6 +179,8 @@ export function GroundViewPanel(props: Props) {
   const [gps, setGps] = useState({ lat: String(siteLat), lon: String(siteLon) });
   useEffect(() => setGps({ lat: String(siteLat), lon: String(siteLon) }), [siteLat, siteLon]);
   const [fill, setFill] = useState(true);
+  // Rethrows an async failure (terrain build in a timer) during render, so GroundViewBoundary sees it.
+  const [, setCrash] = useState<never>();
   /** null: polar DEM not used here; otherwise its loading state for this site */
   const [polar, setPolar] = useState<{ dem: PolarDem; site: PolarDem | null; done: number; total: number; ready: boolean } | null>(null);
   const firstSky = useRef(true);
@@ -205,8 +214,10 @@ export function GroundViewPanel(props: Props) {
       };
       report();
       Promise.all([
-        dem.loadAround(siteLat, siteLon, POLAR_PLAN, (d, t) => ((progress.polar = [d, t]), report())),
-        site?.loadAround(siteLat, siteLon, SITE_PLAN, (d, t) => ((progress.site = [d, t]), report())),
+        dem.loadAround(siteLat, siteLon, dem.planFor(SPACING, POLAR_MAX_M), (d, t) => ((progress.polar = [d, t]), report())),
+        site?.loadAround(siteLat, siteLon, site.planFor(SPACING, (2 * site.manifest.levels.at(-1)!.scale_m) / SPACING), (d, t) => (
+          (progress.site = [d, t]), report()
+        )),
       ]).then(() => !stale && setPolar((p) => (p ? { ...p, ready: true } : p)));
     });
     return () => {
@@ -220,10 +231,16 @@ export function GroundViewPanel(props: Props) {
   useEffect(() => {
     if (!view) return;
     const id = setTimeout(() => {
-      const t = buildGroundTerrain(terrainSource(heightmap, polarReady, siteReady), siteLat, siteLon, observerHeightM, DEFAULT_GROUND, colorSourceFrom(colorImage));
-      view.setTerrain(t);
-      setTerrain({ t, lat: siteLat, lon: siteLon });
-      setSiteElevationM(heightmap || polarReady ? t.siteElevationM : null);
+      try {
+        const t = buildGroundTerrain(terrainSource(heightmap, polarReady, siteReady), siteLat, siteLon, observerHeightM, DEFAULT_GROUND, colorSourceFrom(colorImage));
+        view.setTerrain(t);
+        setTerrain({ t, lat: siteLat, lon: siteLon });
+        setSiteElevationM(heightmap || polarReady ? t.siteElevationM : null);
+      } catch (e) {
+        setCrash(() => {
+          throw e;
+        });
+      }
     }, 150);
     return () => clearTimeout(id);
   }, [view, heightmap, colorImage, polarReady, siteReady, siteLat, siteLon, observerHeightM, demVersion]);
@@ -242,17 +259,37 @@ export function GroundViewPanel(props: Props) {
   useEffect(() => view?.setFill(fill), [view, fill]);
 
   /** Move the time bar to the next scenario time when the whole Sun clears the true terrain. */
+  /** Terrain of the CURRENT site only (a rebuild is debounced after the site moves). */
+  const current = terrain && terrain.lat === siteLat && terrain.lon === siteLon ? terrain.t : null;
+
+  // A search belongs to one site: moving the site cancels it (and clears its message).
+  const searchId = useRef(0);
+  const [searching, setSearching] = useState(false);
+  useEffect(() => {
+    searchId.current++;
+    setSearching(false);
+    setSunSearch(null);
+  }, [siteLat, siteLon]);
+
   const nextSunlit = async () => {
-    if (!terrain) return;
+    if (!current || searching) return;
+    const id = ++searchId.current;
+    setSearching(true);
     setSunSearch("searching…");
     const step = Math.max(1, stepMinutes);
-    for (let m = Math.floor(tMin / step) * step + step; m <= spanMin; m += step) {
-      if (sunClearsTerrain(await sunAt(m, siteLat, siteLon), terrain.t)) {
-        setTime(m);
-        return setSunSearch(`Sun clears the terrain at +${(m / 60).toFixed(1)} h`);
+    try {
+      for (let m = Math.floor(tMin / step) * step + step; m <= spanMin; m += step) {
+        const sun = await sunAt(m, siteLat, siteLon);
+        if (id !== searchId.current) return; // site moved: stale search
+        if (sunClearsTerrain(sun, current)) {
+          setTime(m);
+          return setSunSearch(`Sun clears the terrain at +${(m / 60).toFixed(1)} h`);
+        }
       }
+      setSunSearch("the Sun does not clear the terrain here for the rest of the scenario");
+    } finally {
+      if (id === searchId.current) setSearching(false);
     }
-    setSunSearch("the Sun does not clear the terrain here for the rest of the scenario");
   };
 
   /** Go to a GPS point (planetocentric lat, east-positive lon in degrees). */
@@ -269,7 +306,8 @@ export function GroundViewPanel(props: Props) {
   /** "visible / hidden by terrain" from the rendered terrain's horizon in the body's direction. */
   const status = (name: string, v?: AzEl) => {
     if (!v) return null;
-    const h = terrain ? horizonAt(terrain.t, v.azimuthDeg) : 0;
+    if (!current) return `${name}: updating terrain…`;
+    const h = horizonAt(current, v.azimuthDeg);
     const margin = v.elevationDeg - h;
     const verdict = margin > 0 ? `visible, ${margin.toFixed(1)}° above the terrain` : `hidden by terrain (${(-margin).toFixed(1)}° below it)`;
     return `${name} el ${v.elevationDeg.toFixed(1)}° · terrain horizon ${h.toFixed(1)}° at az ${v.azimuthDeg.toFixed(0)}° → ${verdict}`;
@@ -297,13 +335,14 @@ export function GroundViewPanel(props: Props) {
         <div className="ground-note">
           {polar?.ready && polar.site && (
             <>
-              LOLA 5 m site DEM ({polar.site.manifest.source}, PGDA) — 5 m to 3 km, 10 m to 8 km · then{" "}
+              LOLA 5 m site DEM ({polar.site.manifest.source}, PGDA) near the observer · then{" "}
             </>
           )}
           {polar?.ready ? (
             <>
-              Terrain: LOLA 20 m polar DEM ({polar.dem.manifest.source}, {polar.dem.manifest.frame}) — 20 m to 6 km, 40 m to 25 km,
-              80 m to 80 km, 160 m to 150 km — then {heightmap?.label ?? "—"} to 400 km, true scale with curvature
+              Terrain: LOLA 20 m polar DEM ({polar.dem.manifest.source}, {polar.dem.manifest.frame}) to{" "}
+              {POLAR_MAX_M / 1000} km, each distance at the resolution matching the mesh spacing — then {heightmap?.label ?? "—"} to 400 km,
+              true scale with curvature
             </>
           ) : polar ? (
             <>Loading {polar.site ? "5 m + 20 m" : "20 m"} polar relief around the site: {polar.done}/{polar.total} tiles… (meanwhile {heightmap?.label ?? "—"}, ≈ 1.9 km/px)</>
@@ -336,8 +375,8 @@ export function GroundViewPanel(props: Props) {
           </label>
           <button type="submit">Go</button>
         </form>
-        <button type="button" onClick={nextSunlit} disabled={!terrain || !sky}>
-          Next sunlit time
+        <button type="button" onClick={nextSunlit} disabled={!current || !sky || searching}>
+          {searching ? "Searching…" : "Next sunlit time"}
         </button>
         <button type="button" onClick={() => setFill((f) => !f)} aria-pressed={fill} title="Sky-like fill light so shadowed relief stays readable (not physical)">
           Fill light: {fill ? "on" : "off"}

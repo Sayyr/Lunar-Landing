@@ -253,41 +253,44 @@ export class GroundView {
       metalness: 0, // non-metal: no metalness map
       side: THREE.DoubleSide,
     });
+    // Patched once, here (during construction): if three's chunks ever change, the error is
+    // thrown while the view mounts — where GroundViewBoundary catches it — not every frame.
+    const fragmentShader = patch(
+      THREE.ShaderLib.standard.fragmentShader,
+      ["#include <map_pars_fragment>", `#include <map_pars_fragment>\n${WANG_GLSL}`],
+      [
+        "#include <map_fragment>",
+        `#ifdef USE_MAP
+          float fine = clamp( 1.0 - 4.0 * length( fwidth( vMapUv ) ), 0.0, 1.0 ) * detailOn;
+          vec3 d1 = mix( vec3( detailMean ), wangSample( bankAR, vMapUv, 0u ).rgb, 0.7 * fine );
+          vec3 d2 = mix( vec3( detailMean ), wangSample( bankAR, vMapUv * 0.083 + vec2( 0.37, 0.71 ), 101u ).rgb, 0.45 * detailOn );
+          vec3 d3 = mix( vec3( detailMean ), wangSample( bankAR, vMapUv * 0.0071 + vec2( 0.13, 0.29 ), 211u ).rgb, 0.35 * detailOn );
+          diffuseColor.rgb *= d1 * d2 * d3 / ( detailMean * detailMean * detailMean );
+        #endif`,
+      ],
+      // onBeforeCompile sees "#include <chunk>" lines, not their code: inline the chunk, patched.
+      [
+        "#include <normal_fragment_maps>",
+        patch(
+          THREE.ShaderChunk.normal_fragment_maps,
+          [
+            "vec3 mapN = texture2D( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0;",
+            "vec3 mapN = mix( vec3( 0.5, 0.5, 1.0 ), wangSample( bankN, vNormalMapUv, 0u ).xyz, detailOn ) * 2.0 - 1.0;",
+          ],
+          ["mapN.xy *= normalScale;", "mapN.xy *= normalScale * clamp( 1.0 - 4.0 * length( fwidth( vNormalMapUv ) ), 0.0, 1.0 );"],
+        ),
+      ],
+      [
+        "#include <roughnessmap_fragment>",
+        patch(THREE.ShaderChunk.roughnessmap_fragment, [
+          "vec4 texelRoughness = texture2D( roughnessMap, vRoughnessMapUv );",
+          "vec4 texelRoughness = vec4( 1.0, mix( 1.0, wangSample( bankAR, vRoughnessMapUv, 0u ).a, detailOn ), 1.0, 1.0 );",
+        ]),
+      ],
+    );
     m.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, this.detail);
-      shader.fragmentShader = patch(
-        shader.fragmentShader,
-        ["#include <map_pars_fragment>", `#include <map_pars_fragment>\n${WANG_GLSL}`],
-        [
-          "#include <map_fragment>",
-          `#ifdef USE_MAP
-            float fine = clamp( 1.0 - 4.0 * length( fwidth( vMapUv ) ), 0.0, 1.0 ) * detailOn;
-            vec3 d1 = mix( vec3( detailMean ), wangSample( bankAR, vMapUv, 0u ).rgb, 0.7 * fine );
-            vec3 d2 = mix( vec3( detailMean ), wangSample( bankAR, vMapUv * 0.083 + vec2( 0.37, 0.71 ), 101u ).rgb, 0.45 * detailOn );
-            vec3 d3 = mix( vec3( detailMean ), wangSample( bankAR, vMapUv * 0.0071 + vec2( 0.13, 0.29 ), 211u ).rgb, 0.35 * detailOn );
-            diffuseColor.rgb *= d1 * d2 * d3 / ( detailMean * detailMean * detailMean );
-          #endif`,
-        ],
-        // onBeforeCompile sees "#include <chunk>" lines, not their code: inline the chunk, patched.
-        [
-          "#include <normal_fragment_maps>",
-          patch(
-            THREE.ShaderChunk.normal_fragment_maps,
-            [
-              "vec3 mapN = texture2D( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0;",
-              "vec3 mapN = mix( vec3( 0.5, 0.5, 1.0 ), wangSample( bankN, vNormalMapUv, 0u ).xyz, detailOn ) * 2.0 - 1.0;",
-            ],
-            ["mapN.xy *= normalScale;", "mapN.xy *= normalScale * clamp( 1.0 - 4.0 * length( fwidth( vNormalMapUv ) ), 0.0, 1.0 );"],
-          ),
-        ],
-        [
-          "#include <roughnessmap_fragment>",
-          patch(THREE.ShaderChunk.roughnessmap_fragment, [
-            "vec4 texelRoughness = texture2D( roughnessMap, vRoughnessMapUv );",
-            "vec4 texelRoughness = vec4( 1.0, mix( 1.0, wangSample( bankAR, vRoughnessMapUv, 0u ).a, detailOn ), 1.0, 1.0 );",
-          ]),
-        ],
-      );
+      shader.fragmentShader = fragmentShader;
     };
     m.customProgramCacheKey = () => "ground-wang";
     loadWangBank()

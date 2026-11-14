@@ -26,7 +26,14 @@ export interface GroundTerrainOptions {
   maxDistanceM: number;
 }
 
-export const DEFAULT_GROUND: GroundTerrainOptions = { bearings: 1080, rings: 220, minDistanceM: 5, maxDistanceM: 400_000 };
+export const DEFAULT_GROUND: GroundTerrainOptions = { bearings: 900, rings: 360, minDistanceM: 5, maxDistanceM: 400_000 };
+
+/**
+ * Radial gap between consecutive rings per metre of distance (rings are geometric): the terrain
+ * is sampled every d × this, so data finer than that is wasted (and aliases).
+ */
+export const ringSpacingPerMetre = (opt: GroundTerrainOptions = DEFAULT_GROUND) =>
+  (opt.maxDistanceM / opt.minDistanceM) ** (1 / (opt.rings - 1)) - 1;
 
 /**
  * Where elevations come from: the global raster (bicubic), nothing (smooth sphere), or a custom

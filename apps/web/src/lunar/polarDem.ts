@@ -51,6 +51,7 @@ export class PolarDem {
   // Numeric key (level, row, col) → tile; null = missing/failed. Numeric keys keep the 16 look-ups
   // per bicubic sample cheap (hundreds of thousands of samples per terrain build).
   private readonly tiles = new Map<number, Tile | null>();
+  private readonly pending = new Map<number, Promise<void>>();
   private static key = (level: number, row: number, col: number) => (level * 4096 + row) * 4096 + col;
   constructor(
     readonly manifest: PolarManifest,
@@ -66,7 +67,9 @@ export class PolarDem {
 
   /**
    * Loads every tile needed to sample within `radiusM` of the site at each given level.
-   * `onProgress(done, total)` after each tile. Already-loaded tiles are not fetched again.
+   * `onProgress(done, total)` after each tile. Tiles already loaded or being fetched are not
+   * requested again; a 404 marks a tile absent (outside the data), any other failure is left
+   * unmarked so a later call retries it.
    */
   async loadAround(
     latDeg: number,
@@ -77,7 +80,7 @@ export class PolarDem {
   ): Promise<void> {
     const { line, sample } = polarPixel(this.manifest, latDeg, lonDeg);
     const T = this.manifest.tile;
-    const keys: string[] = [];
+    const wanted: [number, number, number][] = [];
     for (const { level, radiusM } of plan) {
       const L = this.manifest.levels[level];
       if (!L) continue;
@@ -85,33 +88,67 @@ export class PolarDem {
       const l = toLevel(line, level);
       const s = toLevel(sample, level);
       for (let row = Math.max(0, Math.floor((l - r) / T)); row <= Math.min(L.rows - 1, Math.floor((l + r) / T)); row++)
-        for (let col = Math.max(0, Math.floor((s - r) / T)); col <= Math.min(L.cols - 1, Math.floor((s + r) / T)); col++) {
-          if (!this.tiles.has(PolarDem.key(level, row, col))) keys.push(`${level}/${row}_${col}`);
-        }
+        for (let col = Math.max(0, Math.floor((s - r) / T)); col <= Math.min(L.cols - 1, Math.floor((s + r) / T)); col++)
+          if (!this.tiles.has(PolarDem.key(level, row, col))) wanted.push([level, row, col]);
     }
     let done = 0;
     let next = 0;
-    onProgress?.(0, keys.length);
+    onProgress?.(0, wanted.length);
     const worker = async () => {
-      while (next < keys.length) {
-        const k = keys[next++];
-        const [lv, rc] = k.split("/");
-        const [row, col] = rc.split("_").map(Number);
-        const nk = PolarDem.key(Number(lv), row, col);
-        try {
-          const res = await fetch(`${this.base}L${lv}/${rc}.u16`);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const buf = await res.arrayBuffer();
-          if (buf.byteLength !== 8 + T * T * 2) throw new Error("unexpected size");
-          const head = new DataView(buf, 0, 8);
-          this.tiles.set(nk, { offset: head.getFloat32(0, true), step: head.getFloat32(4, true), values: new Uint16Array(buf, 8) });
-        } catch {
-          this.tiles.set(nk, null); // e.g. a tile outside the data (not written by the tiler)
-        }
-        onProgress?.(++done, keys.length);
+      while (next < wanted.length) {
+        const [lv, row, col] = wanted[next++];
+        await this.fetchTile(lv, row, col);
+        onProgress?.(++done, wanted.length);
       }
     };
     await Promise.all(Array.from({ length: concurrency }, worker));
+  }
+
+  /** One tile, shared by concurrent callers. */
+  private fetchTile(level: number, row: number, col: number): Promise<void> {
+    const k = PolarDem.key(level, row, col);
+    let p = this.pending.get(k);
+    if (p) return p;
+    const T = this.manifest.tile;
+    p = (async () => {
+      try {
+        const res = await fetch(`${this.base}L${level}/${row}_${col}.u16`);
+        if (res.status === 404) return void this.tiles.set(k, null); // not written by the tiler: no data there
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const buf = await res.arrayBuffer();
+        if (buf.byteLength !== 8 + T * T * 2) throw new Error("unexpected size");
+        const head = new DataView(buf, 0, 8);
+        this.tiles.set(k, { offset: head.getFloat32(0, true), step: head.getFloat32(4, true), values: new Uint16Array(buf, 8) });
+      } catch (e) {
+        console.warn(`polar DEM tile L${level}/${row}_${col} not loaded (will retry):`, e);
+      } finally {
+        this.pending.delete(k);
+      }
+    })();
+    this.pending.set(k, p);
+    return p;
+  }
+
+  /**
+   * Level whose pixel matches a terrain sample spacing (the coarsest level with pixel ≤ spacing):
+   * prefiltered data instead of point-sampling a finer grid. Returns levels.length when the
+   * spacing is coarser than twice the coarsest level (the product adds nothing there).
+   */
+  levelForSpacing(spacingM: number): number {
+    const p0 = this.manifest.levels[0].scale_m;
+    const l = Math.max(0, Math.floor(Math.log2(spacingM / p0)));
+    return Math.min(l, this.manifest.levels.length);
+  }
+
+  /**
+   * Download plan for a mesh whose sample spacing grows as spacingAt(d): each level out to the
+   * distance where the spacing reaches twice its pixel; the coarsest level out to maxDistanceM.
+   */
+  planFor(spacingPerMetre: number, maxDistanceM: number): { level: number; radiusM: number }[] {
+    return this.manifest.levels.map((L, i, all) => ({
+      level: L.level,
+      radiusM: i === all.length - 1 ? maxDistanceM : Math.min(maxDistanceM, (2 * L.scale_m) / spacingPerMetre),
+    }));
   }
 
   /** Height (km) of one level pixel, NaN if missing / no data / not loaded. */
@@ -148,24 +185,4 @@ export class PolarDem {
   get tileCount(): number {
     return [...this.tiles.values()].filter(Boolean).length;
   }
-}
-
-/** Resolution plan around a site: finest data near the observer, coarser further out. */
-export const POLAR_PLAN = [
-  { level: 0, radiusM: 6_000 },
-  { level: 1, radiusM: 25_000 },
-  { level: 2, radiusM: 80_000 },
-  { level: 3, radiusM: 150_000 },
-];
-
-/** PGDA 5 m site DEMs (scripts/setup-polar-dem.sh): 5 m near the observer, 10 m further. */
-export const SITE_PLAN = [
-  { level: 0, radiusM: 3_000 },
-  { level: 1, radiusM: 8_000 },
-];
-
-/** Level to use for a terrain vertex at `distanceM` from the observer (−1 = beyond the plan). */
-export function polarLevelFor(distanceM: number, plan = POLAR_PLAN): number {
-  for (const p of plan) if (distanceM <= p.radiusM) return p.level;
-  return -1;
 }

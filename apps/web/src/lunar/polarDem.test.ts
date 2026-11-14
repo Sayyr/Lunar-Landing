@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { PolarDem, polarLevelFor, type PolarManifest, polarPixel, SITE_PLAN, toLevel } from "./polarDem";
+import { PolarDem, type PolarManifest, polarPixel, toLevel } from "./polarDem";
 
 // Projection of LDEM_85S_20M as written by scripts/tile_polar_dem.py (signs validated there).
 const real: PolarManifest = {
@@ -75,18 +75,23 @@ describe("PolarDem sampling", () => {
   });
 });
 
-describe("polarLevelFor", () => {
-  it("finest near the observer, none beyond the plan", () => {
-    expect(polarLevelFor(100)).toBe(0);
-    expect(polarLevelFor(10_000)).toBe(1);
-    expect(polarLevelFor(50_000)).toBe(2);
-    expect(polarLevelFor(120_000)).toBe(3);
-    expect(polarLevelFor(300_000)).toBe(-1);
+describe("level selection by mesh spacing", () => {
+  const four: PolarManifest = { ...real, levels: [0, 1, 2, 3].map((l) => ({ level: l, scale_m: 20 * 2 ** l, lines: 10, samples: 10, rows: 1, cols: 1 })) };
+  const dem = new PolarDem(four, "/x/");
+
+  it("coarsest level whose pixel is ≤ the spacing; past the pyramid → levels.length", () => {
+    expect(dem.levelForSpacing(5)).toBe(0);
+    expect(dem.levelForSpacing(39)).toBe(0);
+    expect(dem.levelForSpacing(40)).toBe(1);
+    expect(dem.levelForSpacing(170)).toBe(3);
+    expect(dem.levelForSpacing(1000)).toBe(4);
   });
 
-  it("site plan: 5 m up to 3 km, 10 m to 8 km, then none (the 20 m product takes over)", () => {
-    expect(polarLevelFor(2_000, SITE_PLAN)).toBe(0);
-    expect(polarLevelFor(5_000, SITE_PLAN)).toBe(1);
-    expect(polarLevelFor(9_000, SITE_PLAN)).toBe(-1);
+  it("download plan stops each level where the spacing reaches twice its pixel", () => {
+    const plan = dem.planFor(0.032, 150_000); // 3.2 % ring spacing
+    expect(plan.map((p) => p.level)).toEqual([0, 1, 2, 3]);
+    expect(plan[0].radiusM).toBeCloseTo(40 / 0.032);
+    expect(plan[2].radiusM).toBeCloseTo(160 / 0.032);
+    expect(plan[3].radiusM).toBe(150_000);
   });
 });
