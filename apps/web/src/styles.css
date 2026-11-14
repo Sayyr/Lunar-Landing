@@ -25,9 +25,6 @@ h4 { margin: 0.8rem 0 0.3rem; font-size: 0.85rem; color: var(--muted); }
 .app { min-height: 100vh; display: flex; flex-direction: column; }
 .top { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;
   padding: 1rem 1.25rem; border-bottom: 1px solid var(--line); }
-.layout { flex: 1; display: grid; grid-template-columns: minmax(320px, 1fr) minmax(360px, 560px); gap: 1rem; padding: 1rem 1.25rem; }
-@media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
-.foot { padding: 0.75rem 1.25rem; color: var(--muted); font-size: 0.8rem; border-top: 1px solid var(--line); }
 /* Scenario view: the Moon fills everything under the header (no framed window). */
 .app:has(.scenario-main:not([hidden])) { height: 100vh; min-height: 0; overflow: hidden; }
 .scenario-main { flex: 1; min-height: 0; display: flex; }
@@ -45,7 +42,6 @@ h4 { margin: 0.8rem 0 0.3rem; font-size: 0.85rem; color: var(--muted); }
 
 .caption { font-size: 0.78rem; color: var(--muted); margin: 0; padding: 0.5rem 0.75rem; }
 
-.side { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
 .form, .result { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1rem; }
 .form label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.8rem; color: var(--muted); }
 .form input, .form select { background: var(--bg); color: var(--text); border: 1px solid var(--line);
