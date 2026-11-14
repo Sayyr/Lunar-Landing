@@ -169,6 +169,8 @@ export function GroundViewPanel(props: Props) {
   const [terrain, setTerrain] = useState<{ t: GroundTerrain; lat: number; lon: number } | null>(null);
   const [auto, setAuto] = useState<AutoPlace>({ phase: "check", moved: false, notes: [] });
   const [fill, setFill] = useState(true);
+  /** VISUAL relief exaggeration of the displayed terrain; status and auto-placement use ×1. */
+  const [exag, setExag] = useState(1);
   /** null: polar DEM not used here; otherwise its loading state for this site */
   const [polar, setPolar] = useState<{ dem: PolarDem; done: number; total: number; ready: boolean } | null>(null);
   const firstSky = useRef(true);
@@ -208,13 +210,16 @@ export function GroundViewPanel(props: Props) {
   useEffect(() => {
     if (!view) return;
     const id = setTimeout(() => {
-      const t = buildGroundTerrain(terrainSource(heightmap, polarReady), siteLat, siteLon, observerHeightM, DEFAULT_GROUND, colorSourceFrom(colorImage));
-      view.setTerrain(t);
+      const src = terrainSource(heightmap, polarReady);
+      const colors = colorSourceFrom(colorImage);
+      const t = buildGroundTerrain(src, siteLat, siteLon, observerHeightM, DEFAULT_GROUND, colors);
+      // Shown mesh may be exaggerated; the true one (t) drives visibility and placement.
+      view.setTerrain(exag === 1 ? t : buildGroundTerrain(src, siteLat, siteLon, observerHeightM, DEFAULT_GROUND, colors, exag));
       setTerrain({ t, lat: siteLat, lon: siteLon });
       setSiteElevationM(heightmap || polarReady ? t.siteElevationM : null);
     }, 150);
     return () => clearTimeout(id);
-  }, [view, heightmap, colorImage, polarReady, siteLat, siteLon, observerHeightM, demVersion]);
+  }, [view, heightmap, colorImage, polarReady, siteLat, siteLon, observerHeightM, demVersion, exag]);
 
   useEffect(() => {
     if (!view) return;
@@ -337,6 +342,7 @@ export function GroundViewPanel(props: Props) {
           · cast shadows (GPU, ±30 km around the line to the Sun) · colour:{" "}
           {colorImage ? "LROC WAC mosaic (≈ 2.7 km/px, real)" : "uniform"} × regolith grain, small craters, normal &amp; roughness maps
           (procedural, ILLUSTRATIVE — not data), metalness 0
+          {exag !== 1 && ` · RELIEF EXAGGERATED ×${exag} (visual only; Sun/Earth status uses true relief)`}
           {fill ? " · fill light ON (visual aid, not physical)" : " · Sun light only"} · terrain horizon read from the rendered mesh
           (estimate, not the science computation) · dashed line = ideal horizon 0° · drag to look, wheel to zoom
         </div>
@@ -348,6 +354,14 @@ export function GroundViewPanel(props: Props) {
         <button type="button" onClick={() => lookAt(sky?.earth)} disabled={!sky}>
           Look at Earth
         </button>
+        <div className="ground-exag" role="group" aria-label="Relief exaggeration (visual)">
+          Relief
+          {[1, 2, 4].map((k) => (
+            <button key={k} type="button" className={exag === k ? "active" : ""} aria-pressed={exag === k} onClick={() => setExag(k)}>
+              ×{k}
+            </button>
+          ))}
+        </div>
         <button type="button" onClick={() => setFill((f) => !f)} aria-pressed={fill} title="Sky-like fill light so shadowed relief stays readable (not physical)">
           Fill light: {fill ? "on" : "off"}
         </button>
