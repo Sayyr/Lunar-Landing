@@ -42,3 +42,7 @@ apps/web/dist/
 .idea/
 .DS_Store
 Thumbs.db
+
+# apps/moon-explorer : données téléchargées par setup.sh
+apps/moon-explorer/data/*
+!apps/moon-explorer/data/README.md

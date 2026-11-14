@@ -1,0 +1,14 @@
+# En-têtes Cloudflare Pages (https://developers.cloudflare.com/pages/configuration/headers/)
+/
+  Cache-Control: no-cache
+/js/*
+  Cache-Control: no-cache
+/css/*
+  Cache-Control: no-cache
+/data/*.tif
+  Cache-Control: public, max-age=31536000, immutable
+  Content-Type: image/tiff
+/data/*.jpg
+  Cache-Control: public, max-age=31536000, immutable
+/data/features.json
+  Cache-Control: public, max-age=86400
