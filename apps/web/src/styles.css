@@ -217,18 +217,23 @@ details ul { padding-left: 1.1rem; margin: 0.3rem 0; }
 }
 
 /* ---- Sky overlay: compass + scenario time (lunar view) ---- */
-.sky-overlay { position: absolute; left: 1.25rem; top: 60px; z-index: 5; width: min(300px, calc(100% - 70px));
+.sky-overlay { position: absolute; left: 1.25rem; top: 60px; z-index: 5; width: min(340px, calc(100% - 70px));
   text-shadow: 0 1px 3px #000; }
-.sky-compass { display: flex; align-items: center; gap: 10px; }
-.sky-compass svg { flex: none; }
+/* Compass: a disc lying on the site's horizon, rotated/tilted in 3D by LunarExplorer. */
+.sky-compass { display: flex; align-items: center; gap: 12px; }
+.sky-compass-stage { flex: none; width: 132px; height: 132px; perspective: 360px; }
+.sky-compass-disk { width: 100%; height: 100%; transform-style: preserve-3d; transition: transform 0.08s linear;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.7)); }
+.sky-compass-disk svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .sky-compass-read { font-size: 12px; font-variant-numeric: tabular-nums; line-height: 1.6; }
 .sky-compass-read .sun { color: #ffd400; }
-.sky-compass-read .earth { color: #1e90ff; }
+.sky-compass-read .earth { color: #4aa3ff; }
+.sky-compass-read small { color: var(--muted); font-size: 10px; }
+.sky-note { margin-top: 6px; font-size: 10.5px; color: var(--l-warn, #ffb347); }
 .sky-time { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
 .sky-time input[type="range"] { flex: 1; margin: 0; }
 .sky-time button { padding: 2px 8px; min-width: 32px; }
 .sky-time output { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.sky-note { margin-top: 6px; font-size: 10.5px; color: var(--l-warn, #ffb347); }
 .sky-view { display: flex; gap: 6px; margin-top: 6px; }
 .sky-view button { padding: 3px 8px; font-size: 12px; }
 /* "Sun / Earth this way" pointers pinned to the screen edge (positioned by LunarExplorer). */

@@ -202,7 +202,7 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
   const [tMin, setTMin] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [sky, setSky] = useState<{ sun: AzEl; earth: AzEl; synthetic: boolean } | null>(null);
-  const roseRef = useRef<SVGGElement>(null);
+  const diskRef = useRef<HTMLDivElement>(null);
   const sunPtrRef = useRef<HTMLDivElement>(null);
   const earthPtrRef = useRef<HTMLDivElement>(null);
   const [kmPerPx, setKmPerPx] = useState<number | null>(null);
@@ -404,14 +404,18 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
     return () => cancelAnimationFrame(raf);
   }, [playing, active, spanMin]);
 
-  // Compass rose follows the on-screen direction of north at the site.
+  // Compass disc lies on the site's horizon as seen by the camera: rotated to the on-screen north,
+  // tilted by how obliquely the site is viewed (CSS 3D, no React re-render).
   const hasSky = sky !== null;
   useEffect(() => {
     if (!globe || !hasSky) return;
     const update = () => {
+      const el = diskRef.current;
+      if (!el) return;
       const a = globe.northScreenAngle(siteLat, siteLon);
-      roseRef.current?.setAttribute("transform", `rotate(${a ?? 0} 50 50)`);
-      roseRef.current?.setAttribute("opacity", a == null ? "0.45" : "1"); // dimmed: site behind the camera plane
+      const tilt = globe.siteViewTilt(siteLat, siteLon);
+      el.style.transform = `rotateX(${tilt.toFixed(1)}deg) rotate(${(a ?? 0).toFixed(1)}deg)`;
+      el.style.opacity = a == null ? "0.45" : "1"; // dimmed: site behind the camera plane
     };
     update();
     return globe.onCameraChange(update);
@@ -520,7 +524,7 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
       )}
       {sky && (
         <div className="sky-overlay">
-          <SkyCompass sun={sky.sun} earth={sky.earth} roseRef={roseRef} />
+          <SkyCompass sun={sky.sun} earth={sky.earth} diskRef={diskRef} />
           <div className="sky-time">
             <button type="button" onClick={() => setPlaying((p) => !p)} aria-label={playing ? "Pause" : "Play"}>
               {playing ? "❚❚" : "▶"}
