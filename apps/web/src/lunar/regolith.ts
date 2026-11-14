@@ -94,29 +94,61 @@ export function regolithFields(size = 512, seed = 7): RegolithFields {
   const rough = periodicNoise(size, 12, rand);
   for (let i = 0; i < roughness.length; i++) roughness[i] = 0.88 + 0.12 * rough[i];
 
-  // Craters: power-law sizes (many small, few large), bowl + raised rim, wrapped at the edges.
-  const n = 70;
+  const wrapI = (x: number, y: number) => ((((Math.round(y) % size) + size) % size) * size + (((Math.round(x) % size) + size) % size));
+
+  // Craters: power-law sizes (many small, few large), bowl + raised rim. Each has an age:
+  // fresh = deep, sharp rim, bright halo and boulders; old = shallow, soft, rim worn down.
+  // Count scales with the patch area (same density at any resolution).
+  const n = Math.round(70 * (size / 512) ** 2);
+  const fresh: { cx: number; cy: number; r: number }[] = [];
   for (let k = 0; k < n; k++) {
-    const r = size * (0.012 + 0.09 * rand() ** 3); // radius in pixels
+    const r = size * (0.006 + 0.08 * rand() ** 3.2); // radius in pixels
     const cx = rand() * size;
     const cy = rand() * size;
-    const depth = 0.25 * (r / size) * 6;
-    const fresh = rand() < 0.15; // a few bright, fresh ones
-    const R = Math.ceil(r * 1.8);
+    const age = rand(); // 0 fresh … 1 degraded
+    const isFresh = age < 0.12;
+    const depth = 0.25 * (r / size) * 6 * (1 - 0.75 * age);
+    const rimSharp = 0.12 + 0.3 * age; // ejecta/rim width relative to r: wider = softer
+    const R = Math.ceil(r * 1.9);
+    if (isFresh) fresh.push({ cx, cy, r });
     for (let dy = -R; dy <= R; dy++)
       for (let dx = -R; dx <= R; dx++) {
         const d = Math.hypot(dx, dy) / r;
-        if (d > 1.8) continue;
-        const x = (((Math.round(cx + dx) % size) + size) % size);
-        const y = (((Math.round(cy + dy) % size) + size) % size);
-        const i = y * size + x;
+        if (d > 1.9) continue;
+        const i = wrapI(cx + dx, cy + dy);
         // Bowl inside (−), rim around d ≈ 1 (+), fading ejecta outside.
-        const h = d < 1 ? -depth * (1 - d * d) + 0.35 * depth * d ** 6 : 0.35 * depth * Math.exp(-(((d - 1) / 0.25) ** 2));
+        const rim = 0.35 * depth * (1 - 0.6 * age);
+        const h = d < 1 ? -depth * (1 - d * d) + rim * d ** 6 : rim * Math.exp(-(((d - 1) / rimSharp) ** 2));
         height[i] += h;
-        if (fresh && d < 1.8) {
-          albedo[i] += 0.18 * (1 - d / 1.8);
-          roughness[i] = Math.max(0.85, roughness[i] - 0.06 * (1 - d / 1.8));
+        if (isFresh) {
+          albedo[i] += 0.2 * Math.max(0, 1 - d / 1.9);
+          roughness[i] = Math.max(0.85, roughness[i] - 0.06 * Math.max(0, 1 - d / 1.9));
         }
+      }
+  }
+
+  // Boulders: small sharp bumps, mostly scattered around fresh craters, a few anywhere.
+  const nb = Math.round(500 * (size / 512) ** 2);
+  for (let k = 0; k < nb; k++) {
+    let bx = rand() * size;
+    let by = rand() * size;
+    if (fresh.length && rand() < 0.75) {
+      const c = fresh[Math.floor(rand() * fresh.length)];
+      const a = rand() * 2 * Math.PI;
+      const rr = c.r * (0.4 + 1.4 * rand());
+      bx = c.cx + rr * Math.cos(a);
+      by = c.cy + rr * Math.sin(a);
+    }
+    const br = 0.6 + 2.2 * rand() ** 2; // px
+    const bh = 0.012 * br * (0.6 + 0.8 * rand());
+    const R = Math.ceil(br * 2.2);
+    for (let dy = -R; dy <= R; dy++)
+      for (let dx = -R; dx <= R; dx++) {
+        const q = (dx * dx + dy * dy) / (br * br);
+        if (q > 4.8) continue;
+        const i = wrapI(bx + dx, by + dy);
+        height[i] += bh * Math.exp(-q);
+        albedo[i] += 0.06 * Math.exp(-q);
       }
   }
   return { size, height, albedo, roughness };
