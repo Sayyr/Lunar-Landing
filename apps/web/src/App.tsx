@@ -59,15 +59,11 @@ export function App() {
   return (
     <div className="app">
       <header className="top">
-        <div>
-          <h1>SELENE</h1>
-          <p className="subtitle">Lunar landing site &amp; date navigator — NASA Space Apps 2026 (prototype)</p>
-        </div>
+        <h1>SELENE</h1>
         <nav className="tabs" aria-label="Views">
           <a href="#/" className={tab === "scenario" ? "active" : ""}>Site scenario</a>
           <a href="#/sky" className={tab === "sky" ? "active" : ""}>Sun · Earth · Moon</a>
         </nav>
-        <ServiceStatus />
       </header>
       {/* Both views stay mounted (hidden + paused) so switching tabs keeps the globe, its GPU data and state. */}
       <main className="dash-main" hidden={tab !== "sky"}>
@@ -94,6 +90,7 @@ export function App() {
           />
           {error && <div className="error" role="alert">{error}</div>}
           {result && <ResultPanel result={result} />}
+          <ServiceStatus />
           <p className="muted small">
             Geometric visibility is not a power or communications guarantee. Not NASA-certified; not flight-ready.
           </p>

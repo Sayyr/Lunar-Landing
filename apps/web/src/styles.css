@@ -20,11 +20,14 @@
 body { margin: 0; background: var(--bg); }
 h1 { margin: 0; letter-spacing: 0.3em; font-weight: 600; }
 h4 { margin: 0.8rem 0 0.3rem; font-size: 0.85rem; color: var(--muted); }
-.subtitle, .muted { color: var(--muted); margin: 0.2rem 0 0; font-size: 0.85rem; }
+.muted { color: var(--muted); margin: 0.2rem 0 0; font-size: 0.85rem; }
 
-.app { min-height: 100vh; display: flex; flex-direction: column; }
-.top { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;
-  padding: 1rem 1.25rem; border-bottom: 1px solid var(--line); }
+.app { position: relative; min-height: 100vh; display: flex; flex-direction: column; background: #000; }
+/* No header bar: title and tabs float over the black scene. Clicks pass through the empty area. */
+.top { position: absolute; top: 0; left: 0; z-index: 20; display: flex; align-items: center; gap: 1.25rem;
+  height: 52px; padding: 0 1.25rem; pointer-events: none; }
+.top > * { pointer-events: auto; }
+.top h1 { font-size: 1.15rem; text-shadow: 0 1px 3px #000; }
 /* Scenario view: the Moon fills everything under the header (no framed window). */
 .app:has(.scenario-main:not([hidden])) { height: 100vh; min-height: 0; overflow: hidden; }
 .scenario-main { flex: 1; min-height: 0; display: flex; }
@@ -85,12 +88,13 @@ details summary { cursor: pointer; color: var(--muted); }
 details ul { padding-left: 1.1rem; margin: 0.3rem 0; }
 
 /* ---- Tabs ---- */
-.tabs { display: flex; gap: 0.25rem; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 0.2rem; }
-.tabs a { color: var(--muted); text-decoration: none; padding: 0.35rem 0.8rem; border-radius: 6px; font-size: 0.85rem; }
+.tabs { display: flex; gap: 0.35rem; }
+.tabs a { color: var(--muted); text-decoration: none; padding: 0.35rem 0.8rem; border: 1px solid #3b4760;
+  border-radius: 6px; font-size: 0.85rem; background: rgba(0, 0, 0, 0.45); }
 .tabs a.active { background: #2b3546; color: var(--text); }
 
 /* ---- Sun · Earth · Moon dashboard ---- */
-.dash-main { flex: 1; padding: 1rem 1.25rem; }
+.dash-main { flex: 1; padding: calc(52px + 0.5rem) 1.25rem 1rem; background: var(--bg); }
 .dash { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 400px); gap: 1rem; height: 100%; }
 @media (max-width: 960px) { .dash { grid-template-columns: 1fr; } }
 .dash-scene { display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; }
@@ -195,7 +199,7 @@ details ul { padding-left: 1.1rem; margin: 0.3rem 0; }
 }
 
 /* ---- Sky overlay: compass + scenario time (lunar view) ---- */
-.sky-overlay { position: absolute; left: 12px; top: 12px; z-index: 5; width: min(300px, calc(100% - 70px));
+.sky-overlay { position: absolute; left: 1.25rem; top: 60px; z-index: 5; width: min(300px, calc(100% - 70px));
   text-shadow: 0 1px 3px #000; }
 .sky-compass { display: flex; align-items: center; gap: 10px; }
 .sky-compass svg { flex: none; }
