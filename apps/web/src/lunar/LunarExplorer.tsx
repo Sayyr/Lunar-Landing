@@ -525,6 +525,16 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
       {sky && (
         <div className="sky-overlay">
           <SkyCompass sun={sky.sun} earth={sky.earth} diskRef={diskRef} />
+          {sky.synthetic && (
+            <div className="sky-note">
+              SYNTHETIC sky — low-precision formulae, mean Moon orientation (no libration), centre directions,
+              ideal horizon. Not for analysis.
+            </div>
+          )}
+        </div>
+      )}
+      {sky && (
+        <div className="sky-timebar">
           <div className="sky-time">
             <button type="button" onClick={() => setPlaying((p) => !p)} aria-label={playing ? "Pause" : "Play"}>
               {playing ? "❚❚" : "▶"}
@@ -543,16 +553,12 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
             />
             <output>{skyUtc}</output>
           </div>
-          <div className="sky-view">
-            <button type="button" onClick={() => globe?.viewBody("earth")}>View Earth</button>
-            <button type="button" onClick={() => globe?.viewBody("sun")}>View Sun</button>
-          </div>
-          {sky.synthetic && (
-            <div className="sky-note">
-              SYNTHETIC sky — low-precision formulae, mean Moon orientation (no libration), centre directions,
-              ideal horizon. Not for analysis.
-            </div>
-          )}
+        </div>
+      )}
+      {sky && (
+        <div className="sky-view">
+          <button type="button" onClick={() => globe?.viewBody("earth")}>View Earth</button>
+          <button type="button" onClick={() => globe?.viewBody("sun")}>View Sun</button>
         </div>
       )}
 

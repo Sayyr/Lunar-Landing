@@ -230,12 +230,19 @@ details ul { padding-left: 1.1rem; margin: 0.3rem 0; }
 .sky-compass-read .earth { color: #4aa3ff; }
 .sky-compass-read small { color: var(--muted); font-size: 10px; }
 .sky-note { margin-top: 6px; font-size: 10.5px; color: var(--l-warn, #ffb347); }
-.sky-time { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+/* Scenario time: bottom-left, wide slider. */
+.sky-timebar { position: absolute; left: 1.25rem; bottom: 12px; z-index: 5; width: min(440px, calc(100% - 2.5rem));
+  padding: 6px 8px; background: rgba(0, 0, 0, 0.45); border: 1px solid #3b4760; border-radius: 2px; }
+.sky-time { display: flex; align-items: center; gap: 8px; }
 .sky-time input[type="range"] { flex: 1; margin: 0; }
 .sky-time button { padding: 2px 8px; min-width: 32px; }
 .sky-time output { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.sky-view { display: flex; gap: 6px; margin-top: 6px; }
-.sky-view button { padding: 3px 8px; font-size: 12px; }
+/* View Earth / View Sun: top-right, under the ⋯ toggle, following it when the panel opens. */
+.lunar .sky-view { position: absolute; top: 52px; right: calc(var(--l-panel-w) + 10px); z-index: 5; display: flex;
+  flex-direction: column; gap: 6px; transition: right 0.25s ease; }
+.lunar.panel-collapsed .sky-view { right: 10px; }
+.lunar .sky-view button { padding: 4px 10px; font-size: 12px; background: rgba(0, 0, 0, 0.45); }
+@media (max-width: 900px) { .scale-bar { bottom: 64px; } }
 /* "Sun / Earth this way" pointers pinned to the screen edge (positioned by LunarExplorer). */
 .edge-ptr { position: absolute; left: 0; top: 0; z-index: 4; pointer-events: none; width: 0; height: 0; }
 .edge-ptr .edge-arrow { position: absolute; left: -9px; top: -11px; width: 18px; text-align: center; font-size: 18px;
