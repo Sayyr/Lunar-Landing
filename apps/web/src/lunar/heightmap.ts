@@ -27,8 +27,9 @@ export function flipRowsInPlace(data: Float32Array, width: number, height: numbe
 }
 
 export class Heightmap {
-  readonly minKm: number;
-  readonly maxKm: number;
+  /** Range of the data; extended by `extendRange()` as streamed bands arrive. */
+  minKm: number;
+  maxKm: number;
   /** Approximate resolution at the equator (km per pixel). */
   readonly kmPerPixel: number;
 
@@ -40,7 +41,7 @@ export class Heightmap {
     readonly data: Float32Array,
     readonly width: number,
     readonly height: number,
-    readonly label = "",
+    public label = "",
   ) {
     let min = Infinity;
     let max = -Infinity;
@@ -52,6 +53,50 @@ export class Heightmap {
     this.minKm = min;
     this.maxKm = max;
     this.kmPerPixel = (2 * Math.PI * MOON_RADIUS_KM) / width;
+  }
+
+  /** Widens minKm/maxKm with rows [row0, row0 + rows) (after they were overwritten in place). */
+  extendRange(row0: number, rows: number): void {
+    const end = (row0 + rows) * this.width;
+    for (let i = row0 * this.width; i < end; i++) {
+      const h = this.data[i];
+      if (h < this.minKm) this.minKm = h;
+      if (h > this.maxKm) this.maxKm = h;
+    }
+  }
+
+  /**
+   * Bilinear resampling of the whole raster to width × height (same geometry: area pixels,
+   * longitude wrap, latitude clamp — identical to sampleKm at each target pixel centre).
+   * Used to start a high-resolution array from a coarse product while the real one streams in.
+   */
+  resampled(width: number, height: number): Float32Array {
+    const { width: sw, height: sh, data } = this;
+    const out = new Float32Array(width * height);
+    const xa = new Int32Array(width);
+    const xb = new Int32Array(width);
+    const fx = new Float32Array(width);
+    for (let x = 0; x < width; x++) {
+      const s = ((x + 0.5) * sw) / width - 0.5;
+      const x0 = Math.floor(s);
+      fx[x] = s - x0;
+      xa[x] = ((x0 % sw) + sw) % sw;
+      xb[x] = (xa[x] + 1) % sw;
+    }
+    for (let y = 0; y < height; y++) {
+      const s = Math.min(sh - 1, Math.max(0, ((y + 0.5) * sh) / height - 0.5));
+      const y0 = Math.min(sh - 2, Math.floor(s));
+      const fy = s - y0;
+      const r0 = y0 * sw;
+      const r1 = r0 + sw;
+      const o = y * width;
+      for (let x = 0; x < width; x++) {
+        const top = data[r0 + xa[x]] * (1 - fx[x]) + data[r0 + xb[x]] * fx[x];
+        const bot = data[r1 + xa[x]] * (1 - fx[x]) + data[r1 + xb[x]] * fx[x];
+        out[o + x] = top * (1 - fy) + bot * fy;
+      }
+    }
+    return out;
   }
 
   /**
