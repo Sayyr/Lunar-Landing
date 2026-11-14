@@ -6,8 +6,9 @@
 //   - quadtree from the two level-0 tiles; a tile is refined while one of its texels covers more
 //     than ~1.3 screen pixels (screen-space error at its nearest point), down to MAX_LEVEL;
 //   - a parent stays drawn until all its visible children are loaded (no holes, no overlap);
-//   - tile meshes follow the same LOLA raster as the base mesh (CPU displacement) and are drawn
-//     with a polygon offset so they win the depth test over it;
+//   - tile meshes follow the same LOLA raster as the base mesh (CPU displacement) and are lit
+//     with the same LOLA bump map (shared GPU texture, per-tile UV transform), so the light does
+//     not jump when tiles replace the base; drawn with a polygon offset to win the depth test;
 //   - at most MAX_INFLIGHT downloads, coarse levels first; LRU cache of MAX_CACHED tiles.
 // Imagery only: picking, altitude and the scenario maths still use the LOLA raster.
 
@@ -25,6 +26,7 @@ import {
   tileBounds,
   tileKey,
   tileSpanDeg,
+  tileToGlobalUv,
   tileUrl,
 } from "./tileScheme";
 
@@ -58,11 +60,14 @@ export class TileLayer {
   private disposed = false;
   private enabled = true;
   private scale = 0;
+  private bumpScale = 0;
   status: TileStatus = "loading";
   onStatus?: (s: TileStatus) => void;
 
   constructor(
     private readonly heightmap: Heightmap | null,
+    /** the base mesh's LOLA DataTexture, reused as bump map (null: no relief shading) */
+    private readonly heightTex: THREE.Texture | null,
     private readonly maxAnisotropy: number,
     baseTexturePx: number,
   ) {
@@ -76,8 +81,13 @@ export class TileLayer {
     this.setStatus(on ? (this.failures >= 3 ? "offline" : "ok") : "off");
   }
 
-  /** km → scene units (exaggeration included); rebuilds the displaced geometry of cached tiles. */
-  setScale(scale: number): void {
+  /**
+   * km → scene units (exaggeration included) and the base mesh's bumpScale; rebuilds the displaced
+   * geometry of cached tiles.
+   */
+  setScale(scale: number, bumpScale: number): void {
+    this.bumpScale = bumpScale;
+    for (const e of this.cache.values()) if (e.mesh) e.mesh.material.bumpScale = bumpScale;
     if (scale === this.scale) return;
     this.scale = scale;
     for (const e of this.cache.values()) if (e.mesh) this.fillPositions(e.mesh.geometry, e.id);
@@ -219,21 +229,33 @@ export class TileLayer {
     this.fillPositions(g, id);
     const m = new THREE.MeshStandardMaterial({
       map: tex,
+      bumpMap: this.heightTex,
+      bumpScale: this.bumpScale,
       roughness: 1,
       metalness: 0,
       polygonOffset: true,
       polygonOffsetFactor: -2,
       polygonOffsetUnits: -2,
     });
+    if (this.heightTex) {
+      // Sample the GLOBAL raster at this tile's lon/lat: replace three's per-texture bump UV
+      // transform by a per-material one (no texture clone, so no re-upload of the raster).
+      const t = tileToGlobalUv(id);
+      const uv = new THREE.Matrix3().setUvTransform(t.offsetU, t.offsetV, t.scaleU, t.scaleV, 0, 0, 0);
+      m.onBeforeCompile = (shader) => {
+        shader.uniforms.tileBumpTransform = { value: uv };
+        shader.vertexShader =
+          "uniform mat3 tileBumpTransform;\n" +
+          shader.vertexShader.replace("bumpMapTransform * vec3( BUMPMAP_UV, 1 )", "tileBumpTransform * vec3( BUMPMAP_UV, 1 )");
+      };
+      m.customProgramCacheKey = () => "moon-tile-bump"; // one shader program for all tiles
+    }
     const mesh = new THREE.Mesh(g, m);
     mesh.visible = false;
     return mesh;
   }
 
-  /**
-   * Vertex positions on the LOLA-displaced surface; normals stay radial on purpose: the WAC
-   * mosaic already contains its own (fixed) shading, the light only adds the day/night terminator.
-   */
+  /** Vertex positions on the LOLA-displaced surface; radial normals, as the base sphere (the bump map adds relief). */
   private fillPositions(g: THREE.BufferGeometry, id: TileId): void {
     const b = tileBounds(id);
     const pos = g.attributes.position as THREE.BufferAttribute;

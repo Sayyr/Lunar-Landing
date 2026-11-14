@@ -200,7 +200,7 @@ export class Globe {
     scene.add(this.siteMarker);
 
     // --- Streaming high-resolution imagery (NASA Moon Trek), over the base mesh ------------------
-    this.tiles = new TileLayer(heightmap, renderer.capabilities.getMaxAnisotropy(), colorImage?.width ?? 0);
+    this.tiles = new TileLayer(heightmap, heightTex, renderer.capabilities.getMaxAnisotropy(), colorImage?.width ?? 0);
     scene.add(this.tiles.group);
 
     this.setExaggeration(this.exaggeration);
@@ -237,7 +237,7 @@ export class Globe {
     // bumpScale in the same unit as displacement (shaded slopes = displayed slopes); floor at 1×
     // to keep shading of the real slopes at exaggeration 0.
     m.bumpScale = Math.max(x, 1) / MOON_RADIUS_KM;
-    this.tiles.setScale(this.scale);
+    this.tiles.setScale(this.scale, m.bumpScale);
     // Closest approach: ~17 km above the highest displayed point.
     this.controls.minDistance = 1 + (this.heightmap?.maxKm ?? 0) * this.scale + 0.01;
     // The grid floats just above the highest point.
