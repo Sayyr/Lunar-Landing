@@ -43,6 +43,9 @@ Only one small region should be stored locally.
 
 ## Provenance record (fill in when files are installed)
 
+The web visualization datasets (LOLA `ldem_*.tif`, LROC colour mosaic, IAU gazetteer, Blue Marble) are fetched by
+`apps/web/scripts/setup-data.sh` into `apps/web/public/data/`; see `apps/web/README.md`. Their rows below are still to be filled in.
+
 | File | Source URL | Version/date | SHA-256 | Frame / datum | Coverage | License / citation | Installed by |
 |---|---|---|---|---|---|---|---|
 | _none yet_ | | | | | | | |

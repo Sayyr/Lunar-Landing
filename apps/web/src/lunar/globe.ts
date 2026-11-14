@@ -1,0 +1,420 @@
+// three.js scene: textured, displaced Moon, lat/lon grid, markers, picking.
+// Ported from apps/moon-explorer/js/globe.js. Changes for the React app:
+//   - colour image and heightmap are optional (untextured / undisplaced fallback when the data
+//     has not been installed with scripts/setup-data.sh) so the scenario UI keeps working;
+//   - sizes follow the container (ResizeObserver) and `dispose()` frees GPU resources on unmount;
+//   - `setSite()` shows the scenario's selected site as a distinct marker.
+//
+// Scene units: 1 unit = reference radius (1737.4 km). The elevation raster is in km, so the
+// displacement scale is exaggeration / 1737.4.
+
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+import { latLonToUnit, MOON_RADIUS_KM, pointToUv, uvToLatLon } from "./geo";
+import type { Heightmap } from "./heightmap";
+
+export interface PickResult {
+  lat: number;
+  lon: number;
+  /** null when no elevation raster is loaded */
+  altM: number | null;
+}
+
+export interface GlobeOptions {
+  colorImage: HTMLImageElement | null;
+  heightmap: Heightmap | null;
+  /** segments in longitude (half as many in latitude) */
+  segments: number;
+  /** initial camera direction */
+  initialView?: { lat: number; lon: number };
+}
+
+export class Globe {
+  readonly renderer: THREE.WebGLRenderer;
+  readonly floatLinear: boolean;
+  exaggeration = 1;
+  refinePick = true;
+
+  private readonly container: HTMLElement;
+  private readonly heightmap: Heightmap | null;
+  private readonly scene: THREE.Scene;
+  private readonly camera: THREE.PerspectiveCamera;
+  private readonly controls: OrbitControls;
+  private readonly mesh: THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial>;
+  private readonly grid: THREE.Group;
+  private readonly markers = new THREE.Group();
+  private readonly siteMarker: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
+  private readonly textures: THREE.Texture[] = [];
+  private readonly resizeObserver: ResizeObserver;
+  private ring: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial> | null = null;
+  private flight: { from: THREE.Vector3; to: THREE.Vector3; d0: number; d1: number; t0: number; dur: number } | null = null;
+
+  constructor(container: HTMLElement, { colorImage, heightmap, segments, initialView }: GlobeOptions) {
+    this.container = container;
+    this.heightmap = heightmap;
+
+    // --- Rendering ---------------------------------------------------------------------------
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    container.appendChild(renderer.domElement);
+    this.renderer = renderer;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x000000);
+    this.scene = scene;
+
+    const camera = new THREE.PerspectiveCamera(40, container.clientWidth / container.clientHeight, 0.001, 100);
+    const v = initialView ?? { lat: 10, lon: 0 }; // moon-explorer default: facing lon 0°, ~10° N
+    const u = latLonToUnit(Math.max(-60, Math.min(60, v.lat)), v.lon);
+    camera.position.set(u.x, u.y, u.z).multiplyScalar(3.2);
+    this.camera = camera;
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.enablePan = false;
+    controls.minDistance = 1.08;
+    controls.maxDistance = 8;
+    controls.rotateSpeed = 0.5;
+    this.controls = controls;
+    // Slower rotation close to the surface.
+    controls.addEventListener("change", () => {
+      const alt = camera.position.length() - 1;
+      controls.rotateSpeed = Math.min(0.5, 0.15 + alt * 0.2);
+    });
+
+    // --- Lighting: ILLUSTRATIVE directional "Sun" (no ephemeris) --------------------------------
+    const sun = new THREE.DirectionalLight(0xffffff, 3.0);
+    sun.position.set(5, 1.5, 3);
+    scene.add(sun);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.06));
+
+    // --- Textures -------------------------------------------------------------------------------
+    let colorTex: THREE.Texture | null = null;
+    if (colorImage) {
+      colorTex = new THREE.Texture(colorImage);
+      colorTex.colorSpace = THREE.SRGBColorSpace;
+      colorTex.wrapS = THREE.RepeatWrapping;
+      colorTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      colorTex.needsUpdate = true;
+      this.textures.push(colorTex);
+    }
+
+    // Float DataTexture over the raster's Float32Array (no CPU copy): rows were flipped in place
+    // at load time (row 0 = south = v 0).
+    // float32 linear filtering isn't guaranteed (mobile): fall back to Nearest.
+    const linearOk = renderer.extensions.has("OES_texture_float_linear");
+    this.floatLinear = linearOk;
+    let heightTex: THREE.DataTexture | null = null;
+    if (heightmap) {
+      const { data, width, height } = heightmap;
+      heightTex = new THREE.DataTexture(data, width, height, THREE.RedFormat, THREE.FloatType);
+      heightTex.wrapS = THREE.RepeatWrapping; // seamless at ±180°
+      heightTex.wrapT = THREE.ClampToEdgeWrapping;
+      heightTex.magFilter = linearOk ? THREE.LinearFilter : THREE.NearestFilter;
+      heightTex.minFilter = linearOk ? THREE.LinearFilter : THREE.NearestFilter;
+      heightTex.generateMipmaps = false;
+      heightTex.flipY = false;
+      heightTex.needsUpdate = true;
+      this.textures.push(heightTex);
+    }
+
+    // --- Sphere ---------------------------------------------------------------------------------
+    const geometry = new THREE.SphereGeometry(1, segments, segments / 2);
+    const material = new THREE.MeshStandardMaterial({
+      map: colorTex,
+      color: colorTex ? 0xffffff : 0x8d8d8d,
+      displacementMap: heightTex,
+      // The same raster doubles as bumpMap: shading follows the relief without recomputing
+      // normals or another texture in memory.
+      bumpMap: heightTex,
+      roughness: 1,
+      metalness: 0,
+    });
+    this.mesh = new THREE.Mesh(geometry, material);
+    scene.add(this.mesh);
+
+    // --- Lat/lon grid, markers, selection ring ---------------------------------------------------
+    this.grid = makeGrid();
+    this.grid.visible = false;
+    scene.add(this.grid);
+    scene.add(this.markers);
+
+    this.siteMarker = new THREE.Mesh(
+      new THREE.SphereGeometry(0.012, 16, 12),
+      new THREE.MeshBasicMaterial({ color: 0xff5a5f }),
+    );
+    this.siteMarker.visible = false;
+    scene.add(this.siteMarker);
+
+    this.setExaggeration(this.exaggeration);
+
+    this.resizeObserver = new ResizeObserver(() => this.resize());
+    this.resizeObserver.observe(container);
+    renderer.setAnimationLoop((t) => this.frame(t));
+  }
+
+  /** Stops rendering while the view is hidden (another tab); resumes when shown. */
+  setActive(active: boolean): void {
+    this.renderer.setAnimationLoop(active ? (t) => this.frame(t) : null);
+  }
+
+  resize(): void {
+    const w = this.container.clientWidth;
+    const h = this.container.clientHeight;
+    if (w === 0 || h === 0) return;
+    this.renderer.setSize(w, h);
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+  }
+
+  /** km → scene units, exaggeration included. */
+  get scale(): number {
+    return this.exaggeration / MOON_RADIUS_KM;
+  }
+
+  setExaggeration(x: number): void {
+    this.exaggeration = x;
+    const m = this.mesh.material;
+    m.displacementScale = this.scale;
+    m.displacementBias = 0;
+    // bumpScale in the same unit as displacement (shaded slopes = displayed slopes); floor at 1×
+    // to keep shading of the real slopes at exaggeration 0.
+    m.bumpScale = Math.max(x, 1) / MOON_RADIUS_KM;
+    // The grid floats just above the highest point.
+    this.grid.scale.setScalar(1 + (this.heightmap?.maxKm ?? 0) * this.scale + 0.002);
+    for (const mk of this.markers.children) this.placeOnSurface(mk, mk.userData.lat, mk.userData.lon);
+    if (this.siteMarker.visible) this.placeOnSurface(this.siteMarker, this.siteMarker.userData.lat, this.siteMarker.userData.lon);
+    if (this.ring) this.placeRing(this.ring);
+  }
+
+  /** Radius of the displayed surface (scene units) at lat/lon. */
+  surfaceRadius(lat: number, lon: number): number {
+    return 1 + (this.heightmap ? this.heightmap.sampleKm(lat, lon) * this.scale : 0);
+  }
+
+  /**
+   * Picking: camera ray → surface point.
+   *  - refinePick = false: intersect the UNdisplaced sphere (r = 1), then UV → lat/lon. Fast but
+   *    offset when exaggeration is strong (relief parallax).
+   *  - refinePick = true: ray march on the CPU raster between spheres 1 + hmin·s and 1 + hmax·s,
+   *    then bisection. Follows the displayed relief up to mesh resolution (the GPU interpolates
+   *    linearly between vertices).
+   * The analytic sphere is used instead of Raycaster on the ~500 k triangles: same result as
+   * Raycaster on the undisplaced sphere, in O(1).
+   */
+  pick(clientX: number, clientY: number): PickResult | null {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1,
+    );
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(ndc, this.camera);
+    const o = ray.ray.origin;
+    const d = ray.ray.direction; // unit
+
+    const s = this.scale;
+    const t = !this.heightmap || !this.refinePick || s === 0 ? intersectSphere(o, d, 1)?.[0] : this.march(o, d, s, this.heightmap);
+    if (t == null) return null;
+
+    const p = o.clone().addScaledVector(d, t);
+    const { u, v } = pointToUv(p.x, p.y, p.z);
+    const { lat, lon } = uvToLatLon(u, v);
+    return { lat, lon, altM: this.heightmap ? this.heightmap.sampleKm(lat, lon) * 1000 : null };
+  }
+
+  private march(o: THREE.Vector3, d: THREE.Vector3, s: number, hm: Heightmap): number | null {
+    const outer = intersectSphere(o, d, 1 + hm.maxKm * s);
+    if (!outer) return null;
+    const inner = intersectSphere(o, d, 1 + hm.minKm * s);
+    const t0 = Math.max(0, outer[0]);
+    const t1 = inner ? inner[0] : outer[1];
+    const p = new THREE.Vector3();
+    // f(t) > 0 above the surface, < 0 below.
+    const f = (t: number) => {
+      p.copy(o).addScaledVector(d, t);
+      const { u, v } = pointToUv(p.x, p.y, p.z);
+      const { lat, lon } = uvToLatLon(u, v);
+      return p.length() - (1 + hm.sampleKm(lat, lon) * s);
+    };
+    const N = 160;
+    let a = t0;
+    let fa = f(a);
+    for (let i = 1; i <= N; i++) {
+      const b = t0 + ((t1 - t0) * i) / N;
+      const fb = f(b);
+      if (fa > 0 && fb <= 0) {
+        // Bisection: precision ~ (t1 − t0) / N / 2^12.
+        let lo = a;
+        let hi = b;
+        for (let k = 0; k < 12; k++) {
+          const m = (lo + hi) / 2;
+          if (f(m) > 0) lo = m;
+          else hi = m;
+        }
+        return (lo + hi) / 2;
+      }
+      a = b;
+      fa = fb;
+    }
+    return inner ? inner[0] : null;
+  }
+
+  setGridVisible(v: boolean): void {
+    this.grid.visible = v;
+  }
+
+  addMarker(lat: number, lon: number): void {
+    const mk = new THREE.Mesh(new THREE.SphereGeometry(0.004, 12, 8), new THREE.MeshBasicMaterial({ color: 0xffb347 }));
+    mk.userData = { lat, lon };
+    this.placeOnSurface(mk, lat, lon);
+    this.markers.add(mk);
+  }
+
+  clearMarkers(): void {
+    for (const mk of [...this.markers.children] as THREE.Mesh<THREE.BufferGeometry, THREE.Material>[]) {
+      mk.geometry.dispose();
+      mk.material.dispose();
+      this.markers.remove(mk);
+    }
+  }
+
+  /** The scenario's selected site (red marker). */
+  setSite(lat: number, lon: number): void {
+    this.siteMarker.userData = { lat, lon };
+    this.siteMarker.visible = true;
+    this.placeOnSurface(this.siteMarker, lat, lon);
+  }
+
+  /** Circle of radius `radiusKm` around a feature (visual cue for search). */
+  showRing(lat: number, lon: number, radiusKm: number): void {
+    if (this.ring) {
+      this.ring.geometry.dispose();
+      this.ring.material.dispose();
+      this.scene.remove(this.ring);
+    }
+    const n = 128;
+    const ang = Math.max(radiusKm, 2) / MOON_RADIUS_KM; // angular radius (rad)
+    const pts = Array.from({ length: n + 1 }, () => new THREE.Vector3());
+    const ring = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({ color: 0x7fd4ff, transparent: true, opacity: 0.9 }),
+    );
+    ring.userData = { lat, lon, ang, n };
+    this.ring = ring;
+    this.placeRing(ring);
+    this.scene.add(ring);
+  }
+
+  /** Turns the camera toward lat/lon (spherical interpolation; distance kept or reduced). */
+  flyTo(lat: number, lon: number, radiusKm = 50): void {
+    const u = latLonToUnit(lat, lon);
+    const to = new THREE.Vector3(u.x, u.y, u.z).normalize();
+    const from = this.camera.position.clone();
+    // Target distance: the feature fills about a third of the field of view.
+    const want = THREE.MathUtils.clamp(1 + (radiusKm / MOON_RADIUS_KM) * 6, 1.25, 4);
+    this.flight = { from, to, d0: from.length(), d1: want, t0: performance.now(), dur: 1400 };
+  }
+
+  dispose(): void {
+    this.renderer.setAnimationLoop(null);
+    this.resizeObserver.disconnect();
+    this.controls.dispose();
+    this.clearMarkers();
+    this.scene.traverse((obj) => {
+      const o = obj as THREE.Mesh;
+      o.geometry?.dispose();
+      const mat = o.material as THREE.Material | THREE.Material[] | undefined;
+      if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
+      else mat?.dispose();
+    });
+    for (const t of this.textures) t.dispose();
+    this.renderer.dispose();
+    // Release the WebGL context now (each tab switch creates a new one; browsers cap live contexts).
+    this.renderer.forceContextLoss();
+    this.renderer.domElement.remove();
+  }
+
+  private frame(now: number): void {
+    if (this.flight) {
+      const { from, to, d0, d1, t0, dur } = this.flight;
+      const k = Math.min(1, (now - t0) / dur);
+      const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2; // easeInOutQuad
+      const q = new THREE.Quaternion().setFromUnitVectors(from.clone().normalize(), to);
+      const dir = from.clone().normalize().applyQuaternion(new THREE.Quaternion().slerp(q, e));
+      this.camera.position.copy(dir.multiplyScalar(d0 + (d1 - d0) * e));
+      this.camera.lookAt(0, 0, 0);
+      if (k >= 1) this.flight = null;
+    }
+    if (this.ring) this.ring.material.opacity = 0.55 + 0.4 * Math.sin(now / 250);
+    this.controls.update();
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  private placeOnSurface(obj: THREE.Object3D, lat: number, lon: number): void {
+    const u = latLonToUnit(lat, lon);
+    obj.position.set(u.x, u.y, u.z).multiplyScalar(this.surfaceRadius(lat, lon) + 0.002);
+  }
+
+  private placeRing(ring: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>): void {
+    const { lat, lon, ang, n } = ring.userData as { lat: number; lon: number; ang: number; n: number };
+    const c = latLonToUnit(lat, lon);
+    const center = new THREE.Vector3(c.x, c.y, c.z);
+    // Orthonormal basis of the tangent plane; auxiliary axis chosen to stay well conditioned at the poles.
+    const aux = Math.abs(center.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+    const e1 = new THREE.Vector3().crossVectors(center, aux).normalize();
+    const e2 = new THREE.Vector3().crossVectors(center, e1);
+    const pos = ring.geometry.attributes.position;
+    const v = new THREE.Vector3();
+    for (let i = 0; i <= n; i++) {
+      const a = (i / n) * 2 * Math.PI;
+      v.copy(center)
+        .multiplyScalar(Math.cos(ang))
+        .addScaledVector(e1, Math.sin(ang) * Math.cos(a))
+        .addScaledVector(e2, Math.sin(ang) * Math.sin(a));
+      const { u: uu, v: vv } = pointToUv(v.x, v.y, v.z);
+      const ll = uvToLatLon(uu, vv);
+      v.multiplyScalar(this.surfaceRadius(ll.lat, ll.lon) + 0.003);
+      pos.setXYZ(i, v.x, v.y, v.z);
+    }
+    pos.needsUpdate = true;
+    ring.geometry.computeBoundingSphere();
+  }
+}
+
+/** Ray/sphere intersections, sphere centred at the origin, d unit. Returns [tEnter, tExit] or null. */
+function intersectSphere(o: THREE.Vector3, d: THREE.Vector3, r: number): [number, number] | null {
+  const b = o.dot(d);
+  const c = o.lengthSq() - r * r;
+  const disc = b * b - c;
+  if (disc < 0) return null;
+  const sq = Math.sqrt(disc);
+  const tExit = -b + sq;
+  if (tExit < 0) return null;
+  return [-b - sq, tExit];
+}
+
+/** Lat/lon grid every 15°, equator and prime meridian highlighted. Radius 1 (scaled later). */
+function makeGrid(): THREE.Group {
+  const group = new THREE.Group();
+  const minor = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.18 });
+  const major = new THREE.LineBasicMaterial({ color: 0x7fd4ff, transparent: true, opacity: 0.6 });
+  const toV = (lat: number, lon: number) => {
+    const u = latLonToUnit(lat, lon);
+    return new THREE.Vector3(u.x, u.y, u.z);
+  };
+  for (let lat = -75; lat <= 75; lat += 15) {
+    const pts = [];
+    for (let lon = -180; lon <= 180; lon += 2) pts.push(toV(lat, lon));
+    group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lat === 0 ? major : minor));
+  }
+  for (let lon = -180; lon < 180; lon += 15) {
+    const pts = [];
+    for (let lat = -90; lat <= 90; lat += 2) pts.push(toV(lat, lon));
+    group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lon === 0 ? major : minor));
+  }
+  return group;
+}

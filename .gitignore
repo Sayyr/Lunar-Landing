@@ -43,6 +43,6 @@ apps/web/dist/
 .DS_Store
 Thumbs.db
 
-# apps/moon-explorer : données téléchargées par setup.sh
-apps/moon-explorer/data/*
-!apps/moon-explorer/data/README.md
+# apps/web: NASA/IAU data fetched by apps/web/scripts/setup-data.sh
+apps/web/public/data/
+apps/web/data-raw/

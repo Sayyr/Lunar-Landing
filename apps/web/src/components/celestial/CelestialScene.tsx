@@ -1,0 +1,172 @@
+import { Html, Line, OrbitControls } from "@react-three/drei";
+import { Canvas } from "@react-three/fiber";
+import { memo, useMemo } from "react";
+import type { Matrix4, Texture } from "three";
+
+import { getMoonTrack, getSunTrack } from "../../api/celestial";
+import type { CelestialStateResponse } from "../../api/celestialTypes";
+import { AU_M, EARTH_MEAN_RADIUS_M, MOON_RADIUS_KM, SUN_RADIUS_M } from "../../lib/constants";
+import { bodyRotationToThree, eclToThree, normalize, type V3 } from "../../lib/sceneFrame";
+import { DATA_BASE, SETUP_HINT } from "../../lunar/loaders";
+import { Earth, Moon, Sun } from "./Bodies";
+import { useOptionalTexture } from "./useOptionalTexture";
+
+export type SceneView = "earth-moon" | "solar";
+
+const DAY_MS = 86_400_000;
+const MEAN_MOON_DIST_M = 384_400_000;
+
+// Schematic (solar) view: compressed distances, exaggerated radii — directions are preserved.
+const SOLAR = { sunRadius: 5, earthOrbit: 55, earthRadius: 1.4, moonDist: 7, moonRadius: 0.45 };
+// Earth–Moon view: 1 unit = 1 Earth radius. Sun drawn at a compressed distance with its TRUE angular size.
+const SUN_PROXY_DIST = 400;
+/** Optional radius exaggeration for Earth and Moon in the Earth–Moon view (distances stay true). */
+export const BODY_ENLARGEMENT = 6;
+
+interface Props {
+  state: CelestialStateResponse;
+  view: SceneView;
+  /** Earth–Moon view only: multiply Earth and Moon radii by BODY_ENLARGEMENT. */
+  enlargeBodies: boolean;
+  /** false while the tab is hidden: the render loop is paused. */
+  active: boolean;
+}
+
+interface ViewProps {
+  state: CelestialStateResponse;
+  earthTex: Texture | null;
+  moonTex: Texture | null;
+  earthOrientation: Matrix4;
+  moonOrientation: Matrix4;
+  /** UTC day number of the state: orbit traces are recomputed once per day, not per tick */
+  day: number;
+}
+
+const scaleTrack = (points: V3[], scale: number): V3[] => points.map((p) => eclToThree(p, scale));
+const times = (v: V3, k: number): V3 => [v[0] * k, v[1] * k, v[2] * k];
+
+// memo: props are constant per view, so play-mode ticks don't rebuild the dashed γ line.
+const EclipticFrameHints = memo(function EclipticFrameHints({ radius }: { radius: number }) {
+  return (
+    <group>
+      <polarGridHelper args={[radius, 12, 4, 96, "#2a3242", "#1c2230"]} />
+      <Line points={[[0, 0, 0], [radius * 1.08, 0, 0]]} color="#6b7894" lineWidth={1} dashed dashSize={1.5} gapSize={1} />
+      <Html position={[radius * 1.12, 0, 0]} center className="axis-label">
+        γ equinox of date
+      </Html>
+    </group>
+  );
+});
+
+function EarthMoonView({ state, earthTex, moonTex, earthOrientation, moonOrientation, day, bodyScale }: ViewProps & { bodyScale: number }) {
+  const s = 1 / EARTH_MEAN_RADIUS_M;
+  const moonPos = eclToThree(state.moon_from_earth.position_m, s);
+  const sunDir = normalize(eclToThree(state.sun_from_earth.position_m));
+  const sunRadius = (SUN_PROXY_DIST * SUN_RADIUS_M) / state.sun_from_earth.distance_m;
+  const track = useMemo(() => scaleTrack(getMoonTrack(new Date(day * DAY_MS)), s), [day, s]);
+
+  return (
+    <>
+      <ambientLight intensity={0.06} />
+      <directionalLight position={times(sunDir, 100)} intensity={2.8} />
+      <EclipticFrameHints radius={70} />
+      <Line points={track} color="#7d8aa5" lineWidth={1} transparent opacity={0.55} />
+      <Line points={[[0, 0, 0], moonPos]} color="#c9ced8" lineWidth={1} dashed dashSize={1.2} gapSize={0.8} />
+      <Line points={[[0, 0, 0], times(sunDir, 90)]} color="#f2c14e" lineWidth={1.2} dashed dashSize={2} gapSize={1.2} />
+      <Html position={[sunDir[0] * 92, sunDir[1] * 92 + 2, sunDir[2] * 92]} center className="axis-label sun">
+        → toward Sun
+      </Html>
+      <Sun position={times(sunDir, SUN_PROXY_DIST)} radius={sunRadius} glowScale={60} label="Sun (true angular size, distance compressed)" />
+      <Earth position={[0, 0, 0]} radius={bodyScale} orientation={earthOrientation} texture={earthTex} label="Earth" />
+      <Moon position={moonPos} radius={MOON_RADIUS_KM * 1000 * s * bodyScale} orientation={moonOrientation} texture={moonTex} label="Moon" />
+      <OrbitControls target={[0, 0, 0]} minDistance={3} maxDistance={900} />
+    </>
+  );
+}
+
+function SolarView({ state, earthTex, moonTex, earthOrientation, moonOrientation, day }: ViewProps) {
+  const earthScale = SOLAR.earthOrbit / AU_M;
+  const moonScale = SOLAR.moonDist / MEAN_MOON_DIST_M;
+  const earthPos = times(eclToThree(state.sun_from_earth.position_m, earthScale), -1);
+  const moonRel = eclToThree(state.moon_from_earth.position_m, moonScale);
+  const moonPos: V3 = [earthPos[0] + moonRel[0], earthPos[1] + moonRel[1], earthPos[2] + moonRel[2]];
+  // Earth's orbit = −(Earth→Sun track).
+  const earthOrbit = useMemo(() => scaleTrack(getSunTrack(new Date(day * DAY_MS)), -earthScale), [day, earthScale]);
+  const moonTrack = useMemo(() => scaleTrack(getMoonTrack(new Date(day * DAY_MS)), moonScale), [day, moonScale]);
+
+  return (
+    <>
+      <ambientLight intensity={0.06} />
+      <pointLight position={[0, 0, 0]} intensity={3} decay={0} />
+      <EclipticFrameHints radius={SOLAR.earthOrbit * 1.15} />
+      <Line points={earthOrbit} color="#5aa9ff" lineWidth={1} transparent opacity={0.45} />
+      {/* The Moon's geocentric trace, drawn around Earth's current position. */}
+      <group position={earthPos}>
+        <Line points={moonTrack} color="#7d8aa5" lineWidth={1} transparent opacity={0.6} />
+      </group>
+      <Line points={[[0, 0, 0], earthPos]} color="#5aa9ff" lineWidth={1} dashed dashSize={1.5} gapSize={1} />
+      <Line points={[[0, 0, 0], moonPos]} color="#f2c14e" lineWidth={1} dashed dashSize={1.5} gapSize={1} />
+      <Sun position={[0, 0, 0]} radius={SOLAR.sunRadius} glowScale={34} label="Sun" />
+      <Earth position={earthPos} radius={SOLAR.earthRadius} orientation={earthOrientation} texture={earthTex} label="Earth" />
+      <Moon position={moonPos} radius={SOLAR.moonRadius} orientation={moonOrientation} texture={moonTex} label="Moon" />
+      <OrbitControls target={[0, 0, 0]} minDistance={8} maxDistance={600} />
+    </>
+  );
+}
+
+// memo: the dashboard re-renders on every date change before the new state arrives.
+export const CelestialScene = memo(function CelestialScene({ state, view, enlargeBodies, active }: Props) {
+  const earthTex = useOptionalTexture(`${DATA_BASE}earth_bluemarble_2048.png`);
+  const moonTex = useOptionalTexture(`${DATA_BASE}moon_color.jpg`);
+  const earthOrientation = useMemo(() => bodyRotationToThree(state.earth_orientation), [state.earth_orientation]);
+  const moonOrientation = useMemo(() => bodyRotationToThree(state.moon_orientation), [state.moon_orientation]);
+  const viewProps: ViewProps = {
+    state,
+    earthTex,
+    moonTex,
+    earthOrientation,
+    moonOrientation,
+    day: Math.floor(Date.parse(state.utc) / DAY_MS),
+  };
+
+  return (
+    <div className="celestial-canvas">
+      {/* key: remount on view change so the camera resets to that view's framing */}
+      <Canvas
+        key={view}
+        camera={{ position: view === "earth-moon" ? [0, 75, 125] : [0, 70, 100], fov: 45, near: 0.1, far: 5000 }}
+        dpr={[1, 2]}
+        frameloop={active ? "always" : "never"}
+      >
+        <color attach="background" args={["#05070b"]} />
+        {view === "earth-moon" ? (
+          <EarthMoonView {...viewProps} bodyScale={enlargeBodies ? BODY_ENLARGEMENT : 1} />
+        ) : (
+          <SolarView {...viewProps} />
+        )}
+      </Canvas>
+      <p className="caption">
+        {view === "earth-moon" ? (
+          <>
+            <b>Earth–Moon, distances to scale</b> (1 unit = 1 Earth radius);{" "}
+            {enlargeBodies ? <b className="warn-text">Earth &amp; Moon radii enlarged ×{BODY_ENLARGEMENT}.</b> : <>Earth &amp; Moon at true size.</>} The Sun is drawn at a compressed distance with its true
+            angular size; lighting follows the mock Sun direction. Grey trace: mock Moon path over ±13.7 days.
+          </>
+        ) : (
+          <>
+            <b>Sun–Earth–Moon, schematic — NOT to scale.</b> Directions follow the mock state; distances are compressed and radii
+            exaggerated. Earth–Moon distance shown ×{Math.round((SOLAR.moonDist / MEAN_MOON_DIST_M) / (SOLAR.earthOrbit / AU_M))}{" "}
+            relative to the Sun–Earth distance.
+          </>
+        )}{" "}
+        Ecliptic plane grid, +X = equinox of date. Moon orientation: mean near side toward Earth (libration ignored). Earth
+        rotation from GMST + obliquity. Shadows/eclipses are not rendered.{" "}
+        {earthTex && moonTex ? (
+          <>Textures: NASA SVS Blue Marble (SVS 2915) &amp; LROC WAC colour mosaic (SVS 4720).</>
+        ) : (
+          <span className="warn-text">Textures not installed — {SETUP_HINT}.</span>
+        )}
+      </p>
+    </div>
+  );
+});

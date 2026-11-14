@@ -2,10 +2,14 @@ import { useEffect, useState } from "react";
 
 import { api, ApiError } from "./api/client";
 import type { PresetSite, ScenarioRequest, ScenarioResponse } from "./api/types";
-import { MoonGlobe } from "./components/MoonGlobe";
 import { ResultPanel } from "./components/ResultPanel";
 import { ScenarioForm } from "./components/ScenarioForm";
 import { ServiceStatus } from "./components/ServiceStatus";
+import { CelestialDashboard } from "./components/celestial/CelestialDashboard";
+import { LunarExplorer } from "./lunar/LunarExplorer";
+
+type Tab = "scenario" | "sky";
+const tabFromHash = (): Tab => (window.location.hash === "#/sky" ? "sky" : "scenario");
 
 // Synthetic example from CLAUDE.md — not a recommended landing site.
 const DEFAULT_REQUEST: ScenarioRequest = {
@@ -22,6 +26,13 @@ export function App() {
   const [result, setResult] = useState<ScenarioResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<Tab>(tabFromHash);
+
+  useEffect(() => {
+    const onHash = () => setTab(tabFromHash());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
 
   useEffect(() => {
     api.sites().then(setSites).catch(() => setSites([]));
@@ -52,13 +63,22 @@ export function App() {
           <h1>SELENE</h1>
           <p className="subtitle">Lunar landing site &amp; date navigator — NASA Space Apps 2026 (prototype)</p>
         </div>
+        <nav className="tabs" aria-label="Views">
+          <a href="#/" className={tab === "scenario" ? "active" : ""}>Site scenario</a>
+          <a href="#/sky" className={tab === "sky" ? "active" : ""}>Sun · Earth · Moon</a>
+        </nav>
         <ServiceStatus />
       </header>
-      <main className="layout">
-        <MoonGlobe
-          latitudeDeg={request.site.latitude_deg}
-          longitudeDeg={request.site.longitude_deg}
-          onPick={(lat, lon) => setRequest({ ...request, site: { ...request.site, latitude_deg: lat, longitude_deg: lon } })}
+      {/* Both views stay mounted (hidden + paused) so switching tabs keeps the globe, its GPU data and state. */}
+      <main className="dash-main" hidden={tab !== "sky"}>
+        <CelestialDashboard active={tab === "sky"} />
+      </main>
+      <main className="layout" hidden={tab !== "scenario"}>
+        <LunarExplorer
+          active={tab === "scenario"}
+          siteLat={request.site.latitude_deg}
+          siteLon={request.site.longitude_deg}
+          onPick={(lat, lon) => setRequest((r) => ({ ...r, site: { ...r.site, latitude_deg: lat, longitude_deg: lon } }))}
         />
         <div className="side">
           <ScenarioForm
