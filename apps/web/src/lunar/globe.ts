@@ -3,7 +3,8 @@
 //   - colour image and heightmap are optional (untextured / undisplaced fallback when the data
 //     has not been installed with scripts/setup-data.sh) so the scenario UI keeps working;
 //   - sizes follow the container (ResizeObserver) and `dispose()` frees GPU resources on unmount;
-//   - `setSite()` shows the scenario's selected site as a distinct marker.
+//   - `setSite()` shows the scenario's selected site as a distinct marker;
+//   - `setSky()` places the Sun and Earth in the background and points the light at the Sun.
 //
 // Scene units: 1 unit = reference radius (1737.4 km). The elevation raster is in km, so the
 // displacement scale is exaggeration / 1737.4.
@@ -11,8 +12,22 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
+import { bodyRotationToThree } from "../lib/sceneFrame";
 import { latLonToUnit, MOON_RADIUS_KM, pointToUv, uvToLatLon } from "./geo";
 import type { Heightmap } from "./heightmap";
+import { DATA_BASE } from "./loaders";
+import type { MoonSky, Vec3 } from "./skyGeometry";
+
+// Background bodies are drawn at SKY_DIST from the camera (always "at infinity": no parallax when
+// orbiting) with their true mean angular radii as seen from the Moon.
+const SKY_DIST = 60;
+const EARTH_ANG_RADIUS = Math.atan(6371 / 384_400); // ≈ 0.95°
+const SUN_ANG_RADIUS = Math.atan(695_700 / 149_597_871); // ≈ 0.27°
+// Sun–Moon–camera angle i on load: lit fraction of the disc k = (1 + cos i) / 2 = 0.8 → i ≈ 53.1°
+// (formula for a distant viewer; from 3.2 radii it is within a few percent).
+const LOAD_PHASE_ANGLE = Math.acos(2 * 0.8 - 1);
+// Moon body frame (x lon 0, y lon 90° E, z north) → three.js (x, z, −y), as lunar/geo.ts.
+const bodyToThree = (v: Vec3) => new THREE.Vector3(v[0], v[2], -v[1]);
 
 export interface PickResult {
   lat: number;
@@ -49,6 +64,11 @@ export class Globe {
   private readonly resizeObserver: ResizeObserver;
   private ring: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial> | null = null;
   private flight: { from: THREE.Vector3; to: THREE.Vector3; d0: number; d1: number; t0: number; dur: number } | null = null;
+  private readonly sunLight: THREE.DirectionalLight;
+  private readonly sunBody: THREE.Group;
+  private readonly earthBody: THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial>;
+  private sky: { sun: THREE.Vector3; earth: THREE.Vector3 } | null = null;
+  private framedOnSun = false;
 
   constructor(container: HTMLElement, { colorImage, heightmap, segments, initialView }: GlobeOptions) {
     this.container = container;
@@ -85,11 +105,38 @@ export class Globe {
       controls.rotateSpeed = Math.min(0.5, 0.15 + alt * 0.2);
     });
 
-    // --- Lighting: ILLUSTRATIVE directional "Sun" (no ephemeris) --------------------------------
+    // --- Lighting: directional "Sun". Fixed illustrative direction until setSky() is called. -----
     const sun = new THREE.DirectionalLight(0xffffff, 3.0);
     sun.position.set(5, 1.5, 3);
     scene.add(sun);
     scene.add(new THREE.AmbientLight(0xffffff, 0.06));
+    this.sunLight = sun;
+
+    // --- Background Sun and Earth (hidden until setSky) ---------------------------------------------
+    this.sunBody = makeSun(SKY_DIST * Math.tan(SUN_ANG_RADIUS), this.textures);
+    this.sunBody.visible = false;
+    scene.add(this.sunBody);
+    this.earthBody = new THREE.Mesh(
+      new THREE.SphereGeometry(SKY_DIST * Math.tan(EARTH_ANG_RADIUS), 48, 32),
+      new THREE.MeshStandardMaterial({ color: 0x5b8ff8, emissive: 0x1a2a55, roughness: 0.9, metalness: 0 }),
+    );
+    this.earthBody.matrixAutoUpdate = false;
+    this.earthBody.visible = false;
+    scene.add(this.earthBody);
+    // Optional texture (installed by scripts/setup-data.sh); plain blue sphere otherwise.
+    new THREE.TextureLoader().load(`${DATA_BASE}earth_bluemarble_2048.png`, (tex) => {
+      if (!this.renderer.domElement.isConnected) return tex.dispose(); // globe disposed meanwhile
+      tex.colorSpace = THREE.SRGBColorSpace;
+      this.textures.push(tex);
+      const m = this.earthBody.material;
+      m.map = tex;
+      // Brighter than physical (visibility): day side ×1.8, faint glow so the night side stays readable.
+      m.color.setScalar(1.8);
+      m.emissiveMap = tex;
+      m.emissive.set(0xffffff);
+      m.emissiveIntensity = 0.12;
+      m.needsUpdate = true;
+    });
 
     // --- Textures -------------------------------------------------------------------------------
     let colorTex: THREE.Texture | null = null;
@@ -289,6 +336,106 @@ export class Globe {
     this.placeOnSurface(this.siteMarker, lat, lon);
   }
 
+  /**
+   * Sun and Earth directions (Moon body frame, from the Moon's centre). The directional light is
+   * pointed at the Sun, so the terminator and Earth's phase follow the same state. null = back to
+   * the illustrative fixed light, bodies hidden.
+   */
+  setSky(sky: MoonSky | null): void {
+    this.sunBody.visible = this.earthBody.visible = sky !== null;
+    if (!sky) {
+      this.sky = null;
+      this.sunLight.position.set(5, 1.5, 3);
+      return;
+    }
+    this.sky = { sun: bodyToThree(sky.sun).normalize(), earth: bodyToThree(sky.earth).normalize() };
+    this.sunLight.position.copy(this.sky.sun).multiplyScalar(5);
+    // First sky after load: open on a view where 80 % of the visible disc is lit.
+    if (!this.framedOnSun) {
+      this.framedOnSun = true;
+      const dist = this.camera.position.length(); // read BEFORE overwriting the position
+      this.camera.position.copy(this.viewDirection(this.sky.sun, LOAD_PHASE_ANGLE)).multiplyScalar(dist);
+      this.camera.lookAt(0, 0, 0);
+    }
+    this.earthBody.userData.rotation = bodyRotationToThree(sky.earthToBody);
+  }
+
+  /**
+   * Flies the camera behind the Moon so the Sun or Earth shows just past the limb, about 24° from
+   * the view centre, horizontally (fits any landscape aspect).
+   */
+  viewBody(which: "sun" | "earth"): void {
+    if (!this.sky) return;
+    const to = this.viewDirection(this.sky[which], Math.PI - THREE.MathUtils.degToRad(24));
+    const from = this.camera.position.clone();
+    this.flight = { from, to, d0: from.length(), d1: 4.5, t0: performance.now(), dur: 1600 };
+  }
+
+  /** Unit vector at `angle` from `dir`, turned horizontally (about the Y axis side vector). */
+  private viewDirection(dir: THREE.Vector3, angle: number): THREE.Vector3 {
+    let side = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0));
+    if (side.lengthSq() < 1e-6) side = new THREE.Vector3(1, 0, 0);
+    side.normalize();
+    return dir.clone().multiplyScalar(Math.cos(angle)).addScaledVector(side, Math.sin(angle)).normalize();
+  }
+
+  /**
+   * On-screen direction of local north at a site, degrees clockwise from screen-up, or null when
+   * the site is behind the camera. Polar fallback as lunar/skyGeometry.ts (prime-meridian limit).
+   */
+  northScreenAngle(lat: number, lon: number): number | null {
+    const polar = Math.abs(lat) >= 90 - 1e-9;
+    const la = THREE.MathUtils.degToRad(lat);
+    const lo = THREE.MathUtils.degToRad(polar ? 0 : lon);
+    // d/dlat of the body-frame position, mapped body → three (x, z, −y).
+    const north = new THREE.Vector3(-Math.sin(la) * Math.cos(lo), Math.cos(la), Math.sin(la) * Math.sin(lo));
+    const u = latLonToUnit(lat, lon);
+    const a = new THREE.Vector3(u.x, u.y, u.z).multiplyScalar(this.surfaceRadius(lat, lon));
+    const b = a.clone().addScaledVector(north, 0.01);
+    if (a.clone().sub(this.camera.position).dot(this.camera.getWorldDirection(new THREE.Vector3())) <= 0) return null;
+    a.project(this.camera);
+    b.project(this.camera);
+    return THREE.MathUtils.radToDeg(Math.atan2((b.x - a.x) * this.camera.aspect, b.y - a.y));
+  }
+
+  /**
+   * Screen-edge pointer for the Sun or Earth: pixel position (relative to the canvas) and arrow
+   * angle (degrees clockwise from screen-up). `onScreen` = inside the view (it may still be hidden
+   * behind the Moon). null before setSky().
+   */
+  edgePointer(which: "sun" | "earth", marginPx = 36): { x: number; y: number; angle: number; onScreen: boolean } | null {
+    if (!this.sky) return null;
+    const w = this.container.clientWidth;
+    const h = this.container.clientHeight;
+    const p = this.camera.position.clone().addScaledVector(this.sky[which], SKY_DIST);
+    const behind = p.clone().sub(this.camera.position).dot(this.camera.getWorldDirection(new THREE.Vector3())) < 0;
+    p.project(this.camera);
+    let nx = p.x;
+    let ny = p.y;
+    if (behind) {
+      // Projection mirrors points behind the camera: flip back, and push to the edge.
+      nx = -nx;
+      ny = -ny;
+    }
+    const onScreen = !behind && Math.abs(nx) <= 1 && Math.abs(ny) <= 1;
+    const angle = THREE.MathUtils.radToDeg(Math.atan2(nx * w, ny * h));
+    if (!onScreen) {
+      // Slide along the centre → target ray until it touches the margin box.
+      const mx = 1 - (2 * marginPx) / w;
+      const my = 1 - (2 * marginPx) / h;
+      const k = 1 / Math.max(Math.abs(nx) / mx, Math.abs(ny) / my, 1e-9);
+      nx *= k;
+      ny *= k;
+    }
+    return { x: ((nx + 1) / 2) * w, y: ((1 - ny) / 2) * h, angle, onScreen };
+  }
+
+  /** Called whenever the camera moves (orbit, damping, fly-to). Returns an unsubscribe function. */
+  onCameraChange(cb: () => void): () => void {
+    this.controls.addEventListener("change", cb);
+    return () => this.controls.removeEventListener("change", cb);
+  }
+
   /** Circle of radius `radiusKm` around a feature (visual cue for search). */
   showRing(lat: number, lon: number, radiusKm: number): void {
     if (this.ring) {
@@ -351,6 +498,15 @@ export class Globe {
     }
     if (this.ring) this.ring.material.opacity = 0.55 + 0.4 * Math.sin(now / 250);
     this.controls.update();
+    if (this.sky) {
+      // Re-centre on the camera every frame: directions, not positions, are what is physical.
+      const cam = this.camera.position;
+      this.sunBody.position.copy(cam).addScaledVector(this.sky.sun, SKY_DIST);
+      this.earthBody.matrix
+        .copy(this.earthBody.userData.rotation as THREE.Matrix4)
+        .setPosition(cam.clone().addScaledVector(this.sky.earth, SKY_DIST));
+      this.earthBody.matrixWorldNeedsUpdate = true; // matrixAutoUpdate is off: refresh matrixWorld
+    }
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -395,6 +551,29 @@ function intersectSphere(o: THREE.Vector3, d: THREE.Vector3, r: number): [number
   const tExit = -b + sq;
   if (tExit < 0) return null;
   return [-b - sq, tExit];
+}
+
+/** Unlit solar disc plus an additive glow sprite (the glow is decoration, not the true corona). */
+function makeSun(radius: number, textures: THREE.Texture[]): THREE.Group {
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(radius, 24, 16), new THREE.MeshBasicMaterial({ color: 0xfff6d5 })));
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const ctx = c.getContext("2d")!;
+  const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grad.addColorStop(0, "rgba(255,240,190,0.9)");
+  grad.addColorStop(0.2, "rgba(255,210,120,0.35)");
+  grad.addColorStop(1, "rgba(255,200,100,0)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 128, 128);
+  const map = new THREE.CanvasTexture(c);
+  textures.push(map); // freed by Globe.dispose()
+  const glow = new THREE.Sprite(
+    new THREE.SpriteMaterial({ map, blending: THREE.AdditiveBlending, depthWrite: false }),
+  );
+  glow.scale.setScalar(radius * 14);
+  g.add(glow);
+  return g;
 }
 
 /** Lat/lon grid every 15°, equator and prime meridian highlighted. Radius 1 (scaled later). */

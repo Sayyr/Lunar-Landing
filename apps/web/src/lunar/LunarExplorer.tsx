@@ -6,13 +6,17 @@
 //   'moonhover' and 'moonclick', detail = { lat, lon, altM, feature }
 //   feature = null | { name, type, diameterKm, lat, lon, distanceKm }
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+
+import { getCelestialState } from "../api/celestial";
 
 import { type Feature, FeatureIndex, type FeaturesJson, type PublicFeature, publicFeature } from "./features";
 import { formatAltM, formatLat, formatLon, roundLon } from "./geo";
 import { Globe } from "./globe";
 import type { Heightmap } from "./heightmap";
 import { DATA_BASE, loadHeightmap, loadImage, loadJson, type Progress, SETUP_HINT } from "./loaders";
+import { SkyCompass } from "./SkyCompass";
+import { type AzEl, localAzEl, moonSky } from "./skyGeometry";
 
 // Base URL of the elevation rasters: point it at R2/a CDN (CORS required) if ldem_16 exceeds the
 // host's file-size limit (25 MiB on Cloudflare Pages).
@@ -155,9 +159,18 @@ interface Props {
   siteLon: number;
   /** Called when the user clicks (long-press on touch) a surface point. */
   onPick: (lat: number, lon: number) => void;
+  /** Scenario time range: the sky (Sun, Earth, compass) can be scrubbed across it. */
+  startUtc: string;
+  durationHours: number;
+  stepMinutes: number;
+  /** Rendered at the top of the "⋯" panel (scenario form, results). */
+  children?: ReactNode;
 }
 
-export function LunarExplorer({ active, siteLat, siteLon, onPick }: Props) {
+/** Full scenario range played in about this many seconds. */
+const PLAY_SECONDS = 20;
+
+export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, durationHours, stepMinutes, children }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const tipRef = useRef<HTMLDivElement>(null);
@@ -175,12 +188,19 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick }: Props) {
   const [exag, setExag] = useState(2);
   const [grid, setGrid] = useState(false);
   const [refine, setRefine] = useState(true);
-  const [panelOpen, setPanelOpen] = useState(!mobile);
+  const [panelOpen, setPanelOpen] = useState(false); // opened from the "⋯" button
   const [lastClick, setLastClick] = useState<MoonPointInfo | null>(null);
   const [query, setQuery] = useState("");
   const [found, setFound] = useState<Feature | null>(null);
   const [copyLabel, setCopyLabel] = useState("Copy lat, lon");
   const [copyFallback, setCopyFallback] = useState<string | null>(null);
+  // Sky time = offset in minutes from the scenario start.
+  const [tMin, setTMin] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [sky, setSky] = useState<{ sun: AzEl; earth: AzEl; synthetic: boolean } | null>(null);
+  const roseRef = useRef<SVGGElement>(null);
+  const sunPtrRef = useRef<HTMLDivElement>(null);
+  const earthPtrRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     onPickRef.current = onPick;
@@ -342,6 +362,77 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick }: Props) {
   useEffect(() => globe?.setSite(siteLat, siteLon), [globe, siteLat, siteLon]);
   useEffect(() => globe?.setActive(active), [globe, active]);
 
+  // --- Sky: Sun/Earth for the scenario time -----------------------------------------------------
+  const startMs = Date.parse(startUtc);
+  const spanMin = Math.max(0, durationHours * 60);
+  useEffect(() => setTMin((t) => Math.min(t, spanMin)), [spanMin]);
+
+  useEffect(() => {
+    if (!globe || Number.isNaN(startMs)) return;
+    let stale = false;
+    getCelestialState(new Date(startMs + tMin * 60_000)).then((state) => {
+      if (stale) return;
+      const s = moonSky(state);
+      globe.setSky(s);
+      setSky({ sun: localAzEl(s.sun, siteLat, siteLon), earth: localAzEl(s.earth, siteLat, siteLon), synthetic: state.synthetic });
+    });
+    return () => {
+      stale = true;
+    };
+  }, [globe, startMs, tMin, siteLat, siteLon]);
+
+  useEffect(() => {
+    if (!playing || !active || spanMin === 0) return;
+    let raf = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = ((now - last) / 1000 / PLAY_SECONDS) * spanMin;
+      last = now;
+      setTMin((t) => (t + dt >= spanMin ? 0 : t + dt)); // loop
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [playing, active, spanMin]);
+
+  // Compass rose follows the on-screen direction of north at the site.
+  const hasSky = sky !== null;
+  useEffect(() => {
+    if (!globe || !hasSky) return;
+    const update = () => {
+      const a = globe.northScreenAngle(siteLat, siteLon);
+      roseRef.current?.setAttribute("transform", `rotate(${a ?? 0} 50 50)`);
+      roseRef.current?.setAttribute("opacity", a == null ? "0.45" : "1"); // dimmed: site behind the camera plane
+    };
+    update();
+    return globe.onCameraChange(update);
+  }, [globe, hasSky, siteLat, siteLon]);
+
+  // Edge pointers "Sun this way / Earth this way", shown only while the body is off-screen.
+  useEffect(() => {
+    if (!globe || !sky) return;
+    const place = (el: HTMLDivElement | null, which: "sun" | "earth") => {
+      const p = globe.edgePointer(which);
+      if (!el || !p) return;
+      el.hidden = p.onScreen;
+      el.style.transform = `translate(${p.x}px, ${p.y}px)`;
+      (el.firstElementChild as HTMLElement).style.transform = `rotate(${p.angle}deg)`;
+    };
+    const update = () => {
+      place(sunPtrRef.current, "sun");
+      place(earthPtrRef.current, "earth");
+    };
+    update();
+    const off = globe.onCameraChange(update);
+    window.addEventListener("resize", update);
+    return () => {
+      off();
+      window.removeEventListener("resize", update);
+    };
+  }, [globe, sky]);
+
+  const skyUtc = Number.isNaN(startMs) ? "—" : new Date(startMs + tMin * 60_000).toISOString().slice(0, 16).replace("T", " ") + " UTC";
+
   const results = useMemo(() => index?.search(query, 12) ?? [], [index, query]);
 
   const goTo = (f: Feature) => {
@@ -383,26 +474,76 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick }: Props) {
         className="lunar-panel-toggle"
         type="button"
         aria-expanded={panelOpen}
-        title="Panel"
+        title="Scenario & settings"
+        aria-label="Scenario and settings"
         onClick={() => setPanelOpen((o) => !o)}
       >
-        ☰
+        ⋯
       </button>
 
+      {sky && (
+        <>
+          <div ref={sunPtrRef} className="edge-ptr sun" hidden>
+            <span className="edge-arrow">▲</span>
+            <span className="edge-label">Sun</span>
+          </div>
+          <div ref={earthPtrRef} className="edge-ptr earth" hidden>
+            <span className="edge-arrow">▲</span>
+            <span className="edge-label">Earth</span>
+          </div>
+        </>
+      )}
+      {sky && (
+        <div className="sky-overlay">
+          <SkyCompass sun={sky.sun} earth={sky.earth} roseRef={roseRef} />
+          <div className="sky-time">
+            <button type="button" onClick={() => setPlaying((p) => !p)} aria-label={playing ? "Pause" : "Play"}>
+              {playing ? "❚❚" : "▶"}
+            </button>
+            <input
+              type="range"
+              min={0}
+              max={spanMin}
+              step={Math.max(1, stepMinutes)}
+              value={tMin}
+              onChange={(e) => {
+                setPlaying(false);
+                setTMin(Number(e.target.value));
+              }}
+              aria-label="Scenario time"
+            />
+            <output>{skyUtc}</output>
+          </div>
+          <div className="sky-view">
+            <button type="button" onClick={() => globe?.viewBody("earth")}>View Earth</button>
+            <button type="button" onClick={() => globe?.viewBody("sun")}>View Sun</button>
+          </div>
+          {sky.synthetic && (
+            <div className="sky-note">
+              SYNTHETIC sky — low-precision formulae, mean Moon orientation (no libration), centre directions,
+              ideal horizon. Not for analysis.
+            </div>
+          )}
+        </div>
+      )}
+
       <aside className="lunar-panel">
-        <h2>Last clicked point</h2>
-        <div className={`readout${lastClick ? "" : " muted"}`}>
-          {lastClick ? <InfoLines info={lastClick} /> : "Click the surface (long-press on touch) to place a marker and select the scenario site."}
-        </div>
-        <div className="row">
-          <button type="button" disabled={!lastClick} onClick={copy}>
-            {copyLabel}
-          </button>
-          <button type="button" onClick={() => globe?.clearMarkers()}>
-            Clear markers
-          </button>
-        </div>
-        {copyFallback && <input className="copy-fallback" type="text" readOnly value={copyFallback} onFocus={(e) => e.target.select()} autoFocus aria-label="Coordinates" />}
+        {children && <div className="lunar-scenario">{children}</div>}
+        <section>
+          <h2>Last clicked point</h2>
+          <div className={`readout${lastClick ? "" : " muted"}`}>
+            {lastClick ? <InfoLines info={lastClick} /> : "Click the surface (long-press on touch) to place a marker and select the scenario site."}
+          </div>
+          <div className="row">
+            <button type="button" disabled={!lastClick} onClick={copy}>
+              {copyLabel}
+            </button>
+            <button type="button" onClick={() => globe?.clearMarkers()}>
+              Clear markers
+            </button>
+          </div>
+          {copyFallback && <input className="copy-fallback" type="text" readOnly value={copyFallback} onFocus={(e) => e.target.select()} autoFocus aria-label="Coordinates" />}
+        </section>
 
         <section>
           <h2>Find a feature</h2>
@@ -485,7 +626,10 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick }: Props) {
               Feature shown: nearest IAU centre whose circle (IAU diameter / 2) contains the point — circular
               approximation of the outlines.
             </li>
-            <li>Lighting is purely illustrative: it is not the real Sun position.</li>
+            <li>
+              Lighting, background Sun/Earth and compass follow the SYNTHETIC mock sky (low-precision formulae, mean
+              lunar orientation without libration) — illustrative, not the scenario result.
+            </li>
           </ul>
           <p className="muted">
             Sources: NASA SVS{" "}

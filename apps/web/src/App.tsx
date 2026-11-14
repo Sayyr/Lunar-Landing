@@ -59,28 +59,27 @@ export function App() {
   return (
     <div className="app">
       <header className="top">
-        <div>
-          <h1>SELENE</h1>
-          <p className="subtitle">Lunar landing site &amp; date navigator — NASA Space Apps 2026 (prototype)</p>
-        </div>
+        <h1>SELENE</h1>
         <nav className="tabs" aria-label="Views">
           <a href="#/" className={tab === "scenario" ? "active" : ""}>Site scenario</a>
           <a href="#/sky" className={tab === "sky" ? "active" : ""}>Sun · Earth · Moon</a>
         </nav>
-        <ServiceStatus />
       </header>
       {/* Both views stay mounted (hidden + paused) so switching tabs keeps the globe, its GPU data and state. */}
       <main className="dash-main" hidden={tab !== "sky"}>
         <CelestialDashboard active={tab === "sky"} />
       </main>
-      <main className="layout" hidden={tab !== "scenario"}>
+      <main className="scenario-main" hidden={tab !== "scenario"}>
         <LunarExplorer
           active={tab === "scenario"}
           siteLat={request.site.latitude_deg}
           siteLon={request.site.longitude_deg}
           onPick={(lat, lon) => setRequest((r) => ({ ...r, site: { ...r.site, latitude_deg: lat, longitude_deg: lon } }))}
-        />
-        <div className="side">
+          startUtc={request.start_utc}
+          durationHours={request.duration_hours}
+          stepMinutes={request.step_minutes}
+        >
+          {/* Scenario settings and results live in the explorer's "⋯" panel. */}
           <ScenarioForm
             value={request}
             onChange={setRequest}
@@ -91,11 +90,12 @@ export function App() {
           />
           {error && <div className="error" role="alert">{error}</div>}
           {result && <ResultPanel result={result} />}
-        </div>
+          <ServiceStatus />
+          <p className="muted small">
+            Geometric visibility is not a power or communications guarantee. Not NASA-certified; not flight-ready.
+          </p>
+        </LunarExplorer>
       </main>
-      <footer className="foot">
-        Geometric visibility is not a power or communications guarantee. Not NASA-certified; not flight-ready.
-      </footer>
     </div>
   );
 }
