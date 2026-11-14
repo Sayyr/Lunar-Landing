@@ -23,6 +23,9 @@ import type { MoonSky, Vec3 } from "./skyGeometry";
 const SKY_DIST = 60;
 const EARTH_ANG_RADIUS = Math.atan(6371 / 384_400); // ≈ 0.95°
 const SUN_ANG_RADIUS = Math.atan(695_700 / 149_597_871); // ≈ 0.27°
+// Sun–Moon–camera angle i on load: lit fraction of the disc k = (1 + cos i) / 2 = 0.8 → i ≈ 53.1°
+// (formula for a distant viewer; from 3.2 radii it is within a few percent).
+const LOAD_PHASE_ANGLE = Math.acos(2 * 0.8 - 1);
 // Moon body frame (x lon 0, y lon 90° E, z north) → three.js (x, z, −y), as lunar/geo.ts.
 const bodyToThree = (v: Vec3) => new THREE.Vector3(v[0], v[2], -v[1]);
 
@@ -65,6 +68,7 @@ export class Globe {
   private readonly sunBody: THREE.Group;
   private readonly earthBody: THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial>;
   private sky: { sun: THREE.Vector3; earth: THREE.Vector3 } | null = null;
+  private framedOnSun = false;
 
   constructor(container: HTMLElement, { colorImage, heightmap, segments, initialView }: GlobeOptions) {
     this.container = container;
@@ -346,7 +350,22 @@ export class Globe {
     }
     this.sky = { sun: bodyToThree(sky.sun).normalize(), earth: bodyToThree(sky.earth).normalize() };
     this.sunLight.position.copy(this.sky.sun).multiplyScalar(5);
+    // First sky after load: open on a view where 80 % of the visible disc is lit.
+    if (!this.framedOnSun) {
+      this.framedOnSun = true;
+      const dist = this.camera.position.length(); // read BEFORE overwriting the position
+      this.camera.position.copy(this.viewDirection(this.sky.sun, LOAD_PHASE_ANGLE)).multiplyScalar(dist);
+      this.camera.lookAt(0, 0, 0);
+    }
     this.earthBody.userData.rotation = bodyRotationToThree(sky.earthToBody);
+  }
+
+  /** Unit vector at `angle` from `dir`, turned horizontally (about the Y axis side vector). */
+  private viewDirection(dir: THREE.Vector3, angle: number): THREE.Vector3 {
+    let side = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0));
+    if (side.lengthSq() < 1e-6) side = new THREE.Vector3(1, 0, 0);
+    side.normalize();
+    return dir.clone().multiplyScalar(Math.cos(angle)).addScaledVector(side, Math.sin(angle)).normalize();
   }
 
   /** Circle of radius `radiusKm` around a feature (visual cue for search). */
