@@ -4,7 +4,7 @@
 //     has not been installed with scripts/setup-data.sh) so the scenario UI keeps working;
 //   - sizes follow the container (ResizeObserver) and `dispose()` frees GPU resources on unmount;
 //   - `setSite()` shows the scenario's selected site as a distinct marker;
-//   - `setSky()` places the Sun in the background and points the light at the Sun.
+//   - `setSky()` places the Sun and Earth in the background and points the light at the Sun.
 //
 // Scene units: 1 unit = reference radius (1737.4 km). The elevation raster is in km, so the
 // displacement scale is exaggeration / 1737.4.
@@ -12,13 +12,16 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
+import { bodyRotationToThree } from "../lib/sceneFrame";
 import { latLonToUnit, MOON_RADIUS_KM, pointToUv, uvToLatLon } from "./geo";
 import type { Heightmap } from "./heightmap";
+import { DATA_BASE } from "./loaders";
 import type { MoonSky, Vec3 } from "./skyGeometry";
 
 // Background bodies are drawn at SKY_DIST from the camera (always "at infinity": no parallax when
 // orbiting) with their true mean angular radii as seen from the Moon.
 const SKY_DIST = 60;
+const EARTH_ANG_RADIUS = Math.atan(6371 / 384_400); // ≈ 0.95°
 const SUN_ANG_RADIUS = Math.atan(695_700 / 149_597_871); // ≈ 0.27°
 // Moon body frame (x lon 0, y lon 90° E, z north) → three.js (x, z, −y), as lunar/geo.ts.
 const bodyToThree = (v: Vec3) => new THREE.Vector3(v[0], v[2], -v[1]);
@@ -60,6 +63,7 @@ export class Globe {
   private flight: { from: THREE.Vector3; to: THREE.Vector3; d0: number; d1: number; t0: number; dur: number } | null = null;
   private readonly sunLight: THREE.DirectionalLight;
   private readonly sunBody: THREE.Group;
+  private readonly earthBody: THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial>;
   private sky: { sun: THREE.Vector3; earth: THREE.Vector3 } | null = null;
 
   constructor(container: HTMLElement, { colorImage, heightmap, segments, initialView }: GlobeOptions) {
@@ -104,10 +108,27 @@ export class Globe {
     scene.add(new THREE.AmbientLight(0xffffff, 0.06));
     this.sunLight = sun;
 
-    // --- Background Sun (hidden until setSky) ---------------------------------------------------------
+    // --- Background Sun and Earth (hidden until setSky) ---------------------------------------------
     this.sunBody = makeSun(SKY_DIST * Math.tan(SUN_ANG_RADIUS), this.textures);
     this.sunBody.visible = false;
     scene.add(this.sunBody);
+    this.earthBody = new THREE.Mesh(
+      new THREE.SphereGeometry(SKY_DIST * Math.tan(EARTH_ANG_RADIUS), 48, 32),
+      new THREE.MeshStandardMaterial({ color: 0x3b6fd8, roughness: 0.9, metalness: 0 }),
+    );
+    this.earthBody.matrixAutoUpdate = false;
+    this.earthBody.visible = false;
+    scene.add(this.earthBody);
+    // Optional texture (installed by scripts/setup-data.sh); plain blue sphere otherwise.
+    new THREE.TextureLoader().load(`${DATA_BASE}earth_bluemarble_2048.png`, (tex) => {
+      if (!this.renderer.domElement.isConnected) return tex.dispose(); // globe disposed meanwhile
+      tex.colorSpace = THREE.SRGBColorSpace;
+      this.textures.push(tex);
+      const m = this.earthBody.material;
+      m.map = tex;
+      m.color.set(0xffffff);
+      m.needsUpdate = true;
+    });
 
     // --- Textures -------------------------------------------------------------------------------
     let colorTex: THREE.Texture | null = null;
@@ -309,11 +330,11 @@ export class Globe {
 
   /**
    * Sun and Earth directions (Moon body frame, from the Moon's centre). The directional light is
-   * pointed at the Sun, so the terminator follows the same state. null = back to
+   * pointed at the Sun, so the terminator and Earth's phase follow the same state. null = back to
    * the illustrative fixed light, bodies hidden.
    */
   setSky(sky: MoonSky | null): void {
-    this.sunBody.visible = sky !== null;
+    this.sunBody.visible = this.earthBody.visible = sky !== null;
     if (!sky) {
       this.sky = null;
       this.sunLight.position.set(5, 1.5, 3);
@@ -321,6 +342,7 @@ export class Globe {
     }
     this.sky = { sun: bodyToThree(sky.sun).normalize(), earth: bodyToThree(sky.earth).normalize() };
     this.sunLight.position.copy(this.sky.sun).multiplyScalar(5);
+    this.earthBody.userData.rotation = bodyRotationToThree(sky.earthToBody);
   }
 
   /** Circle of radius `radiusKm` around a feature (visual cue for search). */
@@ -389,6 +411,10 @@ export class Globe {
       // Re-centre on the camera every frame: directions, not positions, are what is physical.
       const cam = this.camera.position;
       this.sunBody.position.copy(cam).addScaledVector(this.sky.sun, SKY_DIST);
+      this.earthBody.matrix
+        .copy(this.earthBody.userData.rotation as THREE.Matrix4)
+        .setPosition(cam.clone().addScaledVector(this.sky.earth, SKY_DIST));
+      this.earthBody.matrixWorldNeedsUpdate = true; // matrixAutoUpdate is off: refresh matrixWorld
     }
     this.renderer.render(this.scene, this.camera);
   }
