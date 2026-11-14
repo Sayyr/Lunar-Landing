@@ -15,8 +15,8 @@ import { DATA_README_URL } from "../lib/links";
 import { type Feature, FeatureIndex, type FeaturesJson, type PublicFeature, publicFeature } from "./features";
 import { formatAltM, formatLat, formatLon, roundLon } from "./geo";
 import { Globe } from "./globe";
-import type { Heightmap } from "./heightmap";
-import { DATA_BASE, loadHeightmap, loadImage, loadJson, type Progress, SETUP_HINT } from "./loaders";
+import { Heightmap } from "./heightmap";
+import { type BandManifest, bandOrderNear, DATA_BASE, loadHeightmap, loadImage, loadJson, type Progress, SETUP_HINT, streamBands } from "./loaders";
 import { SkyCompass } from "./SkyCompass";
 import { TREK_LAYER } from "./tileScheme";
 import type { TileStatus } from "./tileLayer";
@@ -70,7 +70,55 @@ interface LunarData {
 let dataPromise: Promise<LunarData> | null = null;
 const progressListeners = new Set<(pct: number | null) => void>();
 
-function loadLunarData(dem: Dem, notes: string[]): Promise<LunarData> {
+// ldem_16 split into latitude bands (scripts/split_ldem.py): the globe starts on ldem_4 resampled
+// to the ldem_16 grid, and each band overwrites its rows in place as it arrives (nearest to the
+// site first). Shared by every globe instance of the page, like the data above.
+export interface DemStreamState {
+  loaded: number;
+  total: number;
+  done: boolean;
+}
+let demStream: DemStreamState | null = null;
+const bandListeners = new Set<(row0: number, rows: number) => void>();
+const streamListeners = new Set<(s: DemStreamState) => void>();
+
+async function loadElevation(dem: Dem, notes: string[], siteLat: number, progress: Progress): Promise<Heightmap | null> {
+  if (dem === "16") {
+    const base = `${DEM_BASE}ldem_16/`;
+    const manifest = await loadJson<BandManifest>(`${base}manifest.json`).catch(() => null);
+    if (manifest) {
+      const coarse = await loadHeightmap(`${DEM_BASE}ldem_4.tif`, "ldem_4", progress);
+      const hm = new Heightmap(coarse.resampled(manifest.width, manifest.height), manifest.width, manifest.height, "ldem_16 (streaming)");
+      const state: DemStreamState = { loaded: 0, total: manifest.bands.length, done: false };
+      demStream = state;
+      void streamBands(base, manifest, hm.data, bandOrderNear(manifest, siteLat), (row0, rows) => {
+        state.loaded++;
+        bandListeners.forEach((l) => l(row0, rows));
+        streamListeners.forEach((l) => l({ ...state }));
+      }).then((n) => {
+        state.done = true;
+        if (n === state.total) hm.label = "ldem_16";
+        else notes.push(`ldem_16: ${state.total - n} of ${state.total} bands failed; those latitudes stay at ldem_4 resolution.`);
+        streamListeners.forEach((l) => l({ ...state }));
+      });
+      return hm;
+    }
+  }
+  // Single-file path: ldem_4, or ldem_16 when it was not split.
+  return loadHeightmap(`${DEM_BASE}ldem_${dem}.tif`, `ldem_${dem}`, progress)
+    // `setup-data.sh --light` installs ldem_4 only: fall back to it rather than a flat Moon.
+    .catch((e: Error) => {
+      if (dem !== "16") throw e;
+      notes.push(`ldem_16 unavailable (${e.message}): using ldem_4.`);
+      return loadHeightmap(`${DEM_BASE}ldem_4.tif`, "ldem_4", progress);
+    })
+    .catch((e: Error) => {
+      notes.push(`Elevation raster unavailable (${e.message}): flat sphere, no altitude — ${SETUP_HINT}.`);
+      return null;
+    });
+}
+
+function loadLunarData(dem: Dem, notes: string[], siteLat: number): Promise<LunarData> {
   if (dataPromise) return dataPromise;
   const parts = { color: 0, dem: 0, names: 0 };
   const weights = { color: 0.25, dem: 0.65, names: 0.1 };
@@ -89,17 +137,7 @@ function loadLunarData(dem: Dem, notes: string[]): Promise<LunarData> {
       notes.push(`Colour mosaic unavailable (${e.message}): untextured sphere — ${SETUP_HINT}.`);
       return null;
     }),
-    loadHeightmap(`${DEM_BASE}ldem_${dem}.tif`, `ldem_${dem}`, progress("dem"))
-      // `setup-data.sh --light` installs ldem_4 only: fall back to it rather than a flat Moon.
-      .catch((e: Error) => {
-        if (dem !== "16") throw e;
-        notes.push(`ldem_16 unavailable (${e.message}): using ldem_4.`);
-        return loadHeightmap(`${DEM_BASE}ldem_4.tif`, "ldem_4", progress("dem"));
-      })
-      .catch((e: Error) => {
-        notes.push(`Elevation raster unavailable (${e.message}): flat sphere, no altitude — ${SETUP_HINT}.`);
-        return null;
-      }),
+    loadElevation(dem, notes, siteLat, progress("dem")),
     loadJson<FeaturesJson>(`${DATA_BASE}features.json`, progress("names")).catch((e: Error) => {
       notes.push(`Feature names unavailable (${e.message}) — ${SETUP_HINT}.`);
       return null;
@@ -188,6 +226,7 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
   const [fatal, setFatal] = useState<string | null>(null);
   const [notes, setNotes] = useState<string[]>([]);
   const [dataset, setDataset] = useState("");
+  const [demStreamState, setDemStream] = useState<DemStreamState | null>(null);
   const [demLabel, setDemLabel] = useState<Dem>("4");
   const [exag, setExag] = useState(2);
   const [grid, setGrid] = useState(false);
@@ -233,7 +272,7 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
     const onProgress = (p: number | null) => !cancelled && setLoadPct(p);
     progressListeners.add(onProgress);
 
-    loadLunarData(dem, notesAcc)
+    loadLunarData(dem, notesAcc, siteRef.current.lat)
       .then((data) => {
         if (cancelled) return;
         const site = siteRef.current;
@@ -247,7 +286,7 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
         const allNotes = [...new Set([...notesAcc, ...data.notes])];
         if (data.heightmap && !g.floatLinear) allNotes.push("float32 linear filtering unavailable: relief sampled with 'nearest'.");
         const hm = data.heightmap;
-        if (hm) setDemLabel(hm.label === "ldem_16" ? "16" : "4");
+        if (hm) setDemLabel(hm.width >= 5760 ? "16" : "4");
         setDataset(
           (hm ? `${hm.label} · ${hm.width}×${hm.height} px · ≈ ${hm.kmPerPixel.toFixed(1)} km/px at the equator` : "no elevation raster") +
             ` · ${idx.features.length} features`,
@@ -255,7 +294,18 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
         setNotes(allNotes);
         setIndex(idx);
         setGlobe(g);
-        detach = attachPointer(g, idx, root, tip);
+        const detachPointer = attachPointer(g, idx, root, tip);
+        // Streamed ldem_16 bands: upload each one to this globe's GPU texture as it arrives.
+        const gl = g;
+        const onBand = (row0: number, rows: number) => gl.applyHeightBand(row0, rows);
+        bandListeners.add(onBand);
+        streamListeners.add(setDemStream);
+        if (demStream) setDemStream({ ...demStream });
+        detach = () => {
+          detachPointer();
+          bandListeners.delete(onBand);
+          streamListeners.delete(setDemStream);
+        };
       })
       .catch((e: Error) => !cancelled && setFatal(`Loading failed: ${e.message}`));
 
@@ -656,6 +706,13 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
         <section className="small">
           <h2>Data &amp; limits</h2>
           <p className="muted">{dataset}</p>
+          {demStreamState && (
+            <p className="muted">
+              {demStreamState.done
+                ? `ldem_16 relief: ${demStreamState.loaded}/${demStreamState.total} bands loaded.`
+                : `ldem_16 relief streaming: ${demStreamState.loaded}/${demStreamState.total} bands (nearest the site first; ldem_4 elsewhere meanwhile).`}
+            </p>
+          )}
           <p className="muted">
             {demLabel === "16" ? "Full relief quality (ldem_16)." : "Light relief (ldem_4): switch to ldem_16 above if installed."} Full
             quality needs the NASA/IAU data:{" "}
