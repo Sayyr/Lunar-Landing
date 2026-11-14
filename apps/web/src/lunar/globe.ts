@@ -379,6 +379,31 @@ export class Globe {
     return dir.clone().multiplyScalar(Math.cos(angle)).addScaledVector(side, Math.sin(angle)).normalize();
   }
 
+  /**
+   * On-screen direction of local north at a site, degrees clockwise from screen-up, or null when
+   * the site is behind the camera. Polar fallback as lunar/skyGeometry.ts (prime-meridian limit).
+   */
+  northScreenAngle(lat: number, lon: number): number | null {
+    const polar = Math.abs(lat) >= 90 - 1e-9;
+    const la = THREE.MathUtils.degToRad(lat);
+    const lo = THREE.MathUtils.degToRad(polar ? 0 : lon);
+    // d/dlat of the body-frame position, mapped body → three (x, z, −y).
+    const north = new THREE.Vector3(-Math.sin(la) * Math.cos(lo), Math.cos(la), Math.sin(la) * Math.sin(lo));
+    const u = latLonToUnit(lat, lon);
+    const a = new THREE.Vector3(u.x, u.y, u.z).multiplyScalar(this.surfaceRadius(lat, lon));
+    const b = a.clone().addScaledVector(north, 0.01);
+    if (a.clone().sub(this.camera.position).dot(this.camera.getWorldDirection(new THREE.Vector3())) <= 0) return null;
+    a.project(this.camera);
+    b.project(this.camera);
+    return THREE.MathUtils.radToDeg(Math.atan2((b.x - a.x) * this.camera.aspect, b.y - a.y));
+  }
+
+  /** Called whenever the camera moves (orbit, damping, fly-to). Returns an unsubscribe function. */
+  onCameraChange(cb: () => void): () => void {
+    this.controls.addEventListener("change", cb);
+    return () => this.controls.removeEventListener("change", cb);
+  }
+
   /** Circle of radius `radiusKm` around a feature (visual cue for search). */
   showRing(lat: number, lon: number, radiusKm: number): void {
     if (this.ring) {
