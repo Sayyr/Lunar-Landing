@@ -36,4 +36,19 @@ Vec3 normalize(const Vec3& v);
 // For a direction exactly along Up/Down, azimuth is undefined and returned as 0.0.
 std::pair<double, double> azimuth_elevation_from_enu(const Vec3& enu);
 
+// Local East-North-Up unit vectors of a SPHERICAL body-fixed frame (X lon 0, Z north pole) at
+// planetocentric `lat_rad`, east-positive `lon_rad`:
+//   east  = (-sin lon, cos lon, 0)
+//   north = (-sin lat cos lon, -sin lat sin lon, cos lat)
+//   up    = ( cos lat cos lon,  cos lat sin lon, sin lat)
+// Deterministic pole convention: the same formulas are used at |lat| = 90 deg, so the basis is the
+// limit along the requested meridian `lon_rad` (continuous as lat -> +/-90 at fixed lon). At the
+// south pole "north" then points along meridian lon; at the north pole along meridian lon + 180.
+struct EnuBasis {
+    Vec3 east, north, up;
+};
+EnuBasis enu_basis(double lat_rad, double lon_rad);
+// Components of `v` (body-fixed) in the basis: {e, n, u}.
+Vec3 to_enu(const EnuBasis& b, const Vec3& v);
+
 }  // namespace selene

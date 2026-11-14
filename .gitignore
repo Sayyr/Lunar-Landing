@@ -49,3 +49,6 @@ Thumbs.db
 # apps/web: NASA/IAU data fetched by apps/web/scripts/setup-data.sh
 apps/web/public/data/
 apps/web/data-raw/
+
+# CSPICE toolkit fetched by scripts/setup-spice.sh
+services/science/third_party/

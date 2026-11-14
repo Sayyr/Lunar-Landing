@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -47,36 +48,46 @@ public:
     virtual DirectionSeries directions(const Site& site, const std::vector<int64_t>& times_us) const = 0;
 };
 
-// SPICE-backed ephemeris provider — NOT IMPLEMENTED YET.
+// SPICE-backed ephemeris provider (CSPICE). C++ port of the team's calcul_positions.py, validated
+// the same way as test_validation_lunar_mission.py (tests/spice_tests.cpp).
 //
-// Planned pipeline (see docs/validation.md), using CSPICE:
-// 1. Load a meta-kernel listing LSK (naif00NN.tls), PCK (pck000NN.tpc + moon_pa_*.bpc),
-//    FK (moon_*.tf), and SPK (de4xx.bsp) from SELENE_KERNEL_DIR (furnsh_c).
-// 2. UTC -> ET (TDB seconds past J2000) via str2et_c using the LSK.
-// 3. Observer: planetocentric lat/lon (deg -> rad) and radius (reference radius + height,
-//    m -> km) in the chosen body-fixed frame via latrec_c. Proposed frame: MOON_ME
-//    (LOLA products use the mean-Earth/polar-axis system) — confirm against DEM metadata.
-// 4. Sun/Earth apparent positions from the observer: spkcpo_c(target, et, frame, "OBSERVER",
-//    abcorr="LT+S", obspos, "MOON", frame).
-// 5. Rotate to local ENU, then azimuth/elevation; deterministic polar convention.
+// Pipeline (see docs/validation.md):
+// 1. Load the fixed kernel set SPICE_KERNELS from SELENE_KERNEL_DIR (furnsh_c), once per process.
+//    The PCK lunar radii must equal MOON_RADIUS_KM (1737.4 km sphere), else not ready.
+// 2. UTC -> ET (TDB seconds past J2000) via str2et_c with the LSK. Leap seconds after the LSK's
+//    last entry are unknown to it (naif0012: last one 2017-01-01).
+// 3. Observer in MOON_ME (mean Earth / polar axis; in moon_de440_250416.tf MOON_ME is the
+//    DE421-aligned ME frame, the frame of the LOLA products): planetocentric lat/lon (deg -> rad),
+//    radius MOON_RADIUS_KM + observer_height_m / 1000 (m -> km), via latrec_c.
+// 4. Sun/Earth centres seen from the observer: spkcpo_c(target, et, "MOON_ME", "OBSERVER",
+//    "CN+S", obspos, "MOON", "MOON_ME") (converged Newtonian light time + stellar aberration).
+// 5. Rotate to the local spherical ENU basis (geometry.hpp enu_basis, deterministic at the poles),
+//    then azimuth (from north toward east) / elevation of the body centre.
 //
-// Until then this provider reports itself as not ready and refuses to compute.
+// CSPICE keeps global state and is not thread-safe: every CSPICE call is serialised by one
+// process-wide mutex. Only one kernel directory can be loaded per process.
+// Built without CSPICE (SELENE_HAVE_CSPICE undefined) the provider always reports not ready.
+constexpr const char* SPICE_FRAME = "MOON_ME";
+constexpr const char* SPICE_ABCORR = "CN+S";
+extern const std::vector<std::string> SPICE_KERNELS;
+
+struct SpiceState;  // loaded kernel set, provenance; defined in ephemeris_spice.cpp
+
 class SpiceEphemerisProvider : public EphemerisProvider {
 public:
-    explicit SpiceEphemerisProvider(std::optional<std::filesystem::path> kernel_dir)
-        : kernel_dir_(std::move(kernel_dir)) {}
+    explicit SpiceEphemerisProvider(std::optional<std::filesystem::path> kernel_dir);
     std::string kind() const override { return "spice"; }
     bool synthetic() const override { return false; }
     ProviderStatus status() const override;
     json model_info() const override;
-    json provenance() const override { return json::array(); }
-    std::vector<std::string> assumptions() const override { return {}; }
-    DirectionSeries directions(const Site&, const std::vector<int64_t>&) const override {
-        throw EphemerisNotReady(status().reason);
-    }
+    json provenance() const override;
+    std::vector<std::string> assumptions() const override;
+    // Throws EphemerisNotReady when not ready or when CSPICE signals an error (e.g. a time outside
+    // the kernels' coverage).
+    DirectionSeries directions(const Site& site, const std::vector<int64_t>& times_us) const override;
 
 private:
-    std::optional<std::filesystem::path> kernel_dir_;
+    std::shared_ptr<const SpiceState> state_;
 };
 
 // SYNTHETIC fixture provider — outputs have NO physical meaning.

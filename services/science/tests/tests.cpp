@@ -129,6 +129,61 @@ static void test_geometry() {
 
 // ---------- intervals ----------
 
+// ENU basis: port of test_maths() in the team's test_validation_lunar_mission.py (same sites),
+// plus the exact poles, which that script refused.
+static void test_enu_basis() {
+    struct S { double lat, lon; };
+    const S sites[] = {{-85.0, -30.0}, {-89.5, 45.0}, {-70.0, 120.0}, {-30.0, -160.0}, {0.0, 0.0},
+                       {0.0, 90.0},    {45.0, -135.0}, {89.0, 10.0},  {-90.0, 0.0},    {-90.0, 73.0},
+                       {90.0, -120.0}};
+    auto dot = [](const Vec3& a, const Vec3& b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; };
+    auto cross = [](const Vec3& a, const Vec3& b) {
+        return Vec3{a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]};
+    };
+    auto lin = [](double a, const Vec3& u, double b, const Vec3& v) {
+        return Vec3{a * u[0] + b * v[0], a * u[1] + b * v[1], a * u[2] + b * v[2]};
+    };
+    for (const S& st : sites) {
+        const EnuBasis b = enu_basis(deg_to_rad(st.lat), deg_to_rad(st.lon));
+        // orthonormal and right-handed (east x north = up, i.e. det = +1)
+        CHECK_NEAR(dot(b.east, b.east), 1.0, 1e-12);
+        CHECK_NEAR(dot(b.north, b.north), 1.0, 1e-12);
+        CHECK_NEAR(dot(b.up, b.up), 1.0, 1e-12);
+        CHECK_NEAR(dot(b.east, b.north), 0.0, 1e-12);
+        CHECK_NEAR(dot(b.east, b.up), 0.0, 1e-12);
+        CHECK_NEAR(dot(b.north, b.up), 0.0, 1e-12);
+        const Vec3 en = cross(b.east, b.north);
+        CHECK_NEAR(dot(en, b.up), 1.0, 1e-12);
+        // up is the radial direction
+        const double la = deg_to_rad(st.lat), lo = deg_to_rad(st.lon);
+        const Vec3 u = {std::cos(la) * std::cos(lo), std::cos(la) * std::sin(lo), std::sin(la)};
+        CHECK_NEAR(dot(u, b.up), 1.0, 1e-12);
+
+        const double r2 = 1.0 / std::sqrt(2.0);
+        struct Case { Vec3 v; double az, el; };
+        const Case cases[] = {
+            {b.north, 0, 0}, {b.east, 90, 0}, {lin(-1, b.north, 0, b.east), 180, 0},
+            {lin(-1, b.east, 0, b.north), 270, 0}, {lin(r2, b.east, r2, b.up), 90, 45},
+            {lin(r2, b.north, r2, b.east), 45, 0}, {lin(r2, b.north, r2, b.up), 0, 45},
+        };
+        for (const Case& c : cases) {
+            auto [az, el] = azimuth_elevation_from_enu(to_enu(b, c.v));
+            CHECK(std::fabs(std::remainder(az - c.az, 360.0)) < 1e-9);
+            CHECK_NEAR(el, c.el, 1e-9);
+        }
+        auto [az_z, el_z] = azimuth_elevation_from_enu(to_enu(b, b.up));
+        CHECK(az_z == 0.0);  // zenith: azimuth undefined, reported as 0
+        CHECK_NEAR(el_z, 90.0, 1e-9);
+    }
+    // Pole convention: at the south pole north points along the requested meridian (toward +X for
+    // lon 0); continuous with lat -> -90 at the same longitude.
+    const EnuBasis sp = enu_basis(deg_to_rad(-90.0), 0.0);
+    CHECK_NEAR(sp.north[0], 1.0, 1e-12);
+    const EnuBasis near = enu_basis(deg_to_rad(-89.999999), 0.0);
+    CHECK_NEAR(dot(sp.north, near.north), 1.0, 1e-12);
+    CHECK_NEAR(dot(sp.east, near.east), 1.0, 1e-12);
+}
+
 static void test_intervals() {
     CHECK(extract_intervals({}, {}).empty());
     CHECK(extract_intervals({0, 1, 2}, {-1, -2, -0.5}).empty());
@@ -481,7 +536,7 @@ static void test_api() {
     CHECK(r.body["service"] == "science");
     CHECK(r.body["ephemeris"]["provider"] == "spice");
     CHECK(r.body["ephemeris"]["ready"] == false);
-    CHECK(r.body["ephemeris"]["reason"].get<std::string>().find("not implemented") != std::string::npos);
+    CHECK(r.body["ephemeris"]["reason"].get<std::string>().find("SELENE_KERNEL_DIR not set") != std::string::npos);
 
     // real provider: not ready, no numbers
     r = post("/evaluate", valid);
@@ -1104,6 +1159,7 @@ static void test_robustness() {
 
 int main() {
     test_geometry();
+    test_enu_basis();
     test_intervals();
     test_link();
     test_lunar_ephemeris();
