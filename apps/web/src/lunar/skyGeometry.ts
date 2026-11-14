@@ -60,13 +60,21 @@ export interface AzEl {
   elevationDeg: number;
 }
 
+/** Angle in degrees wrapped to [0, 360). */
+export const wrap360 = (deg: number) => ((deg % 360) + 360) % 360;
+
+interface EnuBasis {
+  east: Vec3;
+  north: Vec3;
+  up: Vec3;
+}
+
 /**
- * Local azimuth/elevation of a body-frame direction at a site (planetocentric lat, east lon).
- * ENU on the sphere. Polar fallback (SCIENTIFIC_REFERENCE.md: "stable fallback tied to the
- * body-fixed X axis"): where north is undefined, use its limit along the prime meridian —
- * +X at the south pole, −X at the north pole. Azimuth of a zenith/nadir direction is 0.
+ * Local East/North/Up unit vectors (body frame) at a site on the reference sphere. Polar fallback
+ * (SCIENTIFIC_REFERENCE.md: "stable fallback tied to the body-fixed X axis"): where north is
+ * undefined, use its limit along the prime meridian — +X at the south pole, −X at the north pole.
  */
-export function localAzEl(dir: Vec3, latDeg: number, lonDeg: number): AzEl {
+export function enuBasis(latDeg: number, lonDeg: number): EnuBasis {
   const la = latDeg * DEG;
   const lo = lonDeg * DEG;
   const up: Vec3 = [Math.cos(la) * Math.cos(lo), Math.cos(la) * Math.sin(lo), Math.sin(la)];
@@ -74,14 +82,39 @@ export function localAzEl(dir: Vec3, latDeg: number, lonDeg: number): AzEl {
   // Limit along lon 0 is east = +Y at both poles (north = +X south, −X north).
   if (Math.hypot(...east) < 1e-9) east = [0, 1, 0];
   east = unit(east);
-  const north = cross(up, east);
+  return { east, north: cross(up, east), up };
+}
+
+/**
+ * Local azimuth/elevation of a body-frame direction at a site (planetocentric lat, east lon).
+ * ENU on the sphere (polar fallback: see enuBasis). Azimuth of a zenith/nadir direction is 0.
+ */
+export function localAzEl(dir: Vec3, latDeg: number, lonDeg: number): AzEl {
+  const { east, north, up } = enuBasis(latDeg, lonDeg);
   const d = unit(dir);
   const e = dot(d, east);
   const n = dot(d, north);
   const u = dot(d, up);
   const h = Math.hypot(e, n);
-  let az = h < 1e-12 ? 0 : Math.atan2(e, n) / DEG;
-  if (az < 0) az += 360;
-  if (az >= 360) az -= 360;
-  return { azimuthDeg: az, elevationDeg: Math.atan2(u, h) / DEG };
+  return { azimuthDeg: h < 1e-12 ? 0 : wrap360(Math.atan2(e, n) / DEG), elevationDeg: Math.atan2(u, h) / DEG };
+}
+
+/** Unit ENU vector [east, north, up] of an azimuth/elevation (inverse of the angles above). */
+export function azElToEnu({ azimuthDeg, elevationDeg }: AzEl): Vec3 {
+  const a = azimuthDeg * DEG;
+  const e = elevationDeg * DEG;
+  return [Math.cos(e) * Math.sin(a), Math.cos(e) * Math.cos(a), Math.sin(e)];
+}
+
+/**
+ * Earth body-fixed → local ENU [east, north, up] at the site, row-major 3×3 (texture orientation
+ * of the Earth seen from the ground, visualization only).
+ */
+export function earthToEnu(sky: MoonSky, latDeg: number, lonDeg: number): number[] {
+  const { east, north, up } = enuBasis(latDeg, lonDeg);
+  const rows = [east, north, up];
+  const m = sky.earthToBody;
+  const out: number[] = [];
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) out.push(rows[r][0] * m[c] + rows[r][1] * m[3 + c] + rows[r][2] * m[6 + c]);
+  return out;
 }

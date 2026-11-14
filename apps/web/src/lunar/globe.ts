@@ -625,7 +625,7 @@ function intersectSphere(o: THREE.Vector3, d: THREE.Vector3, r: number): [number
 }
 
 /** Unlit solar disc plus an additive glow sprite (the glow is decoration, not the true corona). */
-function makeSun(radius: number, textures: THREE.Texture[]): THREE.Group {
+export function makeSun(radius: number, textures: THREE.Texture[]): THREE.Group {
   const g = new THREE.Group();
   g.add(new THREE.Mesh(new THREE.SphereGeometry(radius, 24, 16), new THREE.MeshBasicMaterial({ color: 0xfff6d5 })));
   const c = document.createElement("canvas");

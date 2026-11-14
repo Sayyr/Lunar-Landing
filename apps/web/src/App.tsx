@@ -79,6 +79,7 @@ export function App() {
           startUtc={request.start_utc}
           durationHours={request.duration_hours}
           stepMinutes={request.step_minutes}
+          observerHeightM={request.site.observer_height_m}
         >
           {/* Scenario settings and results live in the explorer's "⋯" panel. */}
           <ScenarioForm

@@ -62,6 +62,14 @@ Nomenclature, IAU WGPSN / USGS Astrogeology. Cite these if the site is published
 - **Memory**: the TIFF is downloaded, decoded into one `Float32Array`, then the raw buffer is released. Rows are flipped
   *in place* and the same array feeds the `DataTexture` (displacement + bump) and elevation look-ups: one CPU copy in
   steady state, shared across tab switches. Transient peak ≈ 2× while decoding. Changing quality reloads the page.
+- **Ground view, south pole (optional, ~1.5 GB on disk)**: `scripts/setup-polar-dem.sh` downloads LOLA
+  `LDEM_85S_20M` (PDS, 20 m/px, 85°S–90°S, MOON_ME DE421, 920 MB) and tiles it with `scripts/tile_polar_dem.py`
+  (numpy) into `public/data/polar_s/` (20/40/80/160 m levels, uint16 with per-tile offset/step, quantisation ≤ cm).
+  The label gives no projection signs: the tiler picks them by comparing with ldem_16 at 4000 random points and
+  refuses to write tiles if the RMS exceeds 300 m (got: median |Δh| 28 m, RMS 56 m — ldem_16 is 1.9 km/px).
+  Checked on Shackleton: ≈ 3.9 km floor-to-rim. The ground view loads ~190 tiles (~25 MB) around a site south of
+  ≈ 85.1°S: 20 m to 6 km, 40 m to 25 km, 80 m to 80 km, 160 m to 150 km, then ldem_16. Not part of
+  `setup-data.sh` nor the Docker build; `npm run build` copies `public/data/` into `dist/` as is.
 - **ldem_16 streaming**: `setup-data.sh` splits `ldem_16.tif` (66 MB) with `scripts/split_ldem.py` into
   `public/data/ldem_16/band_NN.f32` (16 × 180 rows, raw float32 LE, **lossless**, already south-first) plus
   `manifest.json`. The app first shows ldem_4 (4 MB) resampled to the ldem_16 grid, then streams the bands (3 at a time,
