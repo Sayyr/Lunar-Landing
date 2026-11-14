@@ -3,10 +3,34 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { buildGroundTerrain } from "./groundTerrain";
+import { buildGroundTerrain, type TerrainSource } from "./groundTerrain";
 import { type GroundSky, GroundView, type GroundViewState } from "./groundView";
 import type { Heightmap } from "./heightmap";
+import { DATA_BASE, loadJson } from "./loaders";
+import { POLAR_PLAN, PolarDem, polarLevelFor, type PolarManifest } from "./polarDem";
 import type { AzEl } from "./skyGeometry";
+
+// High-resolution south-polar DEM (scripts/setup-polar-dem.sh), shared by every ground view of the
+// page so tiles are fetched once. null = not installed.
+const POLAR_BASE = `${DATA_BASE}polar_s/`;
+let polarPromise: Promise<PolarDem | null> | null = null;
+const loadPolar = () =>
+  (polarPromise ??= loadJson<PolarManifest>(`${POLAR_BASE}manifest.json`)
+    .then((m) => new PolarDem(m, POLAR_BASE))
+    .catch(() => null));
+
+/** Polar DEM near the observer (finest level allowed by the distance), global raster elsewhere. */
+function terrainSource(hm: Heightmap | null, polar: PolarDem | null): TerrainSource {
+  if (!polar) return hm;
+  return (lat, lon, d) => {
+    const lv = polarLevelFor(d);
+    if (lv >= 0) {
+      const v = polar.sampleKm(lat, lon, lv);
+      if (Number.isFinite(v)) return v * 1000;
+    }
+    return hm ? hm.sampleKmSmooth(lat, lon) * 1000 : 0;
+  };
+}
 
 interface Props {
   heightmap: Heightmap | null;
@@ -78,6 +102,8 @@ export function GroundViewPanel({ heightmap, siteLat, siteLon, observerHeightM, 
   const [view, setView] = useState<GroundView | null>(null);
   const [state, setState] = useState<GroundViewState>({ azimuthDeg: 0, elevationDeg: 5, hfovDeg: 90 });
   const [siteElevationM, setSiteElevationM] = useState<number | null>(null);
+  /** null: polar DEM not used here; otherwise its loading state for this site */
+  const [polar, setPolar] = useState<{ dem: PolarDem; done: number; total: number; ready: boolean } | null>(null);
   const firstSky = useRef(true);
 
   useEffect(() => {
@@ -94,16 +120,33 @@ export function GroundViewPanel({ heightmap, siteLat, siteLon, observerHeightM, 
   useEffect(() => view?.setActive(active), [view, active]);
   useEffect(() => onHeading?.(state.azimuthDeg), [onHeading, state.azimuthDeg]);
 
-  // Terrain: debounce rebuilds (each streamed band bumps demVersion).
+  // High-resolution polar DEM: fetch the tiles around the site once, then use them.
+  useEffect(() => {
+    let stale = false;
+    setPolar(null);
+    loadPolar().then((dem) => {
+      if (stale || !dem || !dem.covers(siteLat, siteLon)) return;
+      setPolar({ dem, done: 0, total: 0, ready: false });
+      dem
+        .loadAround(siteLat, siteLon, POLAR_PLAN, (done, total) => !stale && setPolar({ dem, done, total, ready: false }))
+        .then(() => !stale && setPolar((p) => (p ? { ...p, ready: true } : p)));
+    });
+    return () => {
+      stale = true;
+    };
+  }, [siteLat, siteLon]);
+
+  // Terrain: debounce rebuilds (each streamed band bumps demVersion; polar tiles arrive once).
+  const polarReady = polar?.ready ? polar.dem : null;
   useEffect(() => {
     if (!view) return;
     const id = setTimeout(() => {
-      const t = buildGroundTerrain(heightmap, siteLat, siteLon, observerHeightM);
+      const t = buildGroundTerrain(terrainSource(heightmap, polarReady), siteLat, siteLon, observerHeightM);
       view.setTerrain(t);
-      setSiteElevationM(heightmap ? t.siteElevationM : null);
+      setSiteElevationM(heightmap || polarReady ? t.siteElevationM : null);
     }, 150);
     return () => clearTimeout(id);
-  }, [view, heightmap, siteLat, siteLon, observerHeightM, demVersion]);
+  }, [view, heightmap, polarReady, siteLat, siteLon, observerHeightM, demVersion]);
 
   useEffect(() => {
     if (!view) return;
@@ -128,8 +171,20 @@ export function GroundViewPanel({ heightmap, siteLat, siteLon, observerHeightM, 
           {siteElevationM != null && ` · ground ${Math.round(siteElevationM).toLocaleString("en-US")} m, eye +${observerHeightM} m`}
         </div>
         <div className="ground-note">
-          Terrain: LOLA {heightmap?.label ?? "—"} at true scale (≈ {heightmap ? heightmap.kmPerPixel.toFixed(1) : "—"} km/px, smoothed up
-          close), out to 400 km with curvature · uniform albedo, no cast shadows, constant fill light (no earthshine model) ·
+          {polar?.ready ? (
+            <>
+              Terrain: LOLA 20 m polar DEM ({polar.dem.manifest.source}, {polar.dem.manifest.frame}) — 20 m to 6 km, 40 m to 25 km,
+              80 m to 80 km, 160 m to 150 km — then {heightmap?.label ?? "—"} to 400 km, true scale with curvature
+            </>
+          ) : polar ? (
+            <>Loading 20 m polar relief around the site: {polar.done}/{polar.total} tiles… (meanwhile {heightmap?.label ?? "—"}, ≈ 1.9 km/px)</>
+          ) : (
+            <>
+              Terrain: LOLA {heightmap?.label ?? "—"} at true scale (≈ {heightmap ? heightmap.kmPerPixel.toFixed(1) : "—"} km/px, smoothed up
+              close), out to 400 km with curvature
+            </>
+          )}{" "}
+          · cast shadows (GPU, ±30 km around the line to the Sun) · uniform albedo, constant fill light (no earthshine model) ·
           dashed line = ideal horizon 0° · drag to look, wheel to zoom
         </div>
       </div>
