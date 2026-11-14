@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://selene.local/contracts/error.schema.json",
+  "title": "ErrorResponse",
+  "description": "Error envelope returned by both the API gateway and the science service for any non-2xx response.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["error"],
+  "properties": {
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "details"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": ["validation_error", "not_found", "science_unavailable", "upstream_error", "internal_error"]
+        },
+        "message": { "type": "string" },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["field", "issue"],
+            "properties": {
+              "field": { "type": "string" },
+              "issue": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

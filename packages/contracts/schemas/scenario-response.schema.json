@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://selene.local/contracts/scenario-response.schema.json",
+  "title": "ScenarioResponse",
+  "description": "Result of evaluating one scenario. `status` is one of: 'computed' (real ephemerides), 'synthetic' (fixture waveforms with NO physical meaning), 'not_ready' (provider cannot compute; samples and windows are empty). Azimuth is measured from local north toward east in [0, 360); elevation is relative to the horizon model named in `model.horizon_model`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "synthetic",
+    "message",
+    "request",
+    "model",
+    "data_provenance",
+    "assumptions",
+    "warnings",
+    "samples",
+    "windows"
+  ],
+  "properties": {
+    "schema_version": { "const": "0.1.0" },
+    "status": { "type": "string", "enum": ["computed", "synthetic", "not_ready"] },
+    "synthetic": {
+      "type": "boolean",
+      "description": "True if ANY number in this response is synthetic. Clients must display a conspicuous SYNTHETIC label when true."
+    },
+    "message": { "type": "string" },
+    "request": { "$ref": "scenario-request.schema.json" },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ephemeris_provider", "horizon_model", "body_fixed_frame", "time_scale_note", "kernel_set"],
+      "properties": {
+        "ephemeris_provider": { "type": "string", "enum": ["spice", "synthetic_fixture"] },
+        "horizon_model": {
+          "type": "string",
+          "enum": ["ideal_geometric", "dem_terrain"],
+          "description": "Ideal geometric horizon vs DEM-based terrain horizon. Neither implies power or radio-link availability."
+        },
+        "body_fixed_frame": {
+          "type": ["string", "null"],
+          "description": "Lunar body-fixed frame used (e.g. MOON_ME). null when no real frame was used."
+        },
+        "time_scale_note": { "type": "string" },
+        "kernel_set": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "SPICE kernel file names actually loaded. Empty if none."
+        }
+      }
+    },
+    "data_provenance": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "kind", "source", "version", "license", "notes"],
+        "properties": {
+          "name": { "type": "string" },
+          "kind": { "type": "string", "enum": ["spice_kernel", "dem", "synthetic", "other"] },
+          "source": { "type": "string" },
+          "version": { "type": ["string", "null"] },
+          "license": { "type": ["string", "null"] },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "assumptions": { "type": "array", "items": { "type": "string" } },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "samples": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["utc", "sun", "earth"],
+        "properties": {
+          "utc": { "type": "string" },
+          "sun": { "$ref": "#/$defs/direction" },
+          "earth": { "$ref": "#/$defs/direction" }
+        }
+      }
+    },
+    "windows": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sun_visible", "earth_visible"],
+      "properties": {
+        "sun_visible": { "type": "array", "items": { "$ref": "#/$defs/window" } },
+        "earth_visible": { "type": "array", "items": { "$ref": "#/$defs/window" } }
+      }
+    }
+  },
+  "$defs": {
+    "direction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["azimuth_deg", "elevation_deg"],
+      "properties": {
+        "azimuth_deg": { "type": "number", "minimum": 0, "exclusiveMaximum": 360 },
+        "elevation_deg": { "type": "number", "minimum": -90, "maximum": 90 }
+      }
+    },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start_utc", "end_utc", "clipped_start", "clipped_end"],
+      "description": "Interval where the body centre is above the horizon model. clipped_start/clipped_end = the window extends beyond the sampled range (true duration unknown).",
+      "properties": {
+        "start_utc": { "type": "string" },
+        "end_utc": { "type": "string" },
+        "clipped_start": { "type": "boolean" },
+        "clipped_end": { "type": "boolean" }
+      }
+    }
+  }
+}

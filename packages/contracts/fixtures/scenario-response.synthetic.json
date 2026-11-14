@@ -1,0 +1,171 @@
+{
+  "schema_version": "0.1.0",
+  "status": "synthetic",
+  "synthetic": true,
+  "message": "SYNTHETIC fixture output for UI development only.",
+  "request": {
+    "site": {
+      "latitude_deg": -89.5,
+      "longitude_deg": 0.0,
+      "observer_height_m": 2.0
+    },
+    "start_utc": "2026-11-15T00:00:00Z",
+    "duration_hours": 48.0,
+    "step_minutes": 360.0,
+    "terrain_mode": "ideal"
+  },
+  "model": {
+    "ephemeris_provider": "synthetic_fixture",
+    "horizon_model": "ideal_geometric",
+    "body_fixed_frame": null,
+    "time_scale_note": "Synthetic: UTC sample times only; no time-scale conversion performed.",
+    "kernel_set": []
+  },
+  "data_provenance": [
+    {
+      "name": "SELENE synthetic waveform generator",
+      "kind": "synthetic",
+      "source": "services/science/src/selene_science/ephemeris/synthetic.py",
+      "version": "0.1.0",
+      "license": null,
+      "notes": "Arbitrary sinusoids. Not derived from any ephemeris, kernel or DEM."
+    }
+  ],
+  "assumptions": [
+    "SYNTHETIC: azimuth/elevation are arbitrary sinusoids (Sun period 36.0 h, Earth period 60.0 h) chosen only to exercise the UI. They do not represent the Sun or Earth.",
+    "SYNTHETIC: waveform phase depends on site longitude only so two scenarios look different; this dependence is not physical.",
+    "Horizon model: ideal geometric horizon (elevation 0 deg); local terrain is ignored.",
+    "Visibility = body centre above the horizon; finite apparent disks (partial Sun/Earth) are not modelled.",
+    "Window edges are linearly interpolated between samples; events shorter than the sampling step may be missed.",
+    "Geometric visibility only: Sun visibility is not a power guarantee and Earth visibility is not a radio-link guarantee."
+  ],
+  "warnings": [
+    "SYNTHETIC DATA: these numbers do not describe the real Sun or Earth.",
+    "|latitude| >= 89.0 deg: local north/azimuth is ill-conditioned near the pole; the deterministic polar azimuth convention is not implemented yet."
+  ],
+  "samples": [
+    {
+      "utc": "2026-11-15T00:00:00.000Z",
+      "sun": {
+        "azimuth_deg": 0.0,
+        "elevation_deg": 0.5
+      },
+      "earth": {
+        "azimuth_deg": 180.0,
+        "elevation_deg": 0.0
+      }
+    },
+    {
+      "utc": "2026-11-15T06:00:00.000Z",
+      "sun": {
+        "azimuth_deg": 59.99999999999999,
+        "elevation_deg": 3.098076211353316
+      },
+      "earth": {
+        "azimuth_deg": 182.93892626146237,
+        "elevation_deg": 1.1755705045849463
+      }
+    },
+    {
+      "utc": "2026-11-15T12:00:00.000Z",
+      "sun": {
+        "azimuth_deg": 119.99999999999999,
+        "elevation_deg": 3.098076211353316
+      },
+      "earth": {
+        "azimuth_deg": 184.75528258147577,
+        "elevation_deg": 1.902113032590307
+      }
+    },
+    {
+      "utc": "2026-11-15T18:00:00.000Z",
+      "sun": {
+        "azimuth_deg": 180.0,
+        "elevation_deg": 0.5000000000000003
+      },
+      "earth": {
+        "azimuth_deg": 184.75528258147577,
+        "elevation_deg": 1.9021130325903073
+      }
+    },
+    {
+      "utc": "2026-11-16T00:00:00.000Z",
+      "sun": {
+        "azimuth_deg": 239.99999999999997,
+        "elevation_deg": -2.0980762113533156
+      },
+      "earth": {
+        "azimuth_deg": 182.93892626146237,
+        "elevation_deg": 1.1755705045849465
+      }
+    },
+    {
+      "utc": "2026-11-16T06:00:00.000Z",
+      "sun": {
+        "azimuth_deg": 299.99999999999994,
+        "elevation_deg": -2.098076211353317
+      },
+      "earth": {
+        "azimuth_deg": 180.0,
+        "elevation_deg": 1.133107779529596e-15
+      }
+    },
+    {
+      "utc": "2026-11-16T12:00:00.000Z",
+      "sun": {
+        "azimuth_deg": 0.0,
+        "elevation_deg": 0.4999999999999993
+      },
+      "earth": {
+        "azimuth_deg": 177.06107373853763,
+        "elevation_deg": -1.175570504584946
+      }
+    },
+    {
+      "utc": "2026-11-16T18:00:00.000Z",
+      "sun": {
+        "azimuth_deg": 60.00000000000006,
+        "elevation_deg": 3.0980762113533165
+      },
+      "earth": {
+        "azimuth_deg": 175.24471741852423,
+        "elevation_deg": -1.902113032590307
+      }
+    },
+    {
+      "utc": "2026-11-17T00:00:00.000Z",
+      "sun": {
+        "azimuth_deg": 119.99999999999994,
+        "elevation_deg": 3.0980762113533173
+      },
+      "earth": {
+        "azimuth_deg": 175.24471741852423,
+        "elevation_deg": -1.9021130325903073
+      }
+    }
+  ],
+  "windows": {
+    "sun_visible": [
+      {
+        "start_utc": "2026-11-15T00:00:00.000Z",
+        "end_utc": "2026-11-15T19:09:16.921Z",
+        "clipped_start": true,
+        "clipped_end": false
+      },
+      {
+        "start_utc": "2026-11-16T10:50:43.078Z",
+        "end_utc": "2026-11-17T00:00:00.000Z",
+        "clipped_start": false,
+        "clipped_end": true
+      }
+    ],
+    "earth_visible": [
+      {
+        "start_utc": "2026-11-15T00:00:00.000Z",
+        "end_utc": "2026-11-16T06:00:00.000Z",
+        "clipped_start": false,
+        "clipped_end": false
+      }
+    ]
+  }
+}

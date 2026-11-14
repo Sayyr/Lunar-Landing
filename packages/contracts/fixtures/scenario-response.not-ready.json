@@ -1,0 +1,34 @@
+{
+  "schema_version": "0.1.0",
+  "status": "not_ready",
+  "synthetic": false,
+  "message": "Ephemerides not available: SPICE provider not implemented yet; spiceypy not installed (pip install -e '.[spice]'); SELENE_KERNEL_DIR not set",
+  "request": {
+    "site": {
+      "latitude_deg": -89.5,
+      "longitude_deg": 0.0,
+      "observer_height_m": 2.0
+    },
+    "start_utc": "2026-11-15T00:00:00Z",
+    "duration_hours": 72.0,
+    "step_minutes": 10.0,
+    "terrain_mode": "ideal"
+  },
+  "model": {
+    "ephemeris_provider": "spice",
+    "horizon_model": "ideal_geometric",
+    "body_fixed_frame": null,
+    "time_scale_note": "UTC at the API boundary; ET (TDB) via LSK once implemented.",
+    "kernel_set": []
+  },
+  "data_provenance": [],
+  "assumptions": [],
+  "warnings": [
+    "|latitude| >= 89.0 deg: local north/azimuth is ill-conditioned near the pole; the deterministic polar azimuth convention is not implemented yet."
+  ],
+  "samples": [],
+  "windows": {
+    "sun_visible": [],
+    "earth_visible": []
+  }
+}

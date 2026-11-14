@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://selene.local/contracts/health.schema.json",
+  "title": "HealthResponse",
+  "description": "Health of a service. The gateway embeds the science service health under `upstream` (null when unreachable).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["service", "status", "version"],
+  "properties": {
+    "service": { "type": "string", "enum": ["api", "science"] },
+    "status": { "type": "string", "enum": ["ok", "degraded"] },
+    "version": { "type": "string" },
+    "ephemeris": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "ready", "reason"],
+      "properties": {
+        "provider": { "type": "string" },
+        "ready": { "type": "boolean" },
+        "reason": { "type": "string" }
+      }
+    },
+    "upstream": {
+      "anyOf": [{ "type": "null" }, { "$ref": "#" }]
+    },
+    "upstream_error": { "type": ["string", "null"] }
+  }
+}

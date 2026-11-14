@@ -1,0 +1,31 @@
+{
+  "sites": [
+    {
+      "id": "syn-a",
+      "name": "SYN-A (synthetic test point)",
+      "kind": "synthetic_test_point",
+      "latitude_deg": -89.5,
+      "longitude_deg": 0.0,
+      "source": "Synthetic example from CLAUDE.md",
+      "notes": "Arbitrary near-pole coordinate for exercising polar handling. NOT a landing site recommendation."
+    },
+    {
+      "id": "syn-b",
+      "name": "SYN-B (synthetic test point)",
+      "kind": "synthetic_test_point",
+      "latitude_deg": -85.0,
+      "longitude_deg": 45.0,
+      "source": "Synthetic, chosen by the team for testing",
+      "notes": "Arbitrary coordinate. NOT a landing site recommendation."
+    },
+    {
+      "id": "syn-equator",
+      "name": "SYN-EQ (synthetic test point)",
+      "kind": "synthetic_test_point",
+      "latitude_deg": 0.0,
+      "longitude_deg": 0.0,
+      "source": "Synthetic, chosen by the team for testing",
+      "notes": "Sub-Earth-ish reference point for sanity checks once real ephemerides exist. NOT a landing site."
+    }
+  ]
+}

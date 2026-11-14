@@ -1,0 +1,44 @@
+# Secrets / local env
+.env
+.env.*
+!.env.example
+
+# Data: kernels, DEMs, caches, generated tiles (see data/README.md)
+data/*
+!data/README.md
+!data/kernels/
+data/kernels/*
+!data/kernels/.gitkeep
+*.bsp
+*.bpc
+*.tpc
+*.tls
+*.tf
+*.tm
+*.img
+*.tif
+*.tiff
+cache/
+tiles/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Rust
+services/api/target/
+
+# Node
+node_modules/
+apps/web/dist/
+*.tsbuildinfo
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://selene.local/contracts/scenario-request.schema.json",
+  "title": "ScenarioRequest",
+  "description": "A single lunar surface observer scenario. Public units: degrees, meters, UTC ISO 8601. Latitude is planetocentric; longitude is east-positive in [-180, 180). The body-fixed frame is chosen by the science service and reported in the response `model.body_fixed_frame`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["site", "start_utc", "duration_hours", "step_minutes", "terrain_mode"],
+  "properties": {
+    "site": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["latitude_deg", "longitude_deg", "observer_height_m"],
+      "properties": {
+        "latitude_deg": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90,
+          "description": "Planetocentric latitude, degrees."
+        },
+        "longitude_deg": {
+          "type": "number",
+          "minimum": -180,
+          "exclusiveMaximum": 180,
+          "description": "East-positive longitude, degrees, in [-180, 180)."
+        },
+        "observer_height_m": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000,
+          "description": "Observer (e.g. antenna/panel) height above the local surface, meters. NOT a DEM elevation or a radius."
+        }
+      }
+    },
+    "start_utc": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$",
+      "description": "Scenario start, UTC, ISO 8601 with a literal 'Z' suffix."
+    },
+    "duration_hours": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 2160,
+      "description": "Scenario duration, hours (max 90 days)."
+    },
+    "step_minutes": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 1440,
+      "description": "Sampling interval, minutes. Coarse sampling can miss short events; window edges are linearly interpolated between samples."
+    },
+    "terrain_mode": {
+      "type": "string",
+      "enum": ["ideal", "dem"],
+      "description": "'ideal' = ideal geometric horizon (elevation 0 deg w.r.t. local reference plane). 'dem' = DEM-based terrain horizon (not available yet)."
+    }
+  }
+}

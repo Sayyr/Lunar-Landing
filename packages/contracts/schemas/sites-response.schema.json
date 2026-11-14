@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://selene.local/contracts/sites-response.schema.json",
+  "title": "SitesResponse",
+  "description": "Preset sites. Every entry must cite its coordinate source. Entries with kind 'synthetic_test_point' are NOT landing sites.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sites"],
+  "properties": {
+    "sites": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "kind", "latitude_deg", "longitude_deg", "source", "notes"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+          "name": { "type": "string" },
+          "kind": { "type": "string", "enum": ["synthetic_test_point", "published_candidate_region"] },
+          "latitude_deg": { "type": "number", "minimum": -90, "maximum": 90 },
+          "longitude_deg": { "type": "number", "minimum": -180, "exclusiveMaximum": 180 },
+          "source": { "type": "string" },
+          "notes": { "type": "string" }
+        }
+      }
+    }
+  }
+}

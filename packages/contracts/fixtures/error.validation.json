@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "validation_error",
+    "message": "Scenario request is invalid.",
+    "details": [{ "field": "site.latitude_deg", "issue": "must be within [-90, 90]" }]
+  }
+}

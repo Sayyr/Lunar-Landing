@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "selene-science"
+version = "0.1.0"
+description = "SELENE science service: lunar topocentric geometry, ephemerides and visibility windows."
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn>=0.30,<1",
+  "pydantic>=2.7,<3",
+  "numpy>=2.0,<3",
+]
+
+[project.optional-dependencies]
+# SPICE support lands with the real ephemeris provider; kept optional until then.
+spice = ["spiceypy>=6.0,<8"]
+dev = [
+  "pytest>=8",
+  "httpx>=0.27",
+  "jsonschema>=4.22",
+  "referencing>=0.35",
+  "ruff>=0.6",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
