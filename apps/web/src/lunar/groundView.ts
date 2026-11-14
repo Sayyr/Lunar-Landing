@@ -69,7 +69,7 @@ export class GroundView {
   constructor(private readonly container: HTMLElement) {
     const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.PCFShadowMap; // PCFSoft was removed in r18x; softened via shadow.radius
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(container.clientWidth, container.clientHeight);
     container.appendChild(renderer.domElement);
@@ -86,6 +86,7 @@ export class GroundView {
     sh.camera.updateProjectionMatrix();
     sh.bias = -0.0002;
     sh.normalBias = 15; // m, ≈ one texel: no acne on grazing slopes
+    sh.radius = 2.5; // PCF blur: less streaking under a grazing Sun
     this.sunLight.castShadow = true;
     // Visual aid, NOT physical (no earthshine / scattered-light model): a sky-like hemisphere fill
     // so relief in shadow keeps a readable shape (slopes darken with their tilt). Toggleable.
@@ -177,10 +178,8 @@ export class GroundView {
     for (let i = 0; i < albedo.length; i++) {
       const a = Math.max(0, Math.min(1, albedo[i] / 1.4));
       mean += srgbToLinear(a); // the shader multiplies decoded (linear) values
-      // Neutral grey with the faint warm cast of highland regolith.
-      rgba[4 * i] = 255 * Math.min(1, a * 1.03);
-      rgba[4 * i + 1] = 255 * a;
-      rgba[4 * i + 2] = 255 * a * 0.94;
+      // Neutral grey: the (real) colour mosaic carries the tint.
+      rgba[4 * i] = rgba[4 * i + 1] = rgba[4 * i + 2] = 255 * a;
       rgba[4 * i + 3] = 255;
       nrm[4 * i] = 255 * normals[3 * i];
       nrm[4 * i + 1] = 255 * normals[3 * i + 1];
@@ -213,19 +212,19 @@ export class GroundView {
       metalness: 0, // non-metal: no metalness map
       side: THREE.DoubleSide,
     });
-    // Three scales of the same patch, normalised so the average brightness is unchanged.
-    const gain = (1 / mean) ** 3;
+    // Three scales of the same patch, each pulled toward the mean (softer contrast, fine scale
+    // strongest) and normalised so the average brightness is unchanged.
     m.onBeforeCompile = (shader) => {
-      shader.uniforms.detailGain = { value: gain };
+      shader.uniforms.detailMean = { value: mean };
       shader.fragmentShader = shader.fragmentShader
-        .replace("#include <map_pars_fragment>", "#include <map_pars_fragment>\nuniform float detailGain;")
+        .replace("#include <map_pars_fragment>", "#include <map_pars_fragment>\nuniform float detailMean;")
         .replace(
           "#include <map_fragment>",
           `#ifdef USE_MAP
-            vec3 d1 = texture2D( map, vMapUv ).rgb;
-            vec3 d2 = texture2D( map, vMapUv * 0.083 + vec2( 0.37, 0.71 ) ).rgb;
-            vec3 d3 = texture2D( map, vMapUv * 0.0071 + vec2( 0.13, 0.29 ) ).rgb;
-            diffuseColor.rgb *= d1 * d2 * d3 * detailGain;
+            vec3 d1 = mix( vec3( detailMean ), texture2D( map, vMapUv ).rgb, 0.7 );
+            vec3 d2 = mix( vec3( detailMean ), texture2D( map, vMapUv * 0.083 + vec2( 0.37, 0.71 ) ).rgb, 0.45 );
+            vec3 d3 = mix( vec3( detailMean ), texture2D( map, vMapUv * 0.0071 + vec2( 0.13, 0.29 ) ).rgb, 0.35 );
+            diffuseColor.rgb *= d1 * d2 * d3 / ( detailMean * detailMean * detailMean );
           #endif`,
         );
     };

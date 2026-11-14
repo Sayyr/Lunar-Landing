@@ -50,12 +50,18 @@ function colorSourceFrom(img: HTMLImageElement | null): ColorSource | undefined 
   let mean = 0;
   for (let i = 0; i < px.length; i += 4) mean += px[i] + px[i + 1] + px[i + 2];
   mean /= (px.length / 4) * 3 * 255;
-  const k = 0.62 / mean; // mean → 0.62 (linear-ish grey), relative variations kept
+  const k = 0.62 / mean; // mean → 0.62 (linear-ish grey), relative brightness kept
+  // The WAC colour product is contrast-enhanced: keep 35 % of its tint so the ground reads grey
+  // with a faint real hue, as seen by eye.
+  const SAT = 0.35;
   const source: ColorSource = (lat, lon) => {
     const x = Math.min(W - 1, Math.max(0, Math.floor(((lon + 180) / 360) * W)));
     const y = Math.min(H - 1, Math.max(0, Math.floor(((90 - lat) / 180) * H)));
     const i = 4 * (y * W + x);
-    return [Math.min(1, (px[i] / 255) * k), Math.min(1, (px[i + 1] / 255) * k), Math.min(1, (px[i + 2] / 255) * k)];
+    const [r, g, b] = [(px[i] / 255) * k, (px[i + 1] / 255) * k, (px[i + 2] / 255) * k];
+    const l = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    const c = (v: number) => Math.min(1, l + SAT * (v - l));
+    return [c(r), c(g), c(b)];
   };
   colorCache = { img, source };
   return source;
