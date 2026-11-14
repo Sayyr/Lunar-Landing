@@ -25,7 +25,7 @@
     {
       "name": "SELENE synthetic waveform generator",
       "kind": "synthetic",
-      "source": "services/science/src/selene_science/ephemeris/synthetic.py",
+      "source": "services/science/src/ephemeris.cpp",
       "version": "0.1.0",
       "license": null,
       "notes": "Arbitrary sinusoids. Not derived from any ephemeris, kernel or DEM."
@@ -92,7 +92,7 @@
       "utc": "2026-11-16T00:00:00.000Z",
       "sun": {
         "azimuth_deg": 239.99999999999997,
-        "elevation_deg": -2.0980762113533156
+        "elevation_deg": -2.098076211353315
       },
       "earth": {
         "azimuth_deg": 182.93892626146237,

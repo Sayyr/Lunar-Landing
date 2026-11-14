@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::FieldIssue;
 
-/// Keep in sync with `services/science/src/selene_science/models.py::MAX_SAMPLES`.
+/// Keep in sync with `services/science/src/models.hpp::MAX_SAMPLES`.
 pub const MAX_SAMPLES: u64 = 20_000;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -1,4 +1,4 @@
-//! HTTP adapter for the Python science service. Responses are deserialized into the
+//! HTTP adapter for the science service. Responses are deserialized into the
 //! contract types, so any schema drift surfaces as a 502 instead of reaching clients.
 
 use std::time::Duration;

@@ -51,12 +51,12 @@ services/api (Rust / Axum)
        |
        | HTTP JSON, internal network
        v
-services/science (Python / FastAPI / SpiceyPy / NumPy / SciPy)
+services/science (C++17 / cpp-httplib / nlohmann-json; CSPICE planned)
        |
        +--> NAIF SPICE kernels (local, versioned)
        +--> LOLA/LROC DEM (local selected regions, versioned)
 ```
-Rust handles validation, orchestration and caching. Python owns scientific computations. Frontend renders results and must not independently calculate authoritative astronomy. Optional offline batch precomputation can use the available CPUs; avoid unnecessary cluster orchestration.
+Rust handles validation, orchestration and caching. The C++ science service owns scientific computations. Frontend renders results and must not independently calculate authoritative astronomy. Optional offline batch precomputation can use the available CPUs; avoid unnecessary cluster orchestration.
 
 ## Proposed repository layout
 ```
@@ -116,7 +116,7 @@ Rust handles validation, orchestration and caching. Python owns scientific compu
 - **Kernel/frame mismatch:** record kernel set, frame, observer construction; cross-check results.
 - **DEM data too large:** use one small region; do not commit datasets.
 - **Frontend blocks on science:** start with labeled synthetic fixtures and contract tests.
-- **Overbuilding Rust:** keep scientific computation in Python.
+- **Overbuilding Rust:** keep scientific computation in services/science.
 - **Visual misrepresentation:** mark ideal vs terrain horizon and model resolution in UI.
 - **Last-minute integration:** require running vertical slice by H8, freeze features by H18.
 

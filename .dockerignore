@@ -5,3 +5,5 @@ apps/web/data-raw
 services/api/target
 .git
 apps/web/public/data
+services/science/build
+services/sciencepy
