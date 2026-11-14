@@ -5,30 +5,33 @@
 // from the synthetic mock; swapping in SPICE results changes nothing here.
 //
 // Scene: metres, eye at the origin, x = East, y = Up, z = −North (groundTerrain.ts).
-//   - terrain: LOLA relief at true scale (no exaggeration), uniform grey albedo, lit by the Sun
-//     direction, with CAST SHADOWS from a GPU shadow map aligned on the Sun: receivers within
+//   - terrain: LOLA relief at true scale, colour mosaic × procedural regolith detail, lit by the
+//     Sun direction, with CAST SHADOWS from a GPU shadow map aligned on the Sun: receivers within
 //     ±SHADOW_HALF of the observer's line toward the Sun, casters anywhere along that line up to
 //     SHADOW_DEPTH away (a ridge 150 km toward the Sun can shadow the observer). Visual only —
 //     the illumination maths belong to the science service;
 //   - ideal geometric horizon (elevation 0°) drawn as a dashed circle, to compare with the relief;
 //   - Sun and Earth at their mean angular sizes (0.53°, 1.9°), lit Earth shows its phase.
-// Controls: drag to look around, wheel to zoom (field of view 5°–90°).
+// Controls: drag to look around, wheel to zoom (field of view 5°–90°). Nothing animates, so frames
+// are rendered on demand and the shadow map is redrawn only when the Sun or the terrain changes.
 
 import * as THREE from "three";
 
 import { bodyRotationToThree } from "../lib/sceneFrame";
+import { DEG } from "../lib/constants";
 import { makeSun } from "./globe";
+import { SUN_ANG_RADIUS } from "./groundAuto";
 import type { GroundTerrain } from "./groundTerrain";
 import { DATA_BASE } from "./loaders";
 import { WANG_LAYERS, type WangBank } from "./wangBank";
-import { type AzEl, azElToEnu } from "./skyGeometry";
+import { type AzEl, azElToEnu, wrap360 } from "./skyGeometry";
 
 const SKY_DIST = 1_500_000; // m, beyond the 400 km terrain
 const SHADOW_HALF = 30_000; // m: shadow-map window half-width (4096 px → ≈ 15 m texels)
 const SHADOW_DEPTH = 450_000; // m: light placed this far toward the Sun, casters up to there
-const SUN_ANG_RADIUS = Math.atan(695_700 / 149_597_871);
-const EARTH_ANG_RADIUS = Math.atan(6371 / 384_400);
-const DEG = Math.PI / 180;
+const EARTH_ANG_RADIUS = Math.atan(6371 / 384_400); // mean, seen from the Moon
+
+const WHITE = new Uint8Array([255, 255, 255, 255]);
 
 /**
  * GLSL assembly of the Wang bank: integer hashes of the cell's four edges give their colours,
@@ -80,7 +83,7 @@ function loadWangBank(): Promise<WangBank> {
       reject(new Error(e.message));
       w.terminate();
     };
-    w.postMessage({ size: 512, seed: 7 });
+    w.postMessage(null); // defaults of generateWangBank
   }));
 }
 
@@ -121,12 +124,15 @@ export class GroundView {
   private az = 0;
   private el = 5;
   private listeners = new Set<(s: GroundViewState) => void>();
-  private detachPointer: () => void;
+  private readonly pointer = new AbortController();
+  private active = true;
+  private frameQueued = false;
 
   constructor(private readonly container: HTMLElement) {
     const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap; // PCFSoft was removed in r18x; softened via shadow.radius
+    renderer.shadowMap.autoUpdate = false; // redrawn only when the Sun or the terrain changes
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(container.clientWidth, container.clientHeight);
     container.appendChild(renderer.domElement);
@@ -171,16 +177,33 @@ export class GroundView {
       m.emissive.set(0xffffff);
       m.emissiveIntensity = 0.12;
       m.needsUpdate = true;
+      this.requestRender();
     });
 
     this.scene.add(idealHorizon());
     this.ground = this.makeGroundMaterial();
 
-    this.detachPointer = this.attachLook();
+    this.attachLook();
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(container);
     this.applyLook();
-    renderer.setAnimationLoop(() => renderer.render(this.scene, this.camera));
+  }
+
+  /** Uploads on first use and frees it with the view. */
+  private track<T extends THREE.Texture>(t: T): T {
+    t.needsUpdate = true;
+    this.textures.push(t);
+    return t;
+  }
+
+  /** Renders once on the next animation frame (coalesced; nothing while inactive). */
+  private requestRender(): void {
+    if (!this.active || this.frameQueued) return;
+    this.frameQueued = true;
+    requestAnimationFrame(() => {
+      this.frameQueued = false;
+      if (this.active) this.renderer.render(this.scene, this.camera);
+    });
   }
 
   setTerrain(t: GroundTerrain): void {
@@ -204,10 +227,14 @@ export class GroundView {
     this.terrain.castShadow = true;
     this.terrain.receiveShadow = true;
     this.scene.add(this.terrain);
+    this.renderer.shadowMap.needsUpdate = true;
+    this.requestRender();
   }
 
   setSky(sky: GroundSky | null): void {
     this.sunBody.visible = this.earthBody.visible = sky !== null;
+    this.renderer.shadowMap.needsUpdate = true;
+    this.requestRender();
     if (!sky) return;
     const sun = enuToThree(azElToEnu(sky.sun));
     const earth = enuToThree(azElToEnu(sky.earth));
@@ -227,9 +254,7 @@ export class GroundView {
    * Until the bank arrives from its worker, the ground is plain (detailOn = 0).
    */
   private makeGroundMaterial(): THREE.MeshStandardMaterial {
-    const placeholder = new THREE.DataArrayTexture(new Uint8Array([255, 255, 255, 255]), 1, 1, 1);
-    placeholder.needsUpdate = true;
-    this.textures.push(placeholder);
+    const placeholder = this.track(new THREE.DataArrayTexture(WHITE, 1, 1, 1));
     this.detail = {
       bankAR: { value: placeholder },
       bankN: { value: placeholder },
@@ -238,12 +263,7 @@ export class GroundView {
     };
     // 1×1 stand-ins only switch on three's map / normal-map / roughness-map shader paths (and
     // their UV varyings); the patched shader samples the tile bank instead.
-    const stand = () => {
-      const t = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
-      t.needsUpdate = true;
-      this.textures.push(t);
-      return t;
-    };
+    const stand = () => this.track(new THREE.DataTexture(WHITE, 1, 1));
     const m = new THREE.MeshStandardMaterial({
       color: 0x9a9a9a,
       map: stand(),
@@ -308,24 +328,24 @@ export class GroundView {
       t.generateMipmaps = true;
       t.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
       if (srgb) t.colorSpace = THREE.SRGBColorSpace; // RGB albedo decoded to linear; alpha (roughness) untouched
-      t.needsUpdate = true;
-      this.textures.push(t);
-      return t;
+      return this.track(t);
     };
     this.detail.bankAR.value = arr(bank.albedoRough, true);
     this.detail.bankN.value = arr(bank.normal, false);
     this.detail.detailMean.value = bank.meanLinear;
     this.detail.detailOn.value = 1;
+    this.requestRender();
   }
 
   /** Visual-aid fill light on/off (off = only the Sun lights the terrain, as on the Moon). */
   setFill(on: boolean): void {
     this.fill.visible = on;
+    this.requestRender();
   }
 
   /** Point the view at an azimuth / elevation (degrees). */
   look(azimuthDeg: number, elevationDeg: number): void {
-    this.az = ((azimuthDeg % 360) + 360) % 360;
+    this.az = wrap360(azimuthDeg);
     this.el = THREE.MathUtils.clamp(elevationDeg, -80, 85);
     this.applyLook();
   }
@@ -337,13 +357,14 @@ export class GroundView {
   }
 
   setActive(active: boolean): void {
-    this.renderer.setAnimationLoop(active ? () => this.renderer.render(this.scene, this.camera) : null);
+    this.active = active;
+    this.requestRender();
   }
 
   dispose(): void {
-    this.renderer.setAnimationLoop(null);
+    this.active = false;
     this.resizeObserver.disconnect();
-    this.detachPointer();
+    this.pointer.abort();
     this.scene.traverse((o) => {
       const m = o as THREE.Mesh;
       m.geometry?.dispose();
@@ -369,6 +390,7 @@ export class GroundView {
     this.camera.updateProjectionMatrix();
     const s = this.state();
     this.listeners.forEach((l) => l(s));
+    this.requestRender();
   }
 
   private resize(): void {
@@ -381,8 +403,9 @@ export class GroundView {
   }
 
   /** Drag = look around (grab the sky), wheel = zoom (field of view). */
-  private attachLook(): () => void {
+  private attachLook(): void {
     const el = this.renderer.domElement;
+    const opts = { signal: this.pointer.signal };
     let last: { x: number; y: number } | null = null;
     const down = (e: PointerEvent) => {
       last = { x: e.clientX, y: e.clientY };
@@ -400,18 +423,11 @@ export class GroundView {
       this.camera.fov = THREE.MathUtils.clamp(this.camera.fov * Math.exp(e.deltaY * 0.001), 5, 90);
       this.applyLook();
     };
-    el.addEventListener("pointerdown", down);
-    el.addEventListener("pointermove", move);
-    el.addEventListener("pointerup", up);
-    el.addEventListener("pointercancel", up);
-    el.addEventListener("wheel", wheel, { passive: false });
-    return () => {
-      el.removeEventListener("pointerdown", down);
-      el.removeEventListener("pointermove", move);
-      el.removeEventListener("pointerup", up);
-      el.removeEventListener("pointercancel", up);
-      el.removeEventListener("wheel", wheel);
-    };
+    el.addEventListener("pointerdown", down, opts);
+    el.addEventListener("pointermove", move, opts);
+    el.addEventListener("pointerup", up, opts);
+    el.addEventListener("pointercancel", up, opts);
+    el.addEventListener("wheel", wheel, { ...opts, passive: false });
   }
 }
 

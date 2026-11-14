@@ -60,7 +60,10 @@ export interface AzEl {
   elevationDeg: number;
 }
 
-export interface EnuBasis {
+/** Angle in degrees wrapped to [0, 360). */
+export const wrap360 = (deg: number) => ((deg % 360) + 360) % 360;
+
+interface EnuBasis {
   east: Vec3;
   north: Vec3;
   up: Vec3;
@@ -93,10 +96,7 @@ export function localAzEl(dir: Vec3, latDeg: number, lonDeg: number): AzEl {
   const n = dot(d, north);
   const u = dot(d, up);
   const h = Math.hypot(e, n);
-  let az = h < 1e-12 ? 0 : Math.atan2(e, n) / DEG;
-  if (az < 0) az += 360;
-  if (az >= 360) az -= 360;
-  return { azimuthDeg: az, elevationDeg: Math.atan2(u, h) / DEG };
+  return { azimuthDeg: h < 1e-12 ? 0 : wrap360(Math.atan2(e, n) / DEG), elevationDeg: Math.atan2(u, h) / DEG };
 }
 
 /** Unit ENU vector [east, north, up] of an azimuth/elevation (inverse of the angles above). */

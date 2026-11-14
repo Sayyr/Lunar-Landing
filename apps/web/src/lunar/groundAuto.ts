@@ -2,12 +2,14 @@
 // Uses the rendered terrain's horizon (groundTerrain.horizonAt): a visual estimate, not the
 // science service's illumination computation.
 
+import { AU_M, DEG, SUN_RADIUS_M } from "../lib/constants";
 import { type GroundTerrain, horizonAt } from "./groundTerrain";
 import type { AzEl } from "./skyGeometry";
 
-/** Sun's angular radius seen from the Moon (degrees): "clears" = whole disc above the terrain. */
-export const SUN_RADIUS_DEG = 0.27;
+/** Mean angular radius of the Sun seen from the Moon (≈ 0.27°), radians. Also used to draw it. */
+export const SUN_ANG_RADIUS = Math.atan(SUN_RADIUS_M / AU_M);
 
-export function sunClearsTerrain(sun: AzEl, terrain: GroundTerrain, marginDeg = SUN_RADIUS_DEG): boolean {
-  return sun.elevationDeg - horizonAt(terrain, sun.azimuthDeg) > marginDeg;
+/** "Clears" = the whole solar disc is above the terrain horizon in its direction. */
+export function sunClearsTerrain(sun: AzEl, terrain: GroundTerrain): boolean {
+  return sun.elevationDeg - horizonAt(terrain, sun.azimuthDeg) > SUN_ANG_RADIUS / DEG;
 }
