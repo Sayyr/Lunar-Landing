@@ -15,5 +15,5 @@ FROM debian:bookworm-slim
 COPY --from=calculator /src/simulate /usr/local/lib/lunar-landing/calc-planete
 COPY --from=calculator /src/simulate-slow /usr/local/lib/lunar-landing/calc-radio
 COPY --from=build /app/services/api/target/release/lunar-landing /usr/local/bin/lunar-landing
-EXPOSE 3000
+EXPOSE 8080
 CMD ["lunar-landing"]

@@ -18,7 +18,7 @@ API Rust (axum) qui reçoit un site lunaire, valide les données, puis exécute 
    ```
 3. Lancer le conteneur :
    ```sh
-   docker run --rm -p 3000:3000 \
+   docker run --rm -p 8080:8080 \
      -v "$PWD/services/api/config/profiles.json:/etc/lunar-landing/profiles.json:ro" \
      lunar-landing
    ```
@@ -104,8 +104,8 @@ Erreurs avant le flux, au format `{"error":{"code":"validation_error","message":
 ## Tests
 
 ```sh
-curl localhost:3000/api/v1/health
-curl -N -X POST localhost:3000/api/v1/calcule -H 'Content-Type: application/json' \
+curl localhost:8080/api/v1/health
+curl -N -X POST localhost:8080/api/v1/calcule -H 'Content-Type: application/json' \
   -d '{"lat":89.5,"ns":"S","lon":45,"ew":"E","height":2,"profile":"basic"}'
 ```
 

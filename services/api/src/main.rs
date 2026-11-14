@@ -9,7 +9,7 @@ use tokio::{
     signal::unix::{signal, SignalKind},
 };
 
-const ADDRESS: &str = "0.0.0.0:3000";
+const ADDRESS: &str = "0.0.0.0:8080";
 const DEFAULT_PROFILES_FILE: &str = "/etc/lunar-landing/profiles.json";
 const DEFAULT_SCRIPTS_DIR: &str = "/usr/local/lib/lunar-landing";
 const DEFAULT_SCIENCE_URL: &str = "http://127.0.0.1:8000";

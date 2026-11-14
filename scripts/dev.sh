@@ -4,11 +4,13 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-PY="$ROOT/services/science/.venv/bin/python"
-[ -x "$PY" ] || PY="$ROOT/services/science/.venv/Scripts/python"   # Windows venv layout
+API="$ROOT/services/api"
+SIM="$API/target/sim"
+mkdir -p "$SIM"
+g++ -O2 -o "$SIM/calc-planete" "$API/simulation/simulate.cpp"
+gcc -O2 -o "$SIM/calc-radio" "$API/simulation/simulate-slow.c"
 
 trap 'kill 0' EXIT INT TERM
-(cd "$ROOT/services/science" && "$PY" -m uvicorn selene_science.app:app --host 127.0.0.1 --port 8000) &
-(cd "$ROOT/services/api" && cargo run -q) &
+(cd "$API" && PROFILES_FILE="$API/config/profiles.json" SCRIPTS_DIR="$SIM" cargo run -q) &
 (cd "$ROOT/apps/web" && npm run dev) &
 wait

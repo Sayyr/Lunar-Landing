@@ -27,7 +27,7 @@ services:
       SELENE_SCIENCE_URL: http://science:8000
     volumes:
       - ../services/api/config/profiles.json:/etc/lunar-landing/profiles.json:ro
-    ports: ["8080:3000"]
+    ports: ["8080:8080"]
     depends_on:
       science:
         condition: service_healthy
