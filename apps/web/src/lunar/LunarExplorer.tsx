@@ -6,7 +6,7 @@
 //   'moonhover' and 'moonclick', detail = { lat, lon, altM, feature }
 //   feature = null | { name, type, diameterKm, lat, lon, distanceKm }
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import { getCelestialState } from "../api/celestial";
 
@@ -163,12 +163,14 @@ interface Props {
   startUtc: string;
   durationHours: number;
   stepMinutes: number;
+  /** Rendered at the top of the "⋯" panel (scenario form, results). */
+  children?: ReactNode;
 }
 
 /** Full scenario range played in about this many seconds. */
 const PLAY_SECONDS = 20;
 
-export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, durationHours, stepMinutes }: Props) {
+export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, durationHours, stepMinutes, children }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const tipRef = useRef<HTMLDivElement>(null);
@@ -186,7 +188,7 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
   const [exag, setExag] = useState(2);
   const [grid, setGrid] = useState(false);
   const [refine, setRefine] = useState(true);
-  const [panelOpen, setPanelOpen] = useState(!mobile);
+  const [panelOpen, setPanelOpen] = useState(false); // opened from the "⋯" button
   const [lastClick, setLastClick] = useState<MoonPointInfo | null>(null);
   const [query, setQuery] = useState("");
   const [found, setFound] = useState<Feature | null>(null);
@@ -472,10 +474,11 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
         className="lunar-panel-toggle"
         type="button"
         aria-expanded={panelOpen}
-        title="Panel"
+        title="Scenario & settings"
+        aria-label="Scenario and settings"
         onClick={() => setPanelOpen((o) => !o)}
       >
-        ☰
+        ⋯
       </button>
 
       {sky && (
@@ -525,19 +528,22 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
       )}
 
       <aside className="lunar-panel">
-        <h2>Last clicked point</h2>
-        <div className={`readout${lastClick ? "" : " muted"}`}>
-          {lastClick ? <InfoLines info={lastClick} /> : "Click the surface (long-press on touch) to place a marker and select the scenario site."}
-        </div>
-        <div className="row">
-          <button type="button" disabled={!lastClick} onClick={copy}>
-            {copyLabel}
-          </button>
-          <button type="button" onClick={() => globe?.clearMarkers()}>
-            Clear markers
-          </button>
-        </div>
-        {copyFallback && <input className="copy-fallback" type="text" readOnly value={copyFallback} onFocus={(e) => e.target.select()} autoFocus aria-label="Coordinates" />}
+        {children && <div className="lunar-scenario">{children}</div>}
+        <section>
+          <h2>Last clicked point</h2>
+          <div className={`readout${lastClick ? "" : " muted"}`}>
+            {lastClick ? <InfoLines info={lastClick} /> : "Click the surface (long-press on touch) to place a marker and select the scenario site."}
+          </div>
+          <div className="row">
+            <button type="button" disabled={!lastClick} onClick={copy}>
+              {copyLabel}
+            </button>
+            <button type="button" onClick={() => globe?.clearMarkers()}>
+              Clear markers
+            </button>
+          </div>
+          {copyFallback && <input className="copy-fallback" type="text" readOnly value={copyFallback} onFocus={(e) => e.target.select()} autoFocus aria-label="Coordinates" />}
+        </section>
 
         <section>
           <h2>Find a feature</h2>

@@ -73,7 +73,7 @@ export function App() {
       <main className="dash-main" hidden={tab !== "sky"}>
         <CelestialDashboard active={tab === "sky"} />
       </main>
-      <main className="layout" hidden={tab !== "scenario"}>
+      <main className="scenario-main" hidden={tab !== "scenario"}>
         <LunarExplorer
           active={tab === "scenario"}
           siteLat={request.site.latitude_deg}
@@ -82,8 +82,8 @@ export function App() {
           startUtc={request.start_utc}
           durationHours={request.duration_hours}
           stepMinutes={request.step_minutes}
-        />
-        <div className="side">
+        >
+          {/* Scenario settings and results live in the explorer's "⋯" panel. */}
           <ScenarioForm
             value={request}
             onChange={setRequest}
@@ -94,11 +94,11 @@ export function App() {
           />
           {error && <div className="error" role="alert">{error}</div>}
           {result && <ResultPanel result={result} />}
-        </div>
+          <p className="muted small">
+            Geometric visibility is not a power or communications guarantee. Not NASA-certified; not flight-ready.
+          </p>
+        </LunarExplorer>
       </main>
-      <footer className="foot">
-        Geometric visibility is not a power or communications guarantee. Not NASA-certified; not flight-ready.
-      </footer>
     </div>
   );
 }

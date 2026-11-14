@@ -28,6 +28,13 @@ h4 { margin: 0.8rem 0 0.3rem; font-size: 0.85rem; color: var(--muted); }
 .layout { flex: 1; display: grid; grid-template-columns: minmax(320px, 1fr) minmax(360px, 560px); gap: 1rem; padding: 1rem 1.25rem; }
 @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
 .foot { padding: 0.75rem 1.25rem; color: var(--muted); font-size: 0.8rem; border-top: 1px solid var(--line); }
+/* Scenario view: the Moon fills everything under the header (no framed window). */
+.app:has(.scenario-main:not([hidden])) { height: 100vh; min-height: 0; overflow: hidden; }
+.scenario-main { flex: 1; min-height: 0; display: flex; }
+.scenario-main > .lunar { flex: 1; height: auto; min-height: 0; border: 0; border-radius: 0; }
+.lunar-scenario { display: flex; flex-direction: column; gap: 0.8rem; }
+.lunar-scenario .form, .lunar-scenario .result { background: transparent; border: 0; padding: 0; }
+.lunar-scenario .result.synthetic { border: 2px dashed var(--synthetic); padding: 0.6rem; }
 
 .status-row { display: flex; gap: 0.4rem; flex-wrap: wrap; }
 .badge { padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.8rem; border: 1px solid var(--line); }
@@ -130,7 +137,7 @@ details ul { padding-left: 1.1rem; margin: 0.3rem 0; }
 
 /* ---- Lunar explorer (ported from apps/moon-explorer/css/style.css, scoped to .lunar) ---- */
 .lunar { --l-panel: rgba(14, 16, 20, 0.88); --l-line: rgba(255, 255, 255, 0.1); --l-accent: #7fd4ff; --l-warn: #ffb347;
-  --l-panel-w: 300px; position: relative; overflow: hidden; background: #000; border: 1px solid var(--line);
+  --l-panel-w: 380px; position: relative; overflow: hidden; background: #000; border: 1px solid var(--line);
   border-radius: 8px; min-height: 560px; height: calc(100vh - 190px); font-size: 14px; line-height: 1.45; }
 .lunar-globe { position: absolute; inset: 0; }
 .lunar-globe canvas { display: block; touch-action: none; cursor: crosshair; }
@@ -148,7 +155,7 @@ details ul { padding-left: 1.1rem; margin: 0.3rem 0; }
   backdrop-filter: blur(8px); transition: transform 0.25s ease; }
 .lunar.panel-collapsed .lunar-panel { transform: translateX(100%); }
 .lunar-panel-toggle { position: absolute; top: 10px; right: calc(var(--l-panel-w) + 10px); z-index: 6; width: 34px;
-  height: 34px; padding: 0; font-size: 18px; transition: right 0.25s ease; }
+  height: 34px; padding: 0; font-size: 22px; line-height: 1; transition: right 0.25s ease; }
 .lunar.panel-collapsed .lunar-panel-toggle { right: 10px; }
 
 .lunar h2 { margin: 0 0 8px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
