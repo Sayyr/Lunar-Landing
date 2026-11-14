@@ -17,10 +17,11 @@ import { formatAltM, formatLat, formatLon, roundLon } from "./geo";
 import { Globe } from "./globe";
 import { Heightmap } from "./heightmap";
 import { type BandManifest, bandOrderNear, DATA_BASE, loadHeightmap, loadImage, loadJson, type Progress, SETUP_HINT, streamBands } from "./loaders";
+import { GroundViewPanel } from "./GroundViewPanel";
 import { SkyCompass } from "./SkyCompass";
 import { TREK_LAYER } from "./tileScheme";
 import type { TileStatus } from "./tileLayer";
-import { type AzEl, localAzEl, moonSky } from "./skyGeometry";
+import { type AzEl, earthToEnu, localAzEl, type MoonSky, moonSky } from "./skyGeometry";
 
 // Base URL of the elevation rasters: point it at R2/a CDN (CORS required) if ldem_16 exceeds the
 // host's file-size limit (25 MiB on Cloudflare Pages).
@@ -201,6 +202,8 @@ interface Props {
   siteLon: number;
   /** Called when the user clicks (long-press on touch) a surface point. */
   onPick: (lat: number, lon: number) => void;
+  /** Eye height above the ground for the ground view (scenario observer_height_m). */
+  observerHeightM: number;
   /** Scenario time range: the sky (Sun, Earth, compass) can be scrubbed across it. */
   startUtc: string;
   durationHours: number;
@@ -212,7 +215,7 @@ interface Props {
 /** Full scenario range played in about this many seconds. */
 const PLAY_SECONDS = 20;
 
-export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, durationHours, stepMinutes, children }: Props) {
+export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, durationHours, stepMinutes, observerHeightM, children }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const tipRef = useRef<HTMLDivElement>(null);
@@ -227,6 +230,10 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
   const [notes, setNotes] = useState<string[]>([]);
   const [dataset, setDataset] = useState("");
   const [demStreamState, setDemStream] = useState<DemStreamState | null>(null);
+  const [heightmap, setHeightmap] = useState<Heightmap | null>(null);
+  const [demVersion, setDemVersion] = useState(0);
+  const [skyBody, setSkyBody] = useState<MoonSky | null>(null);
+  const [groundOn, setGroundOn] = useState(false);
   const [demLabel, setDemLabel] = useState<Dem>("4");
   const [exag, setExag] = useState(2);
   const [grid, setGrid] = useState(false);
@@ -286,6 +293,7 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
         const allNotes = [...new Set([...notesAcc, ...data.notes])];
         if (data.heightmap && !g.floatLinear) allNotes.push("float32 linear filtering unavailable: relief sampled with 'nearest'.");
         const hm = data.heightmap;
+        setHeightmap(hm);
         if (hm) setDemLabel(hm.width >= 5760 ? "16" : "4");
         setDataset(
           (hm ? `${hm.label} · ${hm.width}×${hm.height} px · ≈ ${hm.kmPerPixel.toFixed(1)} km/px at the equator` : "no elevation raster") +
@@ -297,7 +305,10 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
         const detachPointer = attachPointer(g, idx, root, tip);
         // Streamed ldem_16 bands: upload each one to this globe's GPU texture as it arrives.
         const gl = g;
-        const onBand = (row0: number, rows: number) => gl.applyHeightBand(row0, rows);
+        const onBand = (row0: number, rows: number) => {
+          gl.applyHeightBand(row0, rows);
+          setDemVersion((v) => v + 1);
+        };
         bandListeners.add(onBand);
         streamListeners.add(setDemStream);
         if (demStream) setDemStream({ ...demStream });
@@ -417,7 +428,8 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
     if (globe) globe.refinePick = refine;
   }, [globe, refine]);
   useEffect(() => globe?.setSite(siteLat, siteLon), [globe, siteLat, siteLon]);
-  useEffect(() => globe?.setActive(active), [globe, active]);
+  // The orbit globe pauses while the ground view covers it.
+  useEffect(() => globe?.setActive(active && !groundOn), [globe, active, groundOn]);
   useEffect(() => globe?.setTilesEnabled(tilesOn), [globe, tilesOn]);
   useEffect(() => globe?.onTileStatus(setTileStatus), [globe]);
 
@@ -432,6 +444,7 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
     getCelestialState(new Date(startMs + tMin * 60_000)).then((state) => {
       if (stale) return;
       const s = moonSky(state);
+      setSkyBody(s);
       globe.setSky(s);
       setSky({ sun: localAzEl(s.sun, siteLat, siteLon), earth: localAzEl(s.earth, siteLat, siteLon), synthetic: state.synthetic });
     });
@@ -510,6 +523,11 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
     };
   }, [globe, sky]);
 
+  const groundSky = useMemo(
+    () => (sky && skyBody ? { sun: sky.sun, earth: sky.earth, earthToEnu: earthToEnu(skyBody, siteLat, siteLon) } : null),
+    [sky, skyBody, siteLat, siteLon],
+  );
+
   const skyUtc = Number.isNaN(startMs) ? "—" : new Date(startMs + tMin * 60_000).toISOString().slice(0, 16).replace("T", " ") + " UTC";
 
   const results = useMemo(() => index?.search(query, 12) ?? [], [index, query]);
@@ -560,7 +578,19 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
         ⋯
       </button>
 
-      {sky && (
+      {groundOn && (
+        <GroundViewPanel
+          heightmap={heightmap}
+          siteLat={siteLat}
+          siteLon={siteLon}
+          observerHeightM={observerHeightM}
+          sky={groundSky}
+          demVersion={demVersion}
+          active={active}
+          onExit={() => setGroundOn(false)}
+        />
+      )}
+      {sky && !groundOn && (
         <>
           <div ref={sunPtrRef} className="edge-ptr sun" hidden>
             <span className="edge-arrow">▲</span>
@@ -605,14 +635,17 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
           </div>
         </div>
       )}
-      {sky && (
+      {sky && !groundOn && (
         <div className="sky-view">
           <button type="button" onClick={() => globe?.viewBody("earth")}>View Earth</button>
           <button type="button" onClick={() => globe?.viewBody("sun")}>View Sun</button>
+          <button type="button" onClick={() => setGroundOn(true)} title="Stand at the selected site and look around">
+            Ground view
+          </button>
         </div>
       )}
 
-      {loaded && <ScaleBar kmPerPx={kmPerPx} note="at view centre, reference sphere" />}
+      {loaded && !groundOn && <ScaleBar kmPerPx={kmPerPx} note="at view centre, reference sphere" />}
 
       <aside className="lunar-panel">
         {children && <div className="lunar-scenario">{children}</div>}
