@@ -114,7 +114,7 @@ export class Globe {
     scene.add(this.sunBody);
     this.earthBody = new THREE.Mesh(
       new THREE.SphereGeometry(SKY_DIST * Math.tan(EARTH_ANG_RADIUS), 48, 32),
-      new THREE.MeshStandardMaterial({ color: 0x3b6fd8, roughness: 0.9, metalness: 0 }),
+      new THREE.MeshStandardMaterial({ color: 0x5b8ff8, emissive: 0x1a2a55, roughness: 0.9, metalness: 0 }),
     );
     this.earthBody.matrixAutoUpdate = false;
     this.earthBody.visible = false;
@@ -126,7 +126,11 @@ export class Globe {
       this.textures.push(tex);
       const m = this.earthBody.material;
       m.map = tex;
-      m.color.set(0xffffff);
+      // Brighter than physical (visibility): day side ×1.8, faint glow so the night side stays readable.
+      m.color.setScalar(1.8);
+      m.emissiveMap = tex;
+      m.emissive.set(0xffffff);
+      m.emissiveIntensity = 0.12;
       m.needsUpdate = true;
     });
 
