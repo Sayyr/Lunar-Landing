@@ -168,12 +168,12 @@ export class GroundView {
    * matte regolith) and metalness 0 (regolith is a non-metal, so no metalness map).
    */
   private makeGroundMaterial(): THREE.MeshStandardMaterial {
-    const { size, height, albedo, roughness } = regolithFields(512, 7);
+    const { size, height, albedo, roughness } = regolithFields(1024, 7);
     const rgba = new Uint8Array(size * size * 4);
     const nrm = new Uint8Array(size * size * 4);
     const rgh = new Uint8Array(size * size * 4);
-    // Slope gain: the patch spans DETAIL_PERIOD_M (4 m) over 512 px; heights are ~[0, 1].
-    const normals = normalsFromHeight(height, size, 60);
+    // Slope gain: the patch spans DETAIL_PERIOD_M (4 m) over 1024 px; heights are ~[0, 1].
+    const normals = normalsFromHeight(height, size, 90);
     let mean = 0;
     for (let i = 0; i < albedo.length; i++) {
       const a = Math.max(0, Math.min(1, albedo[i] / 1.4));
@@ -213,15 +213,22 @@ export class GroundView {
       side: THREE.DoubleSide,
     });
     // Three scales of the same patch, each pulled toward the mean (softer contrast, fine scale
-    // strongest) and normalised so the average brightness is unchanged.
+    // strongest) and normalised so the average brightness is unchanged. The finest scale is
+    // blended with a rotated copy through a low-frequency mask (hides the 4 m repeat), and the
+    // fine albedo and the normal map fade out where one pixel covers ≳ 1 m (no far-field shimmer).
     m.onBeforeCompile = (shader) => {
       shader.uniforms.detailMean = { value: mean };
       shader.fragmentShader = shader.fragmentShader
         .replace("#include <map_pars_fragment>", "#include <map_pars_fragment>\nuniform float detailMean;")
+        .replace("mapN.xy *= normalScale;", "mapN.xy *= normalScale * clamp( 1.0 - 4.0 * length( fwidth( vNormalMapUv ) ), 0.0, 1.0 );")
         .replace(
           "#include <map_fragment>",
           `#ifdef USE_MAP
-            vec3 d1 = mix( vec3( detailMean ), texture2D( map, vMapUv ).rgb, 0.7 );
+            float fine = clamp( 1.0 - 4.0 * length( fwidth( vMapUv ) ), 0.0, 1.0 );
+            vec2 uvR = mat2( 0.8, -0.6, 0.6, 0.8 ) * vMapUv * 1.37 + vec2( 0.21, 0.53 );
+            float w = smoothstep( 0.35, 0.65, texture2D( map, vMapUv * 0.031 + vec2( 0.5, 0.17 ) ).g / ( 2.0 * detailMean ) );
+            vec3 a1 = mix( texture2D( map, vMapUv ).rgb, texture2D( map, uvR ).rgb, w );
+            vec3 d1 = mix( vec3( detailMean ), a1, 0.7 * fine );
             vec3 d2 = mix( vec3( detailMean ), texture2D( map, vMapUv * 0.083 + vec2( 0.37, 0.71 ) ).rgb, 0.45 );
             vec3 d3 = mix( vec3( detailMean ), texture2D( map, vMapUv * 0.0071 + vec2( 0.13, 0.29 ) ).rgb, 0.35 );
             diffuseColor.rgb *= d1 * d2 * d3 / ( detailMean * detailMean * detailMean );
