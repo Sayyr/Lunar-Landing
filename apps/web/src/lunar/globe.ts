@@ -398,6 +398,38 @@ export class Globe {
     return THREE.MathUtils.radToDeg(Math.atan2((b.x - a.x) * this.camera.aspect, b.y - a.y));
   }
 
+  /**
+   * Screen-edge pointer for the Sun or Earth: pixel position (relative to the canvas) and arrow
+   * angle (degrees clockwise from screen-up). `onScreen` = inside the view (it may still be hidden
+   * behind the Moon). null before setSky().
+   */
+  edgePointer(which: "sun" | "earth", marginPx = 36): { x: number; y: number; angle: number; onScreen: boolean } | null {
+    if (!this.sky) return null;
+    const w = this.container.clientWidth;
+    const h = this.container.clientHeight;
+    const p = this.camera.position.clone().addScaledVector(this.sky[which], SKY_DIST);
+    const behind = p.clone().sub(this.camera.position).dot(this.camera.getWorldDirection(new THREE.Vector3())) < 0;
+    p.project(this.camera);
+    let nx = p.x;
+    let ny = p.y;
+    if (behind) {
+      // Projection mirrors points behind the camera: flip back, and push to the edge.
+      nx = -nx;
+      ny = -ny;
+    }
+    const onScreen = !behind && Math.abs(nx) <= 1 && Math.abs(ny) <= 1;
+    const angle = THREE.MathUtils.radToDeg(Math.atan2(nx * w, ny * h));
+    if (!onScreen) {
+      // Slide along the centre → target ray until it touches the margin box.
+      const mx = 1 - (2 * marginPx) / w;
+      const my = 1 - (2 * marginPx) / h;
+      const k = 1 / Math.max(Math.abs(nx) / mx, Math.abs(ny) / my, 1e-9);
+      nx *= k;
+      ny *= k;
+    }
+    return { x: ((nx + 1) / 2) * w, y: ((1 - ny) / 2) * h, angle, onScreen };
+  }
+
   /** Called whenever the camera moves (orbit, damping, fly-to). Returns an unsubscribe function. */
   onCameraChange(cb: () => void): () => void {
     this.controls.addEventListener("change", cb);
