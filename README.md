@@ -8,7 +8,7 @@ SELENE is an interactive tool for comparing lunar landing sites and dates. It is
 > Read `CLAUDE.md`, `CONTEXT.md` and `docs/validation.md` before contributing.
 
 ```
-apps/web (React + TS + Vite + R3F)  --/api-->  services/api (Rust/Axum :8080)  -->  services/science (Python/FastAPI :8000)
+apps/web (React + TS + Vite + R3F)  --/api-->  services/api (Rust/Axum :8080)  -->  services/science (C++/httplib :8000)
                                                                                       +-> SPICE kernels (data/, not in Git)
 ```
 
@@ -16,7 +16,8 @@ apps/web (React + TS + Vite + R3F)  --/api-->  services/api (Rust/Axum :8080)  -
 |---|---|
 | `apps/web` | UI: lunar explorer (LOLA relief, IAU names, site picking), scenario form, timeline, Sun·Earth·Moon dashboard (mock), status badges — see `apps/web/README.md` |
 | `services/api` | Gateway: input validation, error envelope, forwarding to science. No astronomy math. |
-| `services/science` | Geometry, ephemeris providers (SPICE: stub; synthetic fixture), window extraction |
+| `services/science` | C++17: geometry, ephemeris providers (SPICE: stub; synthetic fixture), window extraction |
+| `services/sciencepy` | Former Python implementation, **reference only** (not built, tested or deployed) |
 | `packages/contracts` | JSON Schemas and fixtures shared by all three (see its README) |
 | `data/` | Where kernels/DEMs go; acquisition and provenance instructions. Data is git-ignored. |
 | `docs/` | `validation.md` (conventions, open decisions, validation plan), `demo.md` |
@@ -24,7 +25,7 @@ apps/web (React + TS + Vite + R3F)  --/api-->  services/api (Rust/Axum :8080)  -
 
 ## Prerequisites (versions this was built and tested with)
 
-- Python ≥ 3.11 (tested 3.13.0)
+- C++17 compiler and CMake ≥ 3.20 (tested Apple clang 21, CMake 4.4); network on first configure (fetches nlohmann/json and cpp-httplib, pinned by SHA-256)
 - Rust stable (tested 1.94.0)
 - Node ≥ 20 with npm (tested Node 24.14.0, npm 11.5.2)
 - Optional: Docker with Compose v2+ (Compose file validated with v5.3.1; **image builds not yet tested**)
@@ -43,8 +44,7 @@ One-time setup:
 ```bash
 # science
 cd services/science
-python -m venv .venv
-.venv/Scripts/python -m pip install -e ".[dev]"     # Windows (Linux/macOS: .venv/bin/python)
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j --config Release
 cd ../..
 
 # api (downloads crates on first build)
@@ -66,7 +66,7 @@ scripts/dev.sh
 or in three terminals:
 
 ```bash
-cd services/science && .venv/Scripts/python -m uvicorn selene_science.app:app --port 8000   # 1
+cd services/science && ./build/selene-science --port 8000                                  # 1
 cd services/api && cargo run                                                               # 2
 cd apps/web && npm run dev                                                                 # 3
 ```
@@ -79,12 +79,14 @@ Configuration: see `.env.example`. All variables are optional.
 ## Tests and checks
 
 ```bash
-cd services/science && .venv/Scripts/python -m pytest -q && .venv/Scripts/ruff check . && .venv/Scripts/ruff format --check .
+cd services/science && cmake --build build -j && ctest --test-dir build --output-on-failure
 cd services/api     && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
 cd apps/web         && npm run typecheck && npm test && npm run build
 ```
 
-Contract tests run inside both backend suites. They validate the shared fixtures, and the live handler output, against `packages/contracts/schemas`.
+Science memory-safety checks: `-DSELENE_SANITIZE=ON` builds the tests with AddressSanitizer + UBSan (also run in CI); `-DSELENE_FUZZ=ON` (clang) builds the libFuzzer target `fuzz-handler` (see `services/science/tests/fuzz.cpp`).
+
+Contract tests run inside both backend suites. The Rust suite validates the shared fixtures and the gateway output against `packages/contracts/schemas`; the C++ suite checks that live science output still matches those fixtures.
 CI (`.github/workflows/ci.yml`) runs the same commands.
 
 ## API (gateway, :8080)
@@ -107,7 +109,7 @@ Errors always use `{"error": {"code", "message", "details": [{"field", "issue"}]
 ## Parallel workstreams
 
 Owners are assigned locally (see CONTEXT.md):
-Ephemerides → `services/science/.../ephemeris/spice.py` · Terrain → `data/`, new `terrain/` module ·
+Ephemerides → `services/science/src/ephemeris.cpp` (`SpiceEphemerisProvider`) · Terrain → `data/`, new `terrain/` module ·
 Rust API → `services/api` (cache, `/scenarios/compare`) · 3D → `apps/web/src/lunar/` (Moon), `apps/web/src/components/celestial/` (Sun·Earth·Moon) ·
 UX/DataViz → `Timeline.tsx`, `ResultPanel.tsx`, comparison view · Integration/QA → CI, compose, `docs/`.
 Contract changes go through `packages/contracts` first.

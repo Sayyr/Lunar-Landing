@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { mockCelestialState } from "../mock/celestialMock";
-import { localAzEl, moonSky, type Vec3 } from "./skyGeometry";
+import { azElToEnu, enuBasis, localAzEl, moonSky, type Vec3 } from "./skyGeometry";
 
 const close = (a: number, b: number, eps = 1e-9) => expect(Math.abs(a - b)).toBeLessThan(eps);
 
@@ -59,5 +59,33 @@ describe("moonSky (from the synthetic mock)", () => {
     const det =
       m[0] * (m[4] * m[8] - m[5] * m[7]) - m[1] * (m[3] * m[8] - m[5] * m[6]) + m[2] * (m[3] * m[7] - m[4] * m[6]);
     close(det, 1, 1e-9);
+  });
+});
+
+describe("enuBasis / azElToEnu", () => {
+  it("orthonormal right-handed basis, also at the poles", () => {
+    for (const [lat, lon] of [[0, 0], [45, 120], [-89.5, 0], [-90, 33], [90, -10]]) {
+      const { east: e, north: n, up: u } = enuBasis(lat, lon);
+      const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+      for (const v of [e, n, u]) close(Math.hypot(...v), 1, 1e-12);
+      close(dot(e, n), 0, 1e-12);
+      close(dot(e, u), 0, 1e-12);
+      close(dot(n, u), 0, 1e-12);
+      // east × north = up
+      close(e[1] * n[2] - e[2] * n[1], u[0], 1e-12);
+    }
+  });
+
+  it("azElToEnu is the inverse of localAzEl", () => {
+    const lat = -60;
+    const lon = 25;
+    const { east, north, up } = enuBasis(lat, lon);
+    for (const azel of [{ azimuthDeg: 30, elevationDeg: 10 }, { azimuthDeg: 250, elevationDeg: -3 }]) {
+      const [e, n, u] = azElToEnu(azel);
+      const body: Vec3 = [0, 1, 2].map((i) => e * east[i] + n * north[i] + u * up[i]) as Vec3;
+      const back = localAzEl(body, lat, lon);
+      close(back.azimuthDeg, azel.azimuthDeg, 1e-9);
+      close(back.elevationDeg, azel.elevationDeg, 1e-9);
+    }
   });
 });

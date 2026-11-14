@@ -30,3 +30,27 @@ describe("Heightmap.extendRange", () => {
     expect(hm.minKm).toBe(0); // row 0 not re-scanned
   });
 });
+
+describe("Heightmap.sampleKmSmooth", () => {
+  const hm = new Heightmap(Float32Array.from({ length: W * H }, (_, i) => Math.cos(i * 1.7) * 2), W, H);
+  const centre = (r: number, c: number) => ({ lat: ((r + 0.5) / H) * 180 - 90, lon: ((c + 0.5) / W) * 360 - 180 });
+
+  it("passes through pixel values, like the bilinear sampler", () => {
+    for (const [r, c] of [[1, 2], [2, 5], [1, 7]]) {
+      const { lat, lon } = centre(r, c);
+      expect(hm.sampleKmSmooth(lat, lon)).toBeCloseTo(hm.data[r * W + c], 6);
+    }
+  });
+
+  it("slope is continuous across a pixel centre (bilinear's has a kink there)", () => {
+    const { lat } = centre(1, 3);
+    const e = 1e-3;
+    const slope = (f: (la: number, lo: number) => number, lo: number) => (f(lat, lo + e) - f(lat, lo - e)) / (2 * e);
+    const smooth = (la: number, lo: number) => hm.sampleKmSmooth(la, lo);
+    const lin = (la: number, lo: number) => hm.sampleKm(la, lo);
+    const centreLon = ((4 + 0.5) / W) * 360 - 180; // a pixel centre: bilinear kink
+    const jumpSmooth = Math.abs(slope(smooth, centreLon - 4 * e) - slope(smooth, centreLon + 4 * e));
+    const jumpLin = Math.abs(slope(lin, centreLon - 4 * e) - slope(lin, centreLon + 4 * e));
+    expect(jumpSmooth).toBeLessThan(jumpLin / 20);
+  });
+});
