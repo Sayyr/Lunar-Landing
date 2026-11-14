@@ -204,3 +204,5 @@ details ul { padding-left: 1.1rem; margin: 0.3rem 0; }
 .sky-time button { padding: 2px 8px; min-width: 32px; }
 .sky-time output { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .sky-note { margin-top: 6px; font-size: 10.5px; color: var(--l-warn); }
+.sky-view { display: flex; gap: 6px; margin-top: 6px; }
+.sky-view button { padding: 3px 8px; font-size: 12px; }
