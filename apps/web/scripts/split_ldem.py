@@ -23,26 +23,32 @@ import sys
 from array import array
 
 
-def read_float_tiff(path: str) -> tuple[int, int, array]:
-    """Minimal reader for uncompressed, single-band float32 strip TIFFs (little or big endian)."""
-    with open(path, "rb") as fh:
-        raw = fh.read()
+def read_tiff_tags(raw: bytes) -> tuple[str, dict[int, list]]:
+    """First-IFD tags of a classic TIFF: SHORT/LONG as ints, DOUBLE as floats (other types skipped)."""
     bo = {b"II": "<", b"MM": ">"}[raw[:2]]
     if struct.unpack(bo + "H", raw[2:4])[0] != 42:
         raise SystemExit("not a classic TIFF")
     ifd = struct.unpack(bo + "I", raw[4:8])[0]
     n = struct.unpack(bo + "H", raw[ifd : ifd + 2])[0]
-    sizes = {3: 2, 4: 4}
-    tags: dict[int, list[int]] = {}
+    kinds = {3: ("H", 2), 4: ("I", 4), 12: ("d", 8)}
+    tags: dict[int, list] = {}
     for i in range(n):
         e = ifd + 2 + 12 * i
         tag, typ, count = struct.unpack(bo + "HHI", raw[e : e + 8])
-        if typ not in sizes:
+        if typ not in kinds:
             continue
-        size = sizes[typ] * count
-        fmt = bo + ("H" if typ == 3 else "I") * count
+        code, width = kinds[typ]
+        size = width * count
         data = raw[e + 8 : e + 8 + size] if size <= 4 else raw[struct.unpack(bo + "I", raw[e + 8 : e + 12])[0] :][:size]
-        tags[tag] = list(struct.unpack(fmt, data))
+        tags[tag] = list(struct.unpack(bo + code * count, data))
+    return bo, tags
+
+
+def read_float_tiff(path: str) -> tuple[int, int, array]:
+    """Minimal reader for uncompressed, single-band float32 strip TIFFs (little or big endian)."""
+    with open(path, "rb") as fh:
+        raw = fh.read()
+    bo, tags = read_tiff_tags(raw)
     width, height = tags[256][0], tags[257][0]
     if tags.get(258, [0])[0] != 32 or tags.get(339, [1])[0] != 3 or tags.get(259, [1])[0] != 1 or tags.get(277, [1])[0] != 1:
         raise SystemExit("expected an uncompressed single-band float32 TIFF")
