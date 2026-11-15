@@ -32,6 +32,7 @@ public:
     //   POST /evaluate            real ephemerides (SPICE; not ready yet)
     //   POST /evaluate/synthetic  SYNTHETIC demo data for UI development. Never use for analysis.
     //   POST /terrain/slope/check DEM slope check of a circular zone (terrain.hpp)
+    //   POST /celestial/state     Sun/Earth/Moon geometric state at one UTC instant, for the 3D views (celestial.hpp)
     //   POST /radio/evaluate      direct-to-Earth radio-link windows, engineering tier (radio.hpp)
     HttpResponse handle(const std::string& method, const std::string& path,
                         const std::string& body) const;
@@ -42,6 +43,7 @@ private:
     HttpResponse evaluate_with(const EphemerisProvider& provider, const std::string& body) const;
     HttpResponse slope_check_route(const std::string& body) const;
     HttpResponse radio_route(const std::string& body) const;
+    HttpResponse celestial_route(const std::string& body) const;
 
     SpiceEphemerisProvider spice_;
     SyntheticEphemerisProvider synthetic_;
