@@ -48,29 +48,11 @@ public:
     virtual DirectionSeries directions(const Site& site, const std::vector<int64_t>& times_us) const = 0;
 };
 
-// SPICE-backed ephemeris provider (CSPICE). C++ port of the team's calcul_positions.py, validated
-// the same way as test_validation_lunar_mission.py (tests/spice_tests.cpp).
-//
-// Pipeline (see docs/validation.md):
-// 1. Load the fixed kernel set SPICE_KERNELS from SELENE_KERNEL_DIR (furnsh_c), once per process.
-//    The PCK lunar radii must equal MOON_RADIUS_KM (1737.4 km sphere), else not ready.
-// 2. UTC -> ET (TDB seconds past J2000) via str2et_c with the LSK. Leap seconds after the LSK's
-//    last entry are unknown to it (naif0012: last one 2017-01-01).
-// 3. Observer in MOON_ME (mean Earth / polar axis; in moon_de440_250416.tf MOON_ME is the
-//    DE421-aligned ME frame, the frame of the LOLA products): planetocentric lat/lon (deg -> rad),
-//    radius MOON_RADIUS_KM + observer_height_m / 1000 (m -> km), via latrec_c.
-// 4. Sun/Earth centres seen from the observer: spkcpo_c(target, et, "MOON_ME", "OBSERVER",
-//    "CN+S", obspos, "MOON", "MOON_ME") (converged Newtonian light time + stellar aberration).
-// 5. Rotate to the local spherical ENU basis (geometry.hpp enu_basis, deterministic at the poles),
-//    then azimuth (from north toward east) / elevation of the body centre.
-//
-// CSPICE keeps global state and is not thread-safe: every CSPICE call is serialised by one
-// process-wide mutex. Only one kernel directory can be loaded per process.
-// Built without CSPICE (SELENE_HAVE_CSPICE undefined) the provider always reports not ready.
-constexpr const char* SPICE_FRAME = "MOON_ME";
-constexpr const char* SPICE_ABCORR = "CN+S";
-extern const std::vector<std::string> SPICE_KERNELS;
-
+// SPICE-backed ephemeris provider. C++ port of the team's calcul_positions.py: a thin adapter over
+// the standalone CSPICE interface spice.hpp (kernels, UTC -> ET, MOON_ME, CN+S, az/el), which holds
+// all the CSPICE calls and conventions. This class only adds the API's JSON model info, provenance
+// and assumptions, and maps spice::Error to EphemerisNotReady.
+// Built without CSPICE, or without kernels, the provider reports not ready.
 struct SpiceState;  // loaded kernel set, provenance; defined in ephemeris_spice.cpp
 
 class SpiceEphemerisProvider : public EphemerisProvider {

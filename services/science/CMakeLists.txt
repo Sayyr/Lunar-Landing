@@ -43,7 +43,8 @@ find_package(Threads REQUIRED)
 
 add_library(selene_science_core STATIC
   src/app.cpp src/ephemeris.cpp src/ephemeris_spice.cpp src/evaluate.cpp src/geometry.cpp
-  src/intervals.cpp src/link.cpp src/lunar_ephemeris.cpp src/models.cpp src/radio.cpp src/terrain.cpp)
+  src/intervals.cpp src/link.cpp src/lunar_ephemeris.cpp src/models.cpp src/radio.cpp src/spice.cpp
+  src/terrain.cpp)
 target_include_directories(selene_science_core PUBLIC src)
 target_link_libraries(selene_science_core PUBLIC nlohmann_json::nlohmann_json)
 
@@ -118,18 +119,16 @@ if(SELENE_BUILD_TESTS)
   target_compile_definitions(selene-science-tests PRIVATE SELENE_CONTRACTS_DIR="${CONTRACTS_DIR}")
   add_test(NAME selene-science-tests COMMAND selene-science-tests)
 
-  # Port of test_validation_lunar_mission.py. Needs CSPICE at build time and the kernels at run time
-  # (SELENE_KERNEL_DIR, default ../../data/kernels); without kernels it exits 77 = skipped.
-  if(SELENE_HAVE_CSPICE)
-    add_executable(spice-tests tests/spice_tests.cpp)
-    target_include_directories(spice-tests SYSTEM PRIVATE "${SELENE_CSPICE_DIR}/include")
-    target_link_libraries(spice-tests PRIVATE selene_science_core)
-    target_compile_definitions(spice-tests PRIVATE
-      SELENE_CONTRACTS_DIR="${CONTRACTS_DIR}"
-      SELENE_DEFAULT_KERNEL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../data/kernels")
-    add_test(NAME spice-tests COMMAND spice-tests)
-    set_tests_properties(spice-tests PROPERTIES SKIP_RETURN_CODE 77)
-  endif()
+  # Standalone CSPICE interface tests (spice.hpp) + port of test_validation_lunar_mission.py.
+  # Uses only spice.hpp, so it builds everywhere; exits 77 (= skipped) without CSPICE or without
+  # the kernels (SELENE_KERNEL_DIR, default ../../data/kernels).
+  add_executable(spice-tests tests/spice_tests.cpp)
+  target_link_libraries(spice-tests PRIVATE selene_science_core)
+  target_compile_definitions(spice-tests PRIVATE
+    SELENE_CONTRACTS_DIR="${CONTRACTS_DIR}"
+    SELENE_DEFAULT_KERNEL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../data/kernels")
+  add_test(NAME spice-tests COMMAND spice-tests)
+  set_tests_properties(spice-tests PROPERTIES SKIP_RETURN_CODE 77)
 
   add_executable(generate-fixtures tools/generate_fixtures.cpp)
   target_link_libraries(generate-fixtures PRIVATE selene_science_core)
