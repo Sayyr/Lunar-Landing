@@ -12,6 +12,7 @@ import { bodyRotationToThree, closeLoop, eclToThree, normalize, type V3 } from "
 import { disposeStarField, makeStarField } from "../../lib/stars";
 import { DATA_BASE, SETUP_HINT } from "../../lunar/loaders";
 import { Earth, Moon, Sun } from "./Bodies";
+import { Rocket } from "./Rocket";
 import { useOptionalTexture } from "./useOptionalTexture";
 
 export type SceneView = "earth-moon" | "solar";
@@ -74,6 +75,13 @@ interface ViewProps {
 }
 
 const SEGMENT_COLOUR = { transfer: "#3ddbd9", descent: "#ff8c42" } as const;
+/** Drawn rocket length, Earth radii, per body enlargement (NOT to scale: a real lander is ~1e-6 Earth radii). */
+const rocketLength = (bodyScale: number) => 0.6 + 0.9 * bodyScale;
+/** Label point `dist` beyond `p` along the unit nose direction. */
+const labelPos = (p: V3, nose: V3, dist: number): V3 => {
+  const n = Math.hypot(nose[0], nose[1], nose[2]) || 1;
+  return [p[0] + (nose[0] / n) * dist, p[1] + (nose[1] / n) * dist + 0.6, p[2] + (nose[2] / n) * dist];
+};
 
 /** Computed transfer + descent (geocentric, true scale) and the spacecraft at the scene's instant. */
 function TrajectoryPath({
@@ -82,19 +90,48 @@ function TrajectoryPath({
   scale,
   arrivalMoon,
   moonRadius,
+  moonPos,
+  bodyScale,
 }: {
   trajectory: NonNullable<Props["trajectory"]>;
   utc: string;
   scale: number;
   arrivalMoon?: Props["arrivalMoon"];
   moonRadius: number;
+  /** the Moon drawn at this instant (scene units) */
+  moonPos: V3;
+  bodyScale: number;
 }) {
+  const ROCKET_LENGTH = rocketLength(bodyScale);
   const lines = useMemo(
     () => trajectory.response.segments.map((seg) => ({ phase: seg.phase, pts: scaleTrack(seg.positions_m, scale) })),
     [trajectory, scale],
   );
   const craft = positionAt(trajectory.points, Date.parse(utc));
-  const craftPos = craft ? eclToThree(craft.p, scale) : null;
+  const truePos = craft ? eclToThree(craft.p, scale) : null;
+  // In the descent the true position is inside the drawn (possibly enlarged) Moon: stand the rocket
+  // on the drawn surface instead, at its true altitude times the same enlargement.
+  let craftPos = truePos;
+  if (craft?.phase === "descent" && truePos) {
+    const d: V3 = [truePos[0] - moonPos[0], truePos[1] - moonPos[1], truePos[2] - moonPos[2]];
+    const r = Math.hypot(d[0], d[1], d[2]);
+    const alt = Math.max(0, r - moonRadius / bodyScale) * bodyScale;
+    if (r > 0) craftPos = [moonPos[0] + (d[0] / r) * (moonRadius + alt), moonPos[1] + (d[1] / r) * (moonRadius + alt), moonPos[2] + (d[2] / r) * (moonRadius + alt)];
+  }
+  // Nose: along the velocity in transfer (central difference over ±1 min of the tool's samples),
+  // away from the Moon's centre in the powered descent (engine toward the surface).
+  let nose: V3 = [0, 1, 0];
+  if (craft && craftPos) {
+    if (craft.phase === "descent") {
+      nose = [craftPos[0] - moonPos[0], craftPos[1] - moonPos[1], craftPos[2] - moonPos[2]];
+    } else {
+      const t = Date.parse(utc);
+      const a = positionAt(trajectory.points, t - 60_000) ?? craft;
+      const b = positionAt(trajectory.points, t + 60_000) ?? craft;
+      const v = eclToThree([b.p[0] - a.p[0], b.p[1] - a.p[1], b.p[2] - a.p[2]], 1);
+      if (v[0] || v[1] || v[2]) nose = v;
+    }
+  }
   // Before the arrival the real Moon is elsewhere on its orbit: show where it will be.
   const ghost = arrivalMoon && Date.parse(utc) < Date.parse(arrivalMoon.utc) - 1_800_000 ? eclToThree(arrivalMoon.position_m, scale) : null;
   return (
@@ -110,13 +147,18 @@ function TrajectoryPath({
       )}
       {lines.map((l) => l.pts.length > 1 && <Line key={l.phase} points={l.pts} color={SEGMENT_COLOUR[l.phase]} lineWidth={2} />)}
       {craftPos && (
-        <mesh position={craftPos}>
-          <sphereGeometry args={[0.35, 12, 12]} />
-          <meshBasicMaterial color={SEGMENT_COLOUR[craft!.phase]} />
-          <Html center className="axis-label" position={[0, 1.2, 0]}>
-            spacecraft ({craft!.phase})
+        <>
+          <Rocket
+            position={craftPos}
+            nose={nose}
+            length={craft!.phase === "descent" ? ROCKET_LENGTH / 2 : ROCKET_LENGTH}
+            anchor={craft!.phase === "descent" ? "base" : "centre"}
+            colour={SEGMENT_COLOUR[craft!.phase]}
+          />
+          <Html center className="axis-label" position={labelPos(craftPos, nose, ROCKET_LENGTH / 2 + 0.8)}>
+            rocket ({craft!.phase})
           </Html>
-        </mesh>
+        </>
       )}
     </group>
   );
@@ -152,7 +194,15 @@ function EarthMoonView({ state, earthTex, moonTex, earthOrientation, moonOrienta
       <EclipticFrameHints radius={70} />
       {track && <Line points={track} color="#7d8aa5" lineWidth={1} transparent opacity={0.55} />}
       {trajectory && (
-        <TrajectoryPath trajectory={trajectory} utc={state.utc} scale={s} arrivalMoon={arrivalMoon} moonRadius={MOON_RADIUS_KM * 1000 * s * bodyScale} />
+        <TrajectoryPath
+          trajectory={trajectory}
+          utc={state.utc}
+          scale={s}
+          arrivalMoon={arrivalMoon}
+          moonRadius={MOON_RADIUS_KM * 1000 * s * bodyScale}
+          moonPos={moonPos}
+          bodyScale={bodyScale}
+        />
       )}
       <Line points={[[0, 0, 0], moonPos]} color="#c9ced8" lineWidth={1} dashed dashSize={1.2} gapSize={0.8} />
       {/* Dashed line all the way to the (distance-compressed) Sun proxy, stopping at its limb. */}
@@ -252,7 +302,7 @@ export const CelestialScene = memo(function CelestialScene({ state, view, enlarg
                 <>
                   {" "}
                   <span style={{ color: SEGMENT_COLOUR.transfer }}>Cyan</span>: computed Earth→Moon transfer,{" "}
-                  <span style={{ color: SEGMENT_COLOUR.descent }}>orange</span>: powered descent (vecteur-traj, geocentric, true scale; wireframe Moon = SPICE Moon at the arrival instant
+                  <span style={{ color: SEGMENT_COLOUR.descent }}>orange</span>: powered descent (vecteur-traj, geocentric, true scale; wireframe Moon = SPICE Moon at the arrival instant; rocket model drawn oversized, nose along the velocity, then away from the Moon in the descent
                   {enlargeBodies ? "; the descent ends on the true-size Moon, inside the enlarged sphere" : ""}).
                 </>
               )}
