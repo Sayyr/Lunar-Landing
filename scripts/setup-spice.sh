@@ -3,16 +3,24 @@
 # Explicit, one-time setup: nothing is downloaded at build or run time. ~88 MB in total.
 #
 #   scripts/setup-spice.sh            # CSPICE + kernels
-#   scripts/setup-spice.sh --kernels  # kernels only (e.g. CSPICE already installed elsewhere)
+#   scripts/setup-spice.sh --kernels  # kernels only (e.g. for the Docker volume, or CSPICE installed elsewhere)
+#   scripts/setup-spice.sh --cspice   # CSPICE only (used by services/science/Dockerfile)
 #
 # CSPICE   -> services/science/third_party/cspice/   (git-ignored; CMake finds it there)
 # Kernels  -> data/kernels/ + SHA256SUMS             (git-ignored; set SELENE_KERNEL_DIR to it)
+#
+# Platforms (bash: macOS, Linux, Git Bash/MSYS2 on Windows):
+#   macOS arm64 / x86_64, Linux x86_64 : NAIF's prebuilt lib/cspice.a is linked.
+#   Linux arm64 (e.g. Docker on Apple Silicon), Windows : NAIF ships no usable prebuilt library;
+#     the package's sources are kept and CMake compiles CSPICE (about 20 s to 2 min, once).
 #
 # Every file is checked against the SHA-256 below. NAIF publishes no checksums for these files:
 # the hashes were recorded from the NAIF server on 2026-11-15 (see data/README.md). A mismatch
 # means NAIF replaced the file or the download is corrupt: stop and re-validate, do not edit the hash.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+MODE="${1:-all}"
+case "$MODE" in all|--kernels|--cspice) ;; *) echo "usage: $0 [--kernels|--cspice]" >&2; exit 2 ;; esac
 NAIF="https://naif.jpl.nasa.gov/pub/naif"
 KDIR="$ROOT/data/kernels"
 CDIR="$ROOT/services/science/third_party"
@@ -34,6 +42,7 @@ fetch() {  # url dest sha256
 }
 
 # --- kernels (same set as the team's calcul_positions.py / test_validation_lunar_mission.py) ---
+if [ "$MODE" != "--cspice" ]; then
 mkdir -p "$KDIR"
 KERNELS=(
   "lsk/naif0012.tls 678e32bdb5a744117a467cd9601cd6b373f0e9bc9bbde1371d5eee39600a039b"
@@ -49,22 +58,45 @@ for k in "${KERNELS[@]}"; do
   echo "$2  $(basename "$1")" >> "$KDIR/SHA256SUMS.part"
 done
 mv "$KDIR/SHA256SUMS.part" "$KDIR/SHA256SUMS"
+echo "kernels in $KDIR"
+fi
+[ "$MODE" = "--kernels" ] && exit 0
 
-[ "${1:-}" = "--kernels" ] && { echo "kernels in $KDIR"; exit 0; }
-
-# --- CSPICE toolkit (prebuilt static library for this platform) ---
+# --- CSPICE toolkit N0067 ---
+# PKG = NAIF package; SOURCE_ONLY = 1 when its prebuilt library cannot be linked here (wrong CPU
+# or compiler), so it is removed and CMake builds CSPICE from the package's sources.
+SOURCE_ONLY=0
 case "$(uname -s)-$(uname -m)" in
-  Darwin-arm64)  PLAT=MacM1_OSX_clang_64bit;  CSUM=0deae048443e11ca4d093cac651d9785d4f2594631a183d85a3d58949f4d0aa9 ;;
+  Darwin-arm64)   PKG=MacM1_OSX_clang_64bit/packages/cspice.tar.Z;    CSUM=0deae048443e11ca4d093cac651d9785d4f2594631a183d85a3d58949f4d0aa9 ;;
+  Darwin-x86_64)  PKG=MacIntel_OSX_AppleC_64bit/packages/cspice.tar.Z; CSUM=6f4980445fee4d363dbce6f571819f4a248358d2c1bebca47e0743eedfe9935e ;;
+  Linux-x86_64)   PKG=PC_Linux_GCC_64bit/packages/cspice.tar.Z;        CSUM=60a95b51a6472f1afe7e40d77ebdee43c12bb5b8823676ccc74692ddfede06ce ;;
+  Linux-aarch64|Linux-arm64)
+                  PKG=PC_Linux_GCC_64bit/packages/cspice.tar.Z;        CSUM=60a95b51a6472f1afe7e40d77ebdee43c12bb5b8823676ccc74692ddfede06ce; SOURCE_ONLY=1 ;;
+  MINGW64*-x86_64|MSYS*-x86_64|CYGWIN*-x86_64)
+                  PKG=PC_Windows_VisualC_64bit/packages/cspice.zip;    CSUM=98d60b814b412fa55294aeaaeb7dab46d849cc87a8b709ffe835d08de17625dc; SOURCE_ONLY=1 ;;
   *)
-    echo "No recorded CSPICE checksum for $(uname -s)-$(uname -m)." >&2
-    echo "Download cspice.tar.Z for your platform from $NAIF/toolkit/C/, verify it, and extract it" >&2
-    echo "so that $CDIR/cspice/lib/cspice.a exists (or pass -DSELENE_CSPICE_DIR=... to CMake)." >&2
+    echo "No CSPICE package recorded for $(uname -s)-$(uname -m)." >&2
+    echo "Get one from $NAIF/toolkit/C/, verify it, extract it to $CDIR/cspice (CMake compiles" >&2
+    echo "src/cspice if lib/cspice.a is unusable), or pass -DSELENE_CSPICE_DIR=... to CMake." >&2
     exit 1 ;;
 esac
 mkdir -p "$CDIR"
-fetch "$NAIF/toolkit/C/$PLAT/packages/cspice.tar.Z" "$CDIR/cspice.tar.Z" "$CSUM"
+ARCHIVE="$CDIR/$(basename "$PKG")"
+fetch "$NAIF/toolkit/C/$PKG" "$ARCHIVE" "$CSUM"
 rm -rf "$CDIR/cspice"
-tar -xf "$CDIR/cspice.tar.Z" -C "$CDIR"
-[ -f "$CDIR/cspice/lib/cspice.a" ] && [ -f "$CDIR/cspice/include/SpiceUsr.h" ] || { echo "unexpected CSPICE layout" >&2; exit 1; }
-echo "CSPICE in $CDIR/cspice. Reconfigure: cmake -S services/science -B services/science/build"
-echo "Run with: SELENE_KERNEL_DIR=$KDIR"
+case "$ARCHIVE" in
+  *.zip)
+    if command -v unzip >/dev/null; then unzip -q "$ARCHIVE" -d "$CDIR"
+    else powershell.exe -NoProfile -Command "Expand-Archive -LiteralPath '$(cygpath -w "$ARCHIVE")' -DestinationPath '$(cygpath -w "$CDIR")'"; fi ;;
+  *) tar -xf "$ARCHIVE" -C "$CDIR" ;;
+esac
+[ -f "$CDIR/cspice/include/SpiceUsr.h" ] && [ -f "$CDIR/cspice/src/cspice/spkcpo_c.c" ] || { echo "unexpected CSPICE layout" >&2; exit 1; }
+if [ "$SOURCE_ONLY" = 1 ]; then
+  rm -f "$CDIR/cspice/lib/"*.a "$CDIR/cspice/lib/"*.lib
+  echo "CSPICE sources in $CDIR/cspice (no prebuilt library for this platform: CMake compiles them)."
+else
+  echo "CSPICE in $CDIR/cspice (prebuilt lib/cspice.a)."
+fi
+echo "Reconfigure: cmake -S services/science -B services/science/build"
+[ "$MODE" = "all" ] && echo "Run with: SELENE_KERNEL_DIR=$KDIR"
+exit 0

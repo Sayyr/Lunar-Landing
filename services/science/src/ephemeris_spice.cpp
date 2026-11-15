@@ -1,6 +1,7 @@
 // SpiceEphemerisProvider: CSPICE port of the team's calcul_positions.py (see ephemeris.hpp).
 
 #include <cmath>
+#include <cstdio>
 #include <mutex>
 
 #include "ephemeris.hpp"

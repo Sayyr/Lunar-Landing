@@ -11,6 +11,7 @@
 //  3. Poles, out-of-coverage times, API output and thread safety.
 //  4. Measured: analytic Earth direction (lunar_ephemeris.hpp, used by /radio/evaluate) vs SPICE.
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -18,6 +19,7 @@
 #include <fstream>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include <SpiceUsr.h>

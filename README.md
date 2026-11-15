@@ -33,8 +33,10 @@ apps/web (React + TS + Vite + R3F)  --/api-->  services/api (Rust/Axum :8080)  -
 ## Option A — Docker (single command)
 
 ```bash
+scripts/setup-spice.sh --kernels   # SPICE kernels on the host, mounted read-only into the container
 docker compose -f infra/compose.yaml up --build
 ```
+The science image fetches and builds CSPICE for its own platform (amd64 or arm64).
 Web: <http://localhost:8081> · API: <http://localhost:8080/api/v1/health> · Science: <http://localhost:8000/health>
 
 ## Option B — local, no Docker
@@ -42,9 +44,10 @@ Web: <http://localhost:8081> · API: <http://localhost:8080/api/v1/health> · Sc
 One-time setup:
 
 ```bash
-# science: optional but needed for real Sun/Earth ephemerides. Fetches CSPICE (macOS arm64 recorded;
-# other platforms: see the script) and the 5 SPICE kernels, ~88 MB, SHA-256 checked. Without it
-# POST /scenarios/evaluate answers status "not_ready".
+# science: optional but needed for real Sun/Earth ephemerides. Fetches CSPICE and the 5 SPICE
+# kernels from NAIF, ~88 MB, SHA-256 checked. macOS (arm64/x86_64) and Linux x86_64 use NAIF's
+# prebuilt library; Linux arm64 and Windows (Git Bash, MSVC) compile CSPICE from its sources
+# during the CMake build. Without it POST /scenarios/evaluate answers status "not_ready".
 scripts/setup-spice.sh
 cd services/science
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j --config Release
@@ -98,7 +101,7 @@ CI (`.github/workflows/ci.yml`) runs the same commands.
 |---|---|
 | `GET /health` | gateway status + embedded science health (`ephemeris.ready`, reason) |
 | `GET /sites` | preset sites. Currently **synthetic test points only** (not landing sites). |
-| `POST /scenarios/evaluate` | real Sun/Earth azimuth/elevation from SPICE (DE440, MOON_ME, ideal horizon) → `status: "computed"`; `not_ready` when CSPICE or the kernels are not installed. Cross-checked with CSPICE `azlcpo`, not yet with JPL Horizons |
+| `POST /scenarios/evaluate` | real Sun/Earth azimuth/elevation from SPICE (DE440, MOON_ME, ideal horizon) → `status: "computed"`; `not_ready` when CSPICE or the kernels are not installed. Agrees with JPL Horizons to 0.01 arcsec on 48 reference rows (`docs/validation.md`) |
 | `POST /demo/synthetic/evaluate` | **SYNTHETIC** demo data (`status: "synthetic"`, `synthetic: true`) |
 | `POST /scenarios/radio-link` | **engineering estimate** of direct-to-Earth radio-link windows: Earth above the lunar-side mask (ideal horizon), a requested ground station seeing the Moon, and the free-space link budget closing with the request's hardware figures. Analytic low-precision ephemeris (Meeus), **not SPICE**; not a link guarantee. See `docs/validation.md` |
 | `POST /calcule` | former `back/` API: runs the programs of a profile (`services/api/config/profiles.json`) and streams NDJSON. The bundled programs are **simulators** whose output is labelled `synthetic` |

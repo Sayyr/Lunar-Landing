@@ -2,8 +2,9 @@
 
 > **Status:** Sun/Earth azimuth/elevation now come from SPICE (`POST /evaluate`, CSPICE + DE440)
 > when the service is built with CSPICE and given the kernels (`scripts/setup-spice.sh`). They are
-> cross-checked against CSPICE's own `azlcpo` (internal consistency, same kernels) but **not yet
-> against an independent source (JPL Horizons)**. `POST /evaluate/synthetic` remains SYNTHETIC.
+> cross-checked against CSPICE's own `azlcpo` (internal consistency, same kernels) and against
+> **JPL Horizons** (independent: DE441, Horizons' own pipeline): max 0.01 arcsec on 48 rows.
+> `POST /evaluate/synthetic` remains SYNTHETIC.
 >
 > `SCIENTIFIC_REFERENCE.md` (named in CLAUDE.md as authoritative) is **not yet in the
 > repository**. The conventions below are provisional and come from CLAUDE.md/CONTEXT.md.
@@ -52,7 +53,7 @@ Geometric visibility is **not** power availability and **not** a radio link. Eve
 | UTC→ET | compare `str2et` to NAIF-documented example values | < 1 ms | ⏳ (the conversion itself is CSPICE's) |
 | Sun/Earth az/el, internal consistency | `tests/spice_tests.cpp` (port of `test_validation_lunar_mission.py`): provider (`spkcpo_c` + ENU) vs CSPICE `azlcpo_c`, 8 sites × 3 dates × {Sun, Earth} | 0.001° (as the Python script) | ✅ automated — 2026-11-15, measured max 1.1e-13° az, 1.4e-14° el |
 | Sun/Earth az/el, team regression | same test: (−85°, −30°, 1.5 km), 2026-11-14 12:00 UTC → Sun az 150.4971° el −2.7963°, Earth az 28.0084° el 0.2914° (team's `calcul_positions.py`) | 0.01° | ✅ automated — reproduced to 4 decimals |
-| Sun/Earth az/el at a lunar site, independent | JPL Horizons topocentric observer on body 301 (user-defined site), same epochs and frame assumptions; store small reference CSVs in `tests/integration/fixtures/reference/horizons/` with the query used | proposal: < 0.01° | ⏳ **not done** (bench test BLOCKED: no reference recorded) |
+| Sun/Earth az/el at a lunar site, independent | JPL Horizons API, observer table, `coord@301` user site (MEAN_ME, 1737.4 km sphere, airless), quantity 4; lat/lon of the team's 8 sites, 2 m observer, same 3 epochs, Sun + Earth = 48 rows in `tests/integration/fixtures/reference/horizons/team_sites.csv` (query in `fetch_horizons.py`) | 0.01° (bench `TOLERANCE_DEG`) | ✅ 2026-11-15, bench `test_agrees_with_jpl_horizons` passes live; measured max 0.01 arcsec (2e-6°) az, < 0.005 arcsec el. Horizons uses DE441 and relativistic light bending, the service DE440 and CN+S |
 | Polar handling | sites at lat ±90 (lon 0, 73, −150) finite and continuous with lat ±89.9999999; azimuth reference rotates with the requested longitude | 1e-4° | ✅ automated (`spice_tests.cpp`) |
 | Long-period sanity | Sun elevation at a near-pole site stays within a few degrees of horizon; must be confirmed with real data, not assumed | qualitative | ⏳ |
 | Analytic Moon position (`services/science/src/lunar_ephemeris.cpp`, used ONLY by the radio-link estimate) | Meeus worked example 47.a (1992-04-12 0h TD): longitude, latitude, distance | 0.01°, 0.01°, 60 km | ✅ automated — measured 0.0007°, 0.0006°, 35 km at that single epoch |
@@ -64,7 +65,9 @@ Geometric visibility is **not** power availability and **not** a radio link. Eve
 
 Record every executed validation here with date, kernel set and SHA-256, and the result.
 
-**Kernel set used for the 2026-11-15 runs** (NAIF generic kernels, fetched 2026-11-15 by `scripts/setup-spice.sh`, CSPICE N0067 MacM1_OSX_clang_64bit):
+**Platforms tested on 2026-11-15** (full `ctest`, including `spice-tests`, with the kernels below): macOS arm64 (NAIF prebuilt and CSPICE built from source), Linux arm64 in Docker (built from source), Linux amd64 in Docker under emulation (NAIF prebuilt). Windows/MSVC (built from source) is covered by the `science-windows` CI job only; MinGW is not tested.
+
+**Kernel set used for the 2026-11-15 runs** (NAIF generic kernels, fetched 2026-11-15 by `scripts/setup-spice.sh`, CSPICE N0067):
 
 | File | SHA-256 |
 |---|---|
@@ -73,4 +76,7 @@ Record every executed validation here with date, kernel set and SHA-256, and the
 | `pck00011.tpc` | `3dff7b1dbeceaa01f25467767d3fa25816051c85d162d1edf04acb310ee28bb1` |
 | `moon_pa_de440_200625.bpc` | `60cd55aa401ea2ea97360636f567554bfe4e37bb829f901b4460a455dfaf783f` |
 | `moon_de440_250416.tf` | `a47c71e9c9f33796bdafb2c9d69a7ee447b6016ecad80f71cd6f3e479f9cf768` |
-| `cspice.tar.Z` (toolkit) | `0deae048443e11ca4d093cac651d9785d4f2594631a183d85a3d58949f4d0aa9` |
+| CSPICE `MacM1_OSX_clang_64bit/cspice.tar.Z` | `0deae048443e11ca4d093cac651d9785d4f2594631a183d85a3d58949f4d0aa9` |
+| CSPICE `MacIntel_OSX_AppleC_64bit/cspice.tar.Z` | `6f4980445fee4d363dbce6f571819f4a248358d2c1bebca47e0743eedfe9935e` |
+| CSPICE `PC_Linux_GCC_64bit/cspice.tar.Z` (Linux x86_64 prebuilt; sources for Linux arm64) | `60a95b51a6472f1afe7e40d77ebdee43c12bb5b8823676ccc74692ddfede06ce` |
+| CSPICE `PC_Windows_VisualC_64bit/cspice.zip` (sources, compiled by CMake) | `98d60b814b412fa55294aeaaeb7dab46d849cc87a8b709ffe835d08de17625dc` |

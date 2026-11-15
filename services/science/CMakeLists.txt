@@ -41,13 +41,48 @@ add_library(selene_science_core STATIC
 target_include_directories(selene_science_core PUBLIC src)
 target_link_libraries(selene_science_core PUBLIC nlohmann_json::nlohmann_json)
 
-# CSPICE (NAIF toolkit, prebuilt static library), optional. scripts/setup-spice.sh installs it in
-# third_party/cspice. Without it the SPICE provider is compiled as "not ready" and /evaluate answers
-# status not_ready; everything else is unchanged.
+# CSPICE (NAIF toolkit), optional. scripts/setup-spice.sh installs it in third_party/cspice. Without
+# it the SPICE provider is compiled as "not ready" and /evaluate answers status not_ready.
+#  * prebuilt lib/cspice.a from NAIF where NAIF ships one for this platform (macOS arm64/x86_64,
+#    Linux x86_64);
+#  * otherwise (Windows, Linux arm64, or SELENE_CSPICE_FROM_SOURCE=ON) built here from the
+#    package's own src/cspice/*.c with NAIF's mkprodct flags.
 set(SELENE_CSPICE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/cspice" CACHE PATH "CSPICE toolkit root")
-if(EXISTS "${SELENE_CSPICE_DIR}/include/SpiceUsr.h" AND EXISTS "${SELENE_CSPICE_DIR}/lib/cspice.a")
-  add_library(cspice STATIC IMPORTED)
-  set_target_properties(cspice PROPERTIES IMPORTED_LOCATION "${SELENE_CSPICE_DIR}/lib/cspice.a")
+option(SELENE_CSPICE_FROM_SOURCE "Compile CSPICE from its sources instead of linking lib/cspice.a" OFF)
+set(SELENE_HAVE_CSPICE OFF)
+if(EXISTS "${SELENE_CSPICE_DIR}/include/SpiceUsr.h")
+  if(NOT WIN32 AND NOT SELENE_CSPICE_FROM_SOURCE AND EXISTS "${SELENE_CSPICE_DIR}/lib/cspice.a")
+    add_library(cspice STATIC IMPORTED)
+    set_target_properties(cspice PROPERTIES IMPORTED_LOCATION "${SELENE_CSPICE_DIR}/lib/cspice.a")
+    set(SELENE_HAVE_CSPICE ON)
+    message(STATUS "CSPICE: prebuilt ${SELENE_CSPICE_DIR}/lib/cspice.a")
+  elseif(EXISTS "${SELENE_CSPICE_DIR}/src/cspice/spkcpo_c.c")
+    enable_language(C)
+    file(GLOB CSPICE_SOURCES "${SELENE_CSPICE_DIR}/src/cspice/*.c")
+    add_library(cspice STATIC ${CSPICE_SOURCES})
+    target_include_directories(cspice PRIVATE "${SELENE_CSPICE_DIR}/src/cspice")
+    if(MSVC)
+      # mkprodct.bat; zzsecprt.c is compiled without optimisation and without NON_ANSI_STDIO.
+      target_compile_definitions(cspice PRIVATE _COMPLEX_DEFINED MSDOS OMIT_BLANK_CC)
+      target_compile_options(cspice PRIVATE /O2 /w)
+      set_source_files_properties("${SELENE_CSPICE_DIR}/src/cspice/zzsecprt.c" PROPERTIES COMPILE_OPTIONS "/Od")
+      foreach(f ${CSPICE_SOURCES})
+        if(NOT f MATCHES "zzsecprt\\.c$")
+          set_property(SOURCE "${f}" APPEND PROPERTY COMPILE_DEFINITIONS NON_ANSI_STDIO)
+        endif()
+      endforeach()
+    elseif(WIN32)  # MinGW: the Windows package's sources with gcc. Not tested by CI.
+      target_compile_definitions(cspice PRIVATE _COMPLEX_DEFINED MSDOS OMIT_BLANK_CC NON_ANSI_STDIO)
+      target_compile_options(cspice PRIVATE -ansi -O2 -w)
+    else()  # mkprodct.csh: -ansi -O2 -fPIC -DNON_UNIX_STDIO (-m64 dropped: not valid on arm64)
+      target_compile_definitions(cspice PRIVATE NON_UNIX_STDIO)
+      target_compile_options(cspice PRIVATE -ansi -O2 -fPIC -w)
+    endif()
+    set(SELENE_HAVE_CSPICE ON)
+    message(STATUS "CSPICE: building from source (${SELENE_CSPICE_DIR}/src/cspice, ${CMAKE_C_COMPILER_ID})")
+  endif()
+endif()
+if(SELENE_HAVE_CSPICE)
   # SYSTEM: CSPICE headers are not ours; keep -Wpedantic quiet on them.
   target_include_directories(selene_science_core SYSTEM PRIVATE "${SELENE_CSPICE_DIR}/include")
   target_link_libraries(selene_science_core PUBLIC cspice)
@@ -55,16 +90,8 @@ if(EXISTS "${SELENE_CSPICE_DIR}/include/SpiceUsr.h" AND EXISTS "${SELENE_CSPICE_
     target_link_libraries(selene_science_core PUBLIC m)
   endif()
   target_compile_definitions(selene_science_core PUBLIC SELENE_HAVE_CSPICE=1)
-  set(SELENE_HAVE_CSPICE ON)
-  message(STATUS "CSPICE: ${SELENE_CSPICE_DIR}")
 else()
-  set(SELENE_HAVE_CSPICE OFF)
   message(STATUS "CSPICE: not found in ${SELENE_CSPICE_DIR} (SPICE provider not ready; see scripts/setup-spice.sh)")
-endif()
-if(MSVC)
-  target_compile_options(selene_science_core PUBLIC /W4)
-else()
-  target_compile_options(selene_science_core PUBLIC -Wall -Wextra -Wpedantic)
 endif()
 
 add_executable(selene-science src/main.cpp)
