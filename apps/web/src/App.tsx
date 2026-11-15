@@ -8,6 +8,7 @@ import { ServiceStatus } from "./components/ServiceStatus";
 import { REPO_URL } from "./lib/links";
 import { LunarExplorer } from "./lunar/LunarExplorer";
 import { RadioLinkPanel } from "./components/RadioLinkPanel";
+import { ComparePanel } from "./components/ComparePanel";
 
 const CelestialDashboard = lazy(() =>
   import("./components/celestial/CelestialDashboard").then((m) => ({ default: m.CelestialDashboard })),
@@ -107,6 +108,7 @@ export function App() {
           />
           {error && <div className="error" role="alert">{error}</div>}
           {result && <ResultPanel result={result} />}
+          <ComparePanel scenario={request} />
           <RadioLinkPanel scenario={request} />
           <ServiceStatus />
           <p className="muted small">
