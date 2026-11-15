@@ -1,0 +1,216 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://selene.local/contracts/mission-simulate-response.schema.json",
+  "title": "MissionSimulateResponse",
+  "description": "Result of a surface-stay mission simulation (ENGINEERING tier). Energy and link figures follow from the caller's hardware figures and simplified models listed in `assumptions`; they are screening estimates, not flight predictions.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "synthetic", "message", "request", "model", "data_provenance", "assumptions", "warnings", "pre_landing", "timeline", "windows", "inventory", "constraints", "verdict", "corrections", "date_scan"],
+  "$defs": {
+    "window": { "$ref": "scenario-response.schema.json#/$defs/window" },
+    "utc": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" },
+    "nullable_number": { "type": ["number", "null"] }
+  },
+  "properties": {
+    "schema_version": { "type": "string" },
+    "status": { "type": "string", "enum": ["computed", "synthetic", "not_ready"], "description": "'not_ready': ephemerides or the DEM horizon are unavailable; everything below is empty/null and verdict is 'incomplete'." },
+    "synthetic": { "type": "boolean" },
+    "message": { "type": "string" },
+    "request": { "$ref": "mission-simulate-request.schema.json", "description": "Echo of the validated request with defaults filled in." },
+    "model": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["ephemeris_provider", "horizon_model", "energy_model", "radio_model"],
+      "properties": {
+        "ephemeris_provider": { "type": "string" },
+        "horizon_model": { "type": "string" },
+        "energy_model": { "type": ["string", "null"], "description": "null when no power system is given." },
+        "radio_model": { "type": ["string", "null"] }
+      }
+    },
+    "data_provenance": { "type": "array", "items": { "type": "object" } },
+    "assumptions": { "type": "array", "items": { "type": "string" } },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "pre_landing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["planned_landing_utc", "landing_utc", "landing_delay_hours", "end_policy", "net_load_w", "energy_wh", "soc_at_landing"],
+      "properties": {
+        "planned_landing_utc": { "$ref": "#/$defs/utc" },
+        "landing_utc": { "$ref": "#/$defs/utc", "description": "Effective landing = planned + delay." },
+        "landing_delay_hours": { "type": "number" },
+        "end_policy": { "type": "string", "enum": ["fixed_duration", "fixed_end"] },
+        "net_load_w": { "$ref": "#/$defs/nullable_number" },
+        "energy_wh": { "$ref": "#/$defs/nullable_number", "description": "Battery energy drawn during the delay; null when not modelled." },
+        "soc_at_landing": { "type": ["number", "null"], "minimum": 0, "maximum": 1, "description": "null without power." }
+      }
+    },
+    "timeline": {
+      "type": "array",
+      "description": "One entry per simulation sample over the surface stay.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["utc", "sun_visible", "earth_visible", "link_available", "solar_w", "battery_wh", "soc"],
+        "properties": {
+          "utc": { "$ref": "#/$defs/utc" },
+          "sun_visible": { "type": "boolean" },
+          "earth_visible": { "type": "boolean" },
+          "link_available": { "type": ["boolean", "null"], "description": "null when no radio is given." },
+          "solar_w": { "type": ["number", "null"], "minimum": 0, "description": "null without power." },
+          "battery_wh": { "type": ["number", "null"], "minimum": 0 },
+          "soc": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+        }
+      }
+    },
+    "windows": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sun_visible", "earth_visible", "link_available"],
+      "properties": {
+        "sun_visible": { "type": "array", "items": { "$ref": "#/$defs/window" } },
+        "earth_visible": { "type": "array", "items": { "$ref": "#/$defs/window" } },
+        "link_available": { "type": ["array", "null"], "items": { "$ref": "#/$defs/window" } }
+      }
+    },
+    "inventory": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "description": "null when status = not_ready, or when no surface time is left (fixed end shorter than the delay).",
+      "required": ["landing_utc", "end_utc", "surface_hours", "energy", "sizing", "comms", "slope"],
+      "properties": {
+        "landing_utc": { "$ref": "#/$defs/utc" },
+        "end_utc": { "$ref": "#/$defs/utc" },
+        "surface_hours": { "type": "number" },
+        "energy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["generated_wh", "load_wh", "unserved_wh", "curtailed_wh", "soc_at_landing", "final_soc", "min_soc", "min_soc_utc", "hours_below_reserve", "sun_hours", "longest_sun_outage_hours"],
+          "properties": {
+            "generated_wh": { "type": ["number", "null"], "description": "Array output over the stay; energy figures are null without power." },
+            "load_wh": { "type": ["number", "null"], "description": "Load demand over the stay." },
+            "unserved_wh": { "type": ["number", "null"], "description": "Load that could not be supplied (battery empty)." },
+            "curtailed_wh": { "type": ["number", "null"], "description": "Array output lost because the battery was full." },
+            "soc_at_landing": { "$ref": "#/$defs/nullable_number" },
+            "final_soc": { "$ref": "#/$defs/nullable_number" },
+            "min_soc": { "$ref": "#/$defs/nullable_number" },
+            "min_soc_utc": { "type": ["string", "null"] },
+            "hours_below_reserve": { "$ref": "#/$defs/nullable_number", "description": "null when no reserve constraint is set." },
+            "sun_hours": { "type": "number" },
+            "longest_sun_outage_hours": { "type": "number" }
+          }
+        },
+        "sizing": {
+          "type": ["object", "null"],
+          "description": "null without power.",
+          "additionalProperties": false,
+          "required": ["reserve_soc", "required_battery_wh", "required_panel_area_m2"],
+          "properties": {
+            "reserve_soc": { "type": "number", "description": "min_battery_soc, or 0 when not set." },
+            "required_battery_wh": { "$ref": "#/$defs/nullable_number", "description": "Smallest capacity (same initial SoC, panels and load) keeping SoC >= reserve all stay; null if none up to 1e7 Wh." },
+            "required_panel_area_m2": { "$ref": "#/$defs/nullable_number", "description": "Smallest array area (same battery) keeping SoC >= reserve; null if none up to 1000 m2 (e.g. a night longer than the battery autonomy)." }
+          }
+        },
+        "comms": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["contact_basis", "earth_visible_hours", "longest_earth_outage_hours", "link_hours", "longest_link_outage_hours", "data_volume_mbit"],
+          "properties": {
+            "contact_basis": { "type": "string", "enum": ["radio_link", "geometric_earth_visibility"] },
+            "earth_visible_hours": { "type": "number" },
+            "longest_earth_outage_hours": { "type": "number" },
+            "link_hours": { "$ref": "#/$defs/nullable_number" },
+            "longest_link_outage_hours": { "$ref": "#/$defs/nullable_number" },
+            "data_volume_mbit": { "$ref": "#/$defs/nullable_number", "description": "link_hours x data_rate_bps; null without radio." }
+          }
+        },
+        "slope": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "description": "Slope check of the 4 km landing disc; null when no slope constraint is set.",
+          "required": ["status", "verdict", "radius_m", "max_slope_deg", "fraction_ok", "slope_max_deg", "slope_mean_deg"],
+          "properties": {
+            "status": { "type": "string" },
+            "verdict": { "type": "string" },
+            "radius_m": { "type": "number" },
+            "max_slope_deg": { "type": "number" },
+            "fraction_ok": { "$ref": "#/$defs/nullable_number" },
+            "slope_max_deg": { "$ref": "#/$defs/nullable_number" },
+            "slope_mean_deg": { "$ref": "#/$defs/nullable_number" }
+          }
+        }
+      }
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "label", "status", "value", "limit", "first_violation_utc", "note"],
+        "properties": {
+          "id": { "type": "string", "enum": ["battery_reserve", "earth_outage", "contact_hours", "data_volume", "landing_slope", "surface_time"] },
+          "label": { "type": "string" },
+          "status": { "type": "string", "enum": ["pass", "fail", "not_evaluated"] },
+          "value": { "$ref": "#/$defs/nullable_number" },
+          "limit": { "$ref": "#/$defs/nullable_number" },
+          "first_violation_utc": { "type": ["string", "null"] },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "verdict": { "type": "string", "enum": ["go", "no_go", "incomplete"], "description": "'go' = every applied constraint passes; 'no_go' = at least one fails; 'incomplete' = none fails but some could not be evaluated." },
+    "corrections": {
+      "type": "array",
+      "description": "Only when verdict = no_go. 'abort' is always first.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "feasible", "summary", "landing_utc", "surface_hours", "battery_capacity_wh", "panel_area_m2", "site", "max_slope_deg", "verdict"],
+        "properties": {
+          "kind": { "type": "string", "enum": ["abort", "retime_landing", "change_date", "move_site", "relax_slope", "shorten_stay", "resize_battery", "resize_panels"], "description": "retime_landing: land later than the delayed landing. change_date: plan the mission on the nearest date (earlier or later, no delay) that passes, from date_scan. move_site: nearest site within 10 km whose 4 km disc passes the slope (mission re-simulated there). relax_slope: smallest slope limit passing at this site." },
+          "feasible": { "type": "boolean" },
+          "summary": { "type": "string" },
+          "landing_utc": { "type": ["string", "null"] },
+          "surface_hours": { "$ref": "#/$defs/nullable_number" },
+          "battery_capacity_wh": { "$ref": "#/$defs/nullable_number" },
+          "panel_area_m2": { "$ref": "#/$defs/nullable_number" },
+          "site": {
+            "type": ["object", "null"],
+            "additionalProperties": false,
+            "required": ["latitude_deg", "longitude_deg"],
+            "properties": { "latitude_deg": { "type": "number" }, "longitude_deg": { "type": "number" } },
+            "description": "move_site only."
+          },
+          "max_slope_deg": { "$ref": "#/$defs/nullable_number", "description": "relax_slope only." },
+          "verdict": { "type": ["string", "null"], "enum": ["go", "no_go", "incomplete", null], "description": "Verdict of the corrected scenario when re-simulated; null for abort or when infeasible." }
+        }
+      }
+    }
+  ,
+    "date_scan": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "description": "Only when verdict = no_go and a time-dependent constraint fails: the same mission re-simulated, with no delay, at planned landing + k * step_hours for |k * step_hours| <= range_hours (earlier and later dates).",
+      "required": ["step_hours", "range_hours", "ignored_constraints", "points"],
+      "properties": {
+        "step_hours": { "type": "number" },
+        "range_hours": { "type": "number" },
+        "ignored_constraints": { "type": "array", "items": { "type": "string" }, "description": "Constraints left out of the scan because no date can change them (the landing slope when it fails at this site)." },
+        "points": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["landing_utc", "offset_hours", "verdict", "failed"],
+            "properties": {
+              "landing_utc": { "$ref": "#/$defs/utc" },
+              "offset_hours": { "type": "number", "description": "Relative to the planned landing (negative = earlier)." },
+              "verdict": { "type": "string", "enum": ["go", "no_go", "incomplete"] },
+              "failed": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -38,6 +38,17 @@ int main() {
           tilted.handle("POST", "/terrain/slope/check", selene::testing::synthetic_fixture_request().dump()).body);
     json radio = json::parse(std::ifstream(FIXTURES / "radio-link-request.valid.json"));
     write("radio-link-response.computed.json", app.handle("POST", "/radio/evaluate", radio.dump()).body);
+    // Mission simulation: SYNTHETIC ephemeris (labelled synthetic) and the not-ready answer without kernels.
+    json mission = json::parse(std::ifstream(FIXTURES / "mission-simulate-request.valid.json"));
+    write("mission-simulate-response.synthetic.json",
+          app.handle("POST", "/mission/simulate/synthetic", mission.dump()).body);
+    write("mission-simulate-response.not-ready.json", app.handle("POST", "/mission/simulate", mission.dump()).body);
+    // Energy is optional: the same mission without a power system (energy fields null).
+    json no_power = mission;
+    no_power.erase("power");
+    no_power["constraints"]["min_battery_soc"] = nullptr;
+    write("mission-simulate-response.synthetic-no-power.json",
+          app.handle("POST", "/mission/simulate/synthetic", no_power.dump()).body);
     // terrain_mode "dem": SYNTHETIC ephemeris over a SYNTHETIC wall DEM (labelled synthetic).
     const selene::App on_wall(std::nullopt, selene::testing::wall_dem());
     json dem_request = json::parse(std::ifstream(FIXTURES / "scenario-request.valid.json"));

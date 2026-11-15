@@ -4,6 +4,7 @@ pub mod envelope;
 pub mod error;
 pub mod gateway;
 pub mod handler;
+pub mod mission;
 pub mod model;
 pub mod radio;
 pub mod repository;

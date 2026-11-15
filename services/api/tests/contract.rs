@@ -12,6 +12,7 @@ use http_body_util::BodyExt;
 use lunar_landing::celestial::{CelestialStateRequest, CelestialStateResponse};
 use lunar_landing::envelope::ErrorResponse;
 use lunar_landing::gateway::{AppState, SITES_JSON};
+use lunar_landing::mission::{MissionSimulateRequest, MissionSimulateResponse, Verdict};
 use lunar_landing::radio::{RadioLinkRequest, RadioLinkResponse};
 use lunar_landing::routes::gateway_router;
 use lunar_landing::scenario::{ScenarioRequest, ScenarioResponse, ScenarioStatus};
@@ -158,7 +159,17 @@ async fn mock_science() -> String {
     let slope = load("fixtures/slope-check-response.synthetic-dem.json");
     let radio = load("fixtures/radio-link-response.computed.json");
     let celestial = load("fixtures/celestial-state-response.computed.json");
+    let mission_not_ready = load("fixtures/mission-simulate-response.not-ready.json");
+    let mission_synthetic = load("fixtures/mission-simulate-response.synthetic.json");
     let app = Router::new()
+        .route(
+            "/mission/simulate",
+            post(move || async move { Json(mission_not_ready) }),
+        )
+        .route(
+            "/mission/simulate/synthetic",
+            post(move || async move { Json(mission_synthetic) }),
+        )
         .route(
             "/celestial/state",
             post(move || async move { Json(celestial) }),
@@ -611,4 +622,168 @@ async fn science_ephemeris_unavailable_is_forwarded_as_503() {
         .as_str()
         .unwrap()
         .contains("SELENE_KERNEL_DIR"));
+}
+
+// ---------- mission simulation ----------
+
+#[test]
+fn mission_simulate_request_fixtures() {
+    let raw = load("fixtures/mission-simulate-request.valid.json");
+    assert_valid("mission-simulate-request.schema.json", &raw);
+    serde_json::from_value::<MissionSimulateRequest>(raw)
+        .unwrap()
+        .validate()
+        .unwrap();
+
+    // Limits a JSON Schema cannot express (sample cap, search point cap): the gateway and the
+    // science service reject them, the schema does not.
+    const SCHEMA_CANNOT_REJECT: [&str; 2] =
+        ["too-many-samples.json", "search-too-many-points.json"];
+    let mut count = 0;
+    for entry in
+        std::fs::read_dir(contracts().join("fixtures/invalid-mission-simulate-requests")).unwrap()
+    {
+        let path = entry.unwrap().path();
+        let name = path.file_name().unwrap().to_str().unwrap();
+        let raw: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert!(
+            !validator("mission-simulate-request.schema.json").is_valid(&raw)
+                || SCHEMA_CANNOT_REJECT.contains(&name),
+            "schema accepted {path:?}"
+        );
+        let typed = serde_json::from_value::<MissionSimulateRequest>(raw);
+        assert!(
+            typed.map(|r| r.validate().is_err()).unwrap_or(true),
+            "gateway accepted {path:?}"
+        );
+        count += 1;
+    }
+    assert!(count >= 20);
+}
+
+#[test]
+fn mission_simulate_invalid_fixture_field_paths() {
+    for (file, field) in [
+        ("landing-not-utc.json", "landing_utc"),
+        ("zero-surface-hours.json", "surface_hours"),
+        ("too-many-samples.json", "step_minutes"),
+        ("zero-panel-efficiency.json", "power.panel_efficiency"),
+        ("delay-too-long.json", "delay.landing_delay_hours"),
+        ("radio-zero-frequency.json", "radio.link.frequency_hz"),
+        ("radio-empty-stations.json", "radio.stations"),
+        (
+            "constraint-slope-above-90.json",
+            "constraints.max_slope_deg",
+        ),
+        ("search-too-many-points.json", "search"),
+        ("search-step-too-small.json", "search.step_hours"),
+    ] {
+        let raw = load(&format!(
+            "fixtures/invalid-mission-simulate-requests/{file}"
+        ));
+        let issues = serde_json::from_value::<MissionSimulateRequest>(raw)
+            .unwrap()
+            .validate()
+            .unwrap_err();
+        assert_eq!(issues[0].field, field, "{file}");
+    }
+}
+
+#[test]
+fn mission_simulate_response_fixtures_roundtrip() {
+    for name in [
+        "mission-simulate-response.not-ready.json",
+        "mission-simulate-response.synthetic.json",
+        "mission-simulate-response.synthetic-no-power.json",
+    ] {
+        let raw = load(&format!("fixtures/{name}"));
+        assert_valid("mission-simulate-response.schema.json", &raw);
+        let typed: MissionSimulateResponse = serde_json::from_value(raw.clone()).unwrap();
+        // forwarded untouched, extra `model` fields and free provenance objects included
+        assert_eq!(serde_json::to_value(&typed).unwrap(), raw, "{name}");
+        // the echoed request is itself a valid request
+        typed.request.validate().unwrap();
+    }
+    let synthetic: MissionSimulateResponse =
+        serde_json::from_value(load("fixtures/mission-simulate-response.synthetic.json")).unwrap();
+    assert!(synthetic.synthetic);
+    let not_ready: MissionSimulateResponse =
+        serde_json::from_value(load("fixtures/mission-simulate-response.not-ready.json")).unwrap();
+    assert!(!not_ready.synthetic);
+    assert!(not_ready.timeline.is_empty() && not_ready.inventory.is_none());
+    assert_eq!(not_ready.verdict, Verdict::Incomplete);
+    let no_power: MissionSimulateResponse = serde_json::from_value(load(
+        "fixtures/mission-simulate-response.synthetic-no-power.json",
+    ))
+    .unwrap();
+    assert!(no_power.request.power.is_none() && no_power.model.energy_model.is_none());
+    let inv = no_power.inventory.unwrap();
+    assert!(inv.sizing.is_none() && inv.energy.generated_wh.is_none());
+}
+
+#[tokio::test]
+async fn mission_simulate_forwards_science_result() {
+    let url = mock_science().await;
+    let req = load("fixtures/mission-simulate-request.valid.json");
+    let (status, body) = call(
+        app(&url),
+        "POST",
+        "/api/v1/scenarios/simulate",
+        Some(req.clone()),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid("mission-simulate-response.schema.json", &body);
+    assert_eq!(body["status"], "not_ready");
+
+    let (status, body) = call(
+        app(&url),
+        "POST",
+        "/api/v1/demo/synthetic/simulate",
+        Some(req),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid("mission-simulate-response.schema.json", &body);
+    assert_eq!(body["synthetic"], true);
+    assert_eq!(body["status"], "synthetic");
+}
+
+#[tokio::test]
+async fn mission_simulate_invalid_is_422_without_calling_science() {
+    for uri in [
+        "/api/v1/scenarios/simulate",
+        "/api/v1/demo/synthetic/simulate",
+    ] {
+        let mut req = load("fixtures/mission-simulate-request.valid.json");
+        req["power"]["battery_capacity_wh"] = json!(0);
+        let (status, body) = call(app("http://127.0.0.1:9"), "POST", uri, Some(req)).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{uri}");
+        assert_valid("error.schema.json", &body);
+        assert_eq!(
+            body["error"]["details"][0]["field"],
+            "power.battery_capacity_wh"
+        );
+
+        // a missing vehicle figure is refused, never defaulted
+        let mut req = load("fixtures/mission-simulate-request.valid.json");
+        req["power"].as_object_mut().unwrap().remove("load_w");
+        let (status, body) = call(app("http://127.0.0.1:9"), "POST", uri, Some(req)).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{uri}");
+        assert_eq!(body["error"]["code"], "validation_error");
+    }
+}
+
+#[tokio::test]
+async fn mission_simulate_science_down_is_503() {
+    let req = load("fixtures/mission-simulate-request.valid.json");
+    let (status, body) = call(
+        app("http://127.0.0.1:9"),
+        "POST",
+        "/api/v1/scenarios/simulate",
+        Some(req),
+    )
+    .await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(body["error"]["code"], "science_unavailable");
 }

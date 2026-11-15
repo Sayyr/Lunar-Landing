@@ -10,6 +10,7 @@ use serde_json::Value;
 
 use crate::celestial::{CelestialStateRequest, CelestialStateResponse};
 use crate::envelope::{ApiError, ErrorCode, ErrorResponse};
+use crate::mission::{MissionSimulateRequest, MissionSimulateResponse};
 use crate::radio::{RadioLinkRequest, RadioLinkResponse};
 use crate::scenario::{ScenarioRequest, ScenarioResponse};
 use crate::terrain::{SlopeCheckRequest, SlopeCheckResponse};
@@ -79,6 +80,18 @@ impl ScienceClient {
 
     pub async fn radio_link(&self, req: &RadioLinkRequest) -> Result<RadioLinkResponse, ApiError> {
         self.post("/radio/evaluate", req).await
+    }
+
+    pub async fn mission_simulate(
+        &self,
+        req: &MissionSimulateRequest,
+        provider: Provider,
+    ) -> Result<MissionSimulateResponse, ApiError> {
+        let path = match provider {
+            Provider::Real => "/mission/simulate",
+            Provider::Synthetic => "/mission/simulate/synthetic",
+        };
+        self.post(path, req).await
     }
 
     pub async fn celestial_state(
