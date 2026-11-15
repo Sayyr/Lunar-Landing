@@ -11,15 +11,16 @@ import { RadioLinkPanel } from "./components/RadioLinkPanel";
 import { ComparePanel } from "./components/ComparePanel";
 import { DelaySweepPanel } from "./components/DelaySweepPanel";
 import { LandingSitesPage } from "./components/LandingSitesPage";
+import { SouthPoleGridPage } from "./components/SouthPoleGridPage";
 
 const CelestialDashboard = lazy(() =>
   import("./components/celestial/CelestialDashboard").then((m) => ({ default: m.CelestialDashboard })),
 );
 
-type Tab = "scenario" | "sky" | "sites";
+type Tab = "scenario" | "sky" | "sites" | "grid";
 const tabFromHash = (): Tab => {
   const h = window.location.hash;
-  return h === "#/sky" ? "sky" : h === "#/sites" ? "sites" : "scenario";
+  return h === "#/sky" ? "sky" : h === "#/sites" ? "sites" : h === "#/grid" ? "grid" : "scenario";
 };
 
 // Synthetic example from CLAUDE.md — not a recommended landing site.
@@ -54,6 +55,12 @@ export function App() {
     return () => ctrl.abort();
   }, []);
 
+  const showOnGlobe = (lat: number, lon: number) => {
+    setRequest((r) => ({ ...r, site: { ...r.site, latitude_deg: lat, longitude_deg: lon } }));
+    setFocus((f) => ({ lat, lon, seq: (f?.seq ?? 0) + 1 }));
+    window.location.hash = "#/";
+  };
+
   const run = async (call: (r: ScenarioRequest) => Promise<ScenarioResponse>) => {
     setBusy(true);
     setError(null);
@@ -80,6 +87,7 @@ export function App() {
           <a href="#/" className={tab === "scenario" ? "active" : ""}>Site scenario</a>
           <a href="#/sky" className={tab === "sky" ? "active" : ""}>Sun · Earth · Moon</a>
           <a href="#/sites" className={tab === "sites" ? "active" : ""}>Landing sites</a>
+          <a href="#/grid" className={tab === "grid" ? "active" : ""}>South-pole grid</a>
         </nav>
       </header>
       {/* Both views stay mounted (hidden + paused) so switching tabs keeps the globe, its GPU data and state. */}
@@ -93,12 +101,11 @@ export function App() {
       <main className="sites-main" hidden={tab !== "sites"}>
         <LandingSitesPage
           active={tab === "sites"}
-          onShow={(s) => {
-            setRequest((r) => ({ ...r, site: { ...r.site, latitude_deg: s.lat, longitude_deg: s.lon } }));
-            setFocus((f) => ({ lat: s.lat, lon: s.lon, seq: (f?.seq ?? 0) + 1 }));
-            window.location.hash = "#/";
-          }}
+          onShow={(s) => showOnGlobe(s.lat, s.lon)}
         />
+      </main>
+      <main className="sites-main" hidden={tab !== "grid"}>
+        <SouthPoleGridPage active={tab === "grid"} onShow={(lat, lon) => showOnGlobe(lat, lon)} />
       </main>
       <main className="scenario-main" hidden={tab !== "scenario"}>
         <LunarExplorer

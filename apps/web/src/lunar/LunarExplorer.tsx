@@ -43,6 +43,9 @@ export interface MoonPointInfo {
 
 type Dem = "4" | "16";
 
+/** Diameter of the slope scope disc on the globe, km (fixed, independent of the zoom). */
+const SLOPE_DISC_DIAMETER_KM = 4;
+
 const isMobile = () => matchMedia("(pointer: coarse)").matches || Math.min(screen.width, screen.height) < 700;
 
 /**
@@ -474,8 +477,8 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, focus, startUt
   }, [globe, focus]);
 
   // Slope scope draped on the globe, centred on the selected site: the shared slope product is
-  // opened the first time the filter is switched on; the disc is rebuilt when the site changes or
-  // the zoom settles; the threshold is a shader uniform.
+  // opened the first time the filter is switched on; the disc (fixed 4 km diameter) is rebuilt when
+  // the site changes; the threshold is a shader uniform.
   useEffect(() => {
     if (!globe || !slopeOn || slopeLayer.current) return;
     let stale = false;
@@ -497,31 +500,15 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, focus, startUt
   useEffect(() => {
     const layer = slopeLayer.current;
     if (!globe || !layer || !slopeReady || !slopeOn) return;
-    let timer = 0;
-    let lastRadius = 0;
-    const place = () => {
-      // Disc centred on the selected site (the clicked point); radius ~35 % of the visible
-      // half-height measured AT THE SITE (follows the zoom), 1–150 km. Small zoom changes keep the
-      // current disc.
-      const halfKm = (globe.kmPerPixelAt(siteLat, siteLon) * globe.renderer.domElement.clientHeight) / 2;
-      const radiusKm = Math.min(150, Math.max(1, 0.35 * halfKm));
-      if (lastRadius && Math.abs(Math.log(radiusKm / lastRadius)) < 0.25) return;
-      lastRadius = radiusKm;
-      void layer.overlay
-        .update(siteLat, siteLon, radiusKm, heightmap, (done, total) => total > 0 && done < total && setSlopeProgress({ done, total }))
-        .then((scope) => {
-          setSlopeProgress(null);
-          if (scope) setSlopeState((s) => (s.kind === "ready" ? { ...s, scope } : s));
-        });
-    };
-    place();
-    const off = globe.onCameraChange(() => {
-      clearTimeout(timer);
-      timer = window.setTimeout(place, 250); // rebuild once the camera settles
-    });
+    // Disc of fixed size (SLOPE_DISC_DIAMETER_KM) centred on the selected site, independent of the
+    // zoom: rebuilt only when the site, the relief or the layer changes.
+    void layer.overlay
+      .update(siteLat, siteLon, SLOPE_DISC_DIAMETER_KM / 2, heightmap, (done, total) => total > 0 && done < total && setSlopeProgress({ done, total }))
+      .then((scope) => {
+        setSlopeProgress(null);
+        if (scope) setSlopeState((s) => (s.kind === "ready" ? { ...s, scope } : s));
+      });
     return () => {
-      clearTimeout(timer);
-      off();
       // Switching off (or moving the site) mid-load: a pending update must not re-show the disc.
       layer.overlay.cancel();
     };
@@ -820,7 +807,7 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, focus, startUt
                   return (
                     <div className="small">
                       {where} · <strong>{info?.productId} 20 m</strong> slope shown at {sc.pixelM} m/px
-                      {sc.level > 0 ? " (max of the 20 m pixels: conservative)" : ""} — zoom in for finer pixels
+                      {sc.level > 0 ? " (max of the 20 m pixels: conservative)" : ""}
                       {slopeProgress && <> · loading {slopeProgress.done}/{slopeProgress.total}…</>}
                     </div>
                   );
