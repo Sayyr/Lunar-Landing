@@ -159,8 +159,12 @@ static fs::path make_tmp(const std::string& tag) {
 static int run_binary(const std::string& args, const fs::path& out) {
     std::string cmd = std::string("\"") + VECTEUR_TRAJ_BIN + "\" " + args + " --sortie \"" + out.string() +
                       "\" > \"" + (out / "stdout.txt").string() + "\" 2>&1";
+#ifdef _WIN32
+    cmd = "\"" + cmd + "\"";
+#endif
     int rc = std::system(cmd.c_str());
     std::printf("run: %s -> %d\n", args.c_str(), rc);
+    if (rc != 0) std::printf("%s\n", read_file(out / "stdout.txt").c_str());
     return rc;
 }
 
@@ -195,7 +199,9 @@ static void test_complet() {
     Tolerance tol{1e-6, 0.025,
                   {{"altitude_sur_site_finale_km", 5e-11},
                    {"vitesse_horizontale_finale_ms", 1e-6},
-                   {"distance_site_finale_m", 0.4},
+                   {"distance_site_finale_m", 2e-6},
+                   {"ecart_surface_site_final_km", 4e-7},
+                   {"vitesse_verticale_finale_ms", 4e-5},
                    {"vitesse_finale_lunaire_ms", 4e-5}}};
     for (const char* f : JSONS) compare_json(out / f, FIX / "commit" / f, tol);
     for (const char* f : CSVS) csv_shape(out / f, FIX / "commit" / f);
