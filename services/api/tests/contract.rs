@@ -373,6 +373,35 @@ async fn slope_check_science_down_is_503() {
     assert_eq!(body["error"]["code"], "science_unavailable");
 }
 
+// ---------- DEM terrain horizon ----------
+
+#[test]
+fn terrain_horizon_response_fixture_roundtrip() {
+    let raw = load("fixtures/scenario-response.synthetic-dem.json");
+    assert_valid("scenario-response.schema.json", &raw);
+    let typed: ScenarioResponse = serde_json::from_value(raw.clone()).unwrap();
+    // the gateway forwards the profile and the per-sample horizon untouched
+    assert_eq!(serde_json::to_value(&typed).unwrap(), raw);
+    let terrain = typed.terrain_horizon.expect("terrain_horizon");
+    assert_eq!(terrain.elevation_deg.len(), 720);
+    assert!(typed.samples[0].sun.horizon_elevation_deg.is_some());
+    assert_eq!(typed.model.horizon_model, "dem_terrain");
+    assert!(
+        typed.synthetic,
+        "the fixture is a SYNTHETIC DEM and must say so"
+    );
+
+    // ideal-horizon responses carry neither field
+    let ideal: ScenarioResponse =
+        serde_json::from_value(load("fixtures/scenario-response.synthetic.json")).unwrap();
+    assert!(ideal.terrain_horizon.is_none());
+    let v = serde_json::to_value(&ideal).unwrap();
+    assert!(v.get("terrain_horizon").is_none());
+    assert!(v["samples"][0]["sun"]
+        .get("horizon_elevation_deg")
+        .is_none());
+}
+
 // ---------- radio link ----------
 
 #[test]

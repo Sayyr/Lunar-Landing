@@ -138,6 +138,31 @@ pub struct Provenance {
 pub struct Direction {
     pub azimuth_deg: f64,
     pub elevation_deg: f64,
+    /// Only with the DEM terrain horizon: horizon elevation at this body's azimuth.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub horizon_elevation_deg: Option<f64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HorizonSampling {
+    pub max_range_m: f64,
+    pub pixel_m: f64,
+}
+
+/// Terrain horizon profile (computed by the science service; nothing is derived here).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TerrainHorizon {
+    pub azimuth_step_deg: f64,
+    pub elevation_deg: Vec<f64>,
+    pub site_surface_height_m: f64,
+    pub observer_radius_m: f64,
+    pub max_range_m: f64,
+    pub truncated_bearing_fraction: f64,
+    pub min_covered_range_m: f64,
+    pub nodata_sample_fraction: f64,
+    pub sampling: Vec<HorizonSampling>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -177,6 +202,9 @@ pub struct ScenarioResponse {
     pub assumptions: Vec<String>,
     pub warnings: Vec<String>,
     pub samples: Vec<Sample>,
+    /// Present only for a result on the DEM terrain horizon.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub terrain_horizon: Option<TerrainHorizon>,
     pub windows: Windows,
 }
 
