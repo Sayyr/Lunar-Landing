@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import synthetic from "../../../../packages/contracts/fixtures/mission-simulate-response.synthetic.json";
-import requestFixture from "../../../../packages/contracts/fixtures/mission-simulate-request.valid.json";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import type { Correction, MissionRequest, MissionResponse } from "../api/missionTypes";
 import type { ScenarioRequest } from "../api/types";
 import { applyCorrection, bestIndex, buildMissionRequest, comparisonRows, EXAMPLE_CONSTRAINTS, EXAMPLE_POWER, hoursBetween, toFormUtc } from "./mission";
@@ -14,7 +14,11 @@ const scenario: ScenarioRequest = {
   step_minutes: 10,
   terrain_mode: "dem",
 };
-const req = requestFixture as MissionRequest;
+// Read at test time (not imported): the web Docker build copies only apps/web, and `tsc -b` type-checks tests too.
+const fixture = (name: string) =>
+  JSON.parse(readFileSync(fileURLToPath(new URL(`../../../../packages/contracts/fixtures/${name}`, import.meta.url)), "utf8"));
+const req = fixture("mission-simulate-request.valid.json") as MissionRequest;
+const synthetic = fixture("mission-simulate-response.synthetic.json");
 const corr = (c: Partial<Correction>): Correction => ({
   kind: "abort",
   feasible: true,
