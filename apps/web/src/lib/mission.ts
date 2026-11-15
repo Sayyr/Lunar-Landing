@@ -157,3 +157,42 @@ export function bestIndex(row: ComparisonRow): number {
   });
   return tie ? -1 : best;
 }
+
+/**
+ * One battery step re-done in the browser from the returned samples, to SHOW the method (the science
+ * service's simulate_energy, mission.cpp): trapezoid on the solar power, efficiency on the net flow.
+ * Picks the first step that moves the battery without hitting 0 or full, so no clamping is involved.
+ * Display only — never fed back into a result.
+ */
+export interface WorkedEnergyStep {
+  from: string;
+  to: string;
+  dtH: number;
+  solarPrevW: number;
+  solarW: number;
+  genW: number;
+  loadW: number;
+  netW: number;
+  prevWh: number;
+  /** recomputed here */
+  nextWh: number;
+  /** returned by the science service */
+  returnedWh: number;
+}
+
+export function workedEnergyStep(r: MissionResponse): WorkedEnergyStep | null {
+  const p = r.request.power;
+  if (!p) return null;
+  const t = r.timeline;
+  for (let i = 1; i < t.length; i++) {
+    const a = t[i - 1], b = t[i];
+    if (a.solar_w == null || b.solar_w == null || a.battery_wh == null || b.battery_wh == null) return null;
+    const dtH = (Date.parse(b.utc) - Date.parse(a.utc)) / 3_600_000;
+    const genW = 0.5 * (a.solar_w + b.solar_w);
+    const netW = genW - p.load_w;
+    const nextWh = a.battery_wh + (netW >= 0 ? netW * p.charge_efficiency * dtH : (netW * dtH) / p.discharge_efficiency);
+    if (nextWh === a.battery_wh || nextWh < 0 || nextWh > p.battery_capacity_wh) continue;
+    return { from: a.utc, to: b.utc, dtH, solarPrevW: a.solar_w, solarW: b.solar_w, genW, loadW: p.load_w, netW, prevWh: a.battery_wh, nextWh, returnedWh: b.battery_wh };
+  }
+  return null;
+}

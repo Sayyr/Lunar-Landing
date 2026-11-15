@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Correction, MissionRequest, MissionResponse } from "../api/missionTypes";
 import type { ScenarioRequest } from "../api/types";
-import { applyCorrection, bestIndex, buildMissionRequest, comparisonRows, EXAMPLE_CONSTRAINTS, EXAMPLE_POWER, hoursBetween, toFormUtc } from "./mission";
+import { applyCorrection, bestIndex, buildMissionRequest, comparisonRows, EXAMPLE_CONSTRAINTS, EXAMPLE_POWER, hoursBetween, toFormUtc, workedEnergyStep } from "./mission";
 import { DEFAULT_RADIO_SETTINGS } from "./radio";
 
 const scenario: ScenarioRequest = {
@@ -108,5 +108,19 @@ describe("comparison", () => {
     expect(bestIndex({ label: "", values: [5, 5], better: "higher" })).toBe(-1);
     expect(bestIndex({ label: "", values: [null, 2], better: "higher" })).toBe(1);
     expect(bestIndex({ label: "", values: [1, 2], better: null })).toBe(-1);
+  });
+});
+
+describe("workedEnergyStep", () => {
+  it("re-does an unclamped step of the synthetic fixture and matches the service", () => {
+    const s = workedEnergyStep(synthetic as MissionResponse)!;
+    // fixture: 12:00 -> 18:00 on 16 Nov, Sun down, battery full -> 3000 - 150 W x 6 h / 0.95
+    expect(s.from).toBe("2026-11-16T12:00:00.000Z");
+    expect(s.genW).toBe(0);
+    expect(s.nextWh).toBeCloseTo(3000 - (150 * 6) / 0.95, 9);
+    expect(s.nextWh).toBeCloseTo(s.returnedWh, 6);
+  });
+  it("returns null when energy is not modelled", () => {
+    expect(workedEnergyStep({ ...(synthetic as MissionResponse), request: { ...req, power: null } })).toBeNull();
   });
 });
