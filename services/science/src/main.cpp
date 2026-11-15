@@ -81,7 +81,9 @@ int main(int argc, char** argv) {
         const auto self = std::filesystem::absolute(argv[0], ec);
         if (!ec && std::filesystem::exists(self.parent_path() / "vecteur-traj")) traj_tool = self.parent_path() / "vecteur-traj";
     }
-    std::printf("trajectory tool: %s\n", traj_tool ? traj_tool->c_str() : "(none: /trajectory/simulate not_ready)");
+    // path::string(): path::c_str() is wchar_t* on Windows.
+    const std::string traj_label = traj_tool ? traj_tool->string() : "(none: /trajectory/simulate not_ready)";
+    std::printf("trajectory tool: %s\n", traj_label.c_str());
     const selene::App app(kernel_dir && *kernel_dir ? std::optional<std::filesystem::path>(kernel_dir)
                                                     : std::nullopt,
                           dem, dem_reason, slope_dems, traj_tool);
