@@ -9,6 +9,7 @@ use axum::http::{Request, StatusCode};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use http_body_util::BodyExt;
+use lunar_landing::celestial::{CelestialStateRequest, CelestialStateResponse};
 use lunar_landing::envelope::ErrorResponse;
 use lunar_landing::gateway::{AppState, SITES_JSON};
 use lunar_landing::radio::{RadioLinkRequest, RadioLinkResponse};
@@ -156,7 +157,12 @@ async fn mock_science() -> String {
     let synthetic = load("fixtures/scenario-response.synthetic.json");
     let slope = load("fixtures/slope-check-response.synthetic-dem.json");
     let radio = load("fixtures/radio-link-response.computed.json");
+    let celestial = load("fixtures/celestial-state-response.computed.json");
     let app = Router::new()
+        .route(
+            "/celestial/state",
+            post(move || async move { Json(celestial) }),
+        )
         .route("/radio/evaluate", post(move || async move { Json(radio) }))
         .route(
             "/health",
@@ -470,4 +476,110 @@ async fn radio_link_science_down_is_503() {
     .await;
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(body["error"]["code"], "science_unavailable");
+}
+
+// ---------- celestial state ----------
+
+#[test]
+fn celestial_state_fixtures() {
+    let raw = load("fixtures/celestial-state-request.valid.json");
+    assert_valid("celestial-state-request.schema.json", &raw);
+    serde_json::from_value::<CelestialStateRequest>(raw)
+        .unwrap()
+        .validate()
+        .unwrap();
+    let mut count = 0;
+    for entry in
+        std::fs::read_dir(contracts().join("fixtures/invalid-celestial-state-requests")).unwrap()
+    {
+        let path = entry.unwrap().path();
+        let raw: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert!(
+            !validator("celestial-state-request.schema.json").is_valid(&raw)
+                || path.ends_with("utc-impossible-date.json"), // a pattern cannot reject Feb 30
+            "schema accepted {path:?}"
+        );
+        let typed = serde_json::from_value::<CelestialStateRequest>(raw);
+        assert!(
+            typed.map(|r| r.validate().is_err()).unwrap_or(true),
+            "gateway accepted {path:?}"
+        );
+        count += 1;
+    }
+    assert!(count >= 5);
+
+    let raw = load("fixtures/celestial-state-response.computed.json");
+    assert_valid("celestial-state-response.schema.json", &raw);
+    let typed: CelestialStateResponse = serde_json::from_value(raw).unwrap();
+    assert_valid(
+        "celestial-state-response.schema.json",
+        &serde_json::to_value(&typed).unwrap(),
+    );
+    assert_eq!(typed.model.provider, "spice");
+    assert!(!typed.synthetic);
+}
+
+#[tokio::test]
+async fn celestial_state_forwards_science_result() {
+    let url = mock_science().await;
+    let req = load("fixtures/celestial-state-request.valid.json");
+    let (status, body) = call(app(&url), "POST", "/api/v1/celestial/state", Some(req)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid("celestial-state-response.schema.json", &body);
+}
+
+#[tokio::test]
+async fn celestial_state_invalid_is_422_and_science_down_is_503() {
+    let (status, body) = call(
+        app("http://127.0.0.1:9"),
+        "POST",
+        "/api/v1/celestial/state",
+        Some(json!({"utc": "2026-11-15"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(body["error"]["details"][0]["field"], "utc");
+
+    let req = load("fixtures/celestial-state-request.valid.json");
+    let (status, body) = call(
+        app("http://127.0.0.1:9"),
+        "POST",
+        "/api/v1/celestial/state",
+        Some(req),
+    )
+    .await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(body["error"]["code"], "science_unavailable");
+}
+
+/// The science service's own "ephemerides unavailable" (503) reaches the client with its reason.
+#[tokio::test]
+async fn science_ephemeris_unavailable_is_forwarded_as_503() {
+    let app_science = Router::new().route(
+        "/celestial/state",
+        post(|| async {
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(json!({"error": {"code": "science_unavailable",
+                    "message": "Ephemerides not available: SELENE_KERNEL_DIR not set", "details": []}})),
+            )
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app_science).await.unwrap() });
+    let req = load("fixtures/celestial-state-request.valid.json");
+    let (status, body) = call(
+        app(&format!("http://{addr}")),
+        "POST",
+        "/api/v1/celestial/state",
+        Some(req),
+    )
+    .await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_valid("error.schema.json", &body);
+    assert!(body["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("SELENE_KERNEL_DIR"));
 }
