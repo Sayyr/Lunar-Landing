@@ -26,7 +26,7 @@ import { LANDING_SITES, LANDING_SOURCE, landingLabel, nearestLandingSite, type L
 import { SkyCompass } from "./SkyCompass";
 import { TREK_LAYER } from "./tileScheme";
 import type { TileStatus } from "./tileLayer";
-import { type AzEl, earthToEnu, localAzEl, type MoonSky, moonSky } from "./skyGeometry";
+import { type AzEl, earthToEnu, eclToEnu, localAzEl, type MoonSky, moonSky } from "./skyGeometry";
 
 // Base URL of the elevation rasters: point it at R2/a CDN (CORS required) if ldem_16 exceeds the
 // host's file-size limit (25 MiB on Cloudflare Pages).
@@ -214,6 +214,7 @@ interface Props {
   siteLon: number;
   /** Called when the user clicks (long-press on touch) a surface point. */
   onPick: (lat: number, lon: number) => void;
+  focus?: { lat: number; lon: number; seq: number } | null;
   /** Eye height above the ground for the ground view (scenario observer_height_m). */
   observerHeightM: number;
   /** Scenario time range: the sky (Sun, Earth, compass) can be scrubbed across it. */
@@ -224,10 +225,12 @@ interface Props {
   children?: ReactNode;
 }
 
-/** Full scenario range played in about this many seconds. */
 const PLAY_SECONDS = 20;
+const LEFT_OVERLAY_PX = 20 + 250 + 20;
+const RIGHT_BUTTONS_PX = 130;
+const PANEL_PX = 380;
 
-export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, durationHours, stepMinutes, observerHeightM, children }: Props) {
+export function LunarExplorer({ active, siteLat, siteLon, onPick, focus, startUtc, durationHours, stepMinutes, observerHeightM, children }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const tipRef = useRef<HTMLDivElement>(null);
@@ -259,7 +262,7 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
   const [copyFallback, setCopyFallback] = useState<string | null>(null);
   // Sky time = offset in minutes from the scenario start.
   const [tMin, setTMin] = useState(0);
-  const [playing, setPlaying] = useState(false);
+  const [mode, setMode] = useState<"live" | "playing" | "paused">("live");
   const [sky, setSky] = useState<{ sun: AzEl; earth: AzEl; synthetic: boolean } | null>(null);
   const diskRef = useRef<HTMLDivElement>(null);
   const sunPtrRef = useRef<HTMLDivElement>(null);
@@ -428,6 +431,11 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
       canvas.addEventListener("pointerdown", onDown);
       canvas.addEventListener("pointerup", onUp);
       canvas.addEventListener("pointerleave", onLeave);
+      const onDblClick = (e: MouseEvent) => {
+        const body = gl.bodyAt(e.clientX, e.clientY);
+        if (body && !gl.pick(e.clientX, e.clientY)) gl.viewBody(body);
+      };
+      canvas.addEventListener("dblclick", onDblClick);
       return () => {
         clearTimeout(longTimer);
         pending = null;
@@ -435,6 +443,7 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
         canvas.removeEventListener("pointerdown", onDown);
         canvas.removeEventListener("pointerup", onUp);
         canvas.removeEventListener("pointerleave", onLeave);
+        canvas.removeEventListener("dblclick", onDblClick);
         tipEl.hidden = true;
       };
     }
@@ -455,6 +464,14 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
     if (globe) globe.refinePick = refine;
   }, [globe, refine]);
   useEffect(() => globe?.setSite(siteLat, siteLon), [globe, siteLat, siteLon]);
+  useEffect(() => {
+    if (!globe) return;
+    const mobile = window.innerWidth < 640;
+    globe.setFreeArea(mobile ? 0 : LEFT_OVERLAY_PX, mobile ? 0 : RIGHT_BUTTONS_PX + (panelOpen ? PANEL_PX : 0));
+  }, [globe, panelOpen]);
+  useEffect(() => {
+    if (focus) globe?.flyTo(focus.lat, focus.lon, 50, true);
+  }, [globe, focus]);
 
   // Slope scope draped on the globe, centred on the selected site: the shared slope product is
   // opened the first time the filter is switched on; the disc is rebuilt when the site changes or
@@ -544,7 +561,19 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
   }, [globe, startMs, tMin, siteLat, siteLon]);
 
   useEffect(() => {
-    if (!playing || !active || spanMin === 0) return;
+    if (mode !== "live" || !active || Number.isNaN(startMs)) return;
+    const tick = () => {
+      const t = (Date.now() - startMs) / 60_000;
+      setTMin(Math.min(Math.max(t, 0), spanMin));
+      if (t < 0 || t > spanMin) setMode("paused");
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [mode, active, startMs, spanMin]);
+
+  useEffect(() => {
+    if (mode !== "playing" || !active || spanMin === 0) return;
     let raf = 0;
     let last = performance.now();
     const tick = (now: number) => {
@@ -555,7 +584,7 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [playing, active, spanMin]);
+  }, [mode, active, spanMin]);
 
   // Same flat compass in both views (no CSS 3D re-render): here N points to the on-screen north at
   // the site; in the ground view the top is where the observer looks (onGroundHeading).
@@ -574,7 +603,7 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
   }, [globe, hasSky, siteLat, siteLon, groundOn]);
 
   const setGroundTime = useCallback((m: number) => {
-    setPlaying(false);
+    setMode("paused");
     setTMin(m);
   }, []);
   const sunAt = useCallback(
@@ -616,7 +645,6 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
       if (!el || !p) return;
       el.hidden = p.onScreen;
       el.style.transform = `translate(${p.x}px, ${p.y}px)`;
-      (el.firstElementChild as HTMLElement).style.transform = `rotate(${p.angle}deg)`;
     };
     const update = () => {
       place(sunPtrRef.current, "sun");
@@ -632,15 +660,16 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
   }, [globe, sky]);
 
   const groundSky = useMemo(
-    () => (sky && skyBody ? { sun: sky.sun, earth: sky.earth, earthToEnu: earthToEnu(skyBody, siteLat, siteLon) } : null),
+    () => (sky && skyBody ? { sun: sky.sun, earth: sky.earth, earthToEnu: earthToEnu(skyBody, siteLat, siteLon), eclToEnu: eclToEnu(skyBody, siteLat, siteLon) } : null),
     [sky, skyBody, siteLat, siteLon],
   );
 
-  const skyUtc = Number.isNaN(startMs) ? "—" : new Date(startMs + tMin * 60_000).toISOString().slice(0, 16).replace("T", " ") + " UTC";
+  const skyTime = Number.isNaN(startMs) ? "—" : new Date(startMs + tMin * 60_000).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
 
   const results = useMemo(() => index?.search(query, 12) ?? [], [index, query]);
 
   const goTo = (f: Feature) => {
+    setQuery("");
     globe?.flyTo(f.lat, f.lon, f.radiusKm);
     globe?.showRing(f.lat, f.lon, f.radiusKm);
     setFound(f);
@@ -711,52 +740,49 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
       {sky && !groundOn && (
         <>
           <div ref={sunPtrRef} className="edge-ptr sun" hidden>
-            <span className="edge-arrow">▲</span>
-            <span className="edge-label">Sun</span>
+            <button type="button" className="edge-label" onClick={() => globe?.viewBody("sun")}>Sun</button>
           </div>
           <div ref={earthPtrRef} className="edge-ptr earth" hidden>
-            <span className="edge-arrow">▲</span>
-            <span className="edge-label">Earth</span>
+            <button type="button" className="edge-label" onClick={() => globe?.viewBody("earth")}>Earth</button>
           </div>
         </>
       )}
       {sky && (
         <div className="sky-overlay">
           <SkyCompass sun={sky.sun} earth={sky.earth} diskRef={diskRef} />
-          {sky.synthetic && (
-            <div className="sky-note">
-              SYNTHETIC sky — low-precision formulae, mean Moon orientation (no libration), centre directions,
-              ideal horizon. Not for analysis.
+          <div className="sky-timebar">
+            <div className="sky-time">
+              <button
+                type="button"
+                onClick={() => setMode((m) => (m === "paused" ? "playing" : "paused"))}
+                aria-label={mode === "paused" ? "Play" : "Pause"}
+              >
+                {mode === "paused" ? "▶" : "❚❚"}
+              </button>
+              <input
+                type="range"
+                min={0}
+                max={spanMin}
+                step={Math.max(1, stepMinutes)}
+                value={tMin}
+                onChange={(e) => {
+                  setMode("paused");
+                  setTMin(Number(e.target.value));
+                }}
+                aria-label="Scenario time"
+              />
+              <output>{skyTime}</output>
             </div>
-          )}
-        </div>
-      )}
-      {sky && (
-        <div className="sky-timebar">
-          <div className="sky-time">
-            <button type="button" onClick={() => setPlaying((p) => !p)} aria-label={playing ? "Pause" : "Play"}>
-              {playing ? "❚❚" : "▶"}
-            </button>
-            <input
-              type="range"
-              min={0}
-              max={spanMin}
-              step={Math.max(1, stepMinutes)}
-              value={tMin}
-              onChange={(e) => {
-                setPlaying(false);
-                setTMin(Number(e.target.value));
-              }}
-              aria-label="Scenario time"
-            />
-            <output>{skyUtc}</output>
           </div>
+          {mode !== "live" && (
+            <button type="button" className="sky-now" onClick={() => setMode("live")}>
+              Now
+            </button>
+          )}
         </div>
       )}
       {sky && !groundOn && (
         <div className="sky-view">
-          <button type="button" onClick={() => globe?.viewBody("earth")}>View Earth</button>
-          <button type="button" onClick={() => globe?.viewBody("sun")}>View Sun</button>
           <button type="button" onClick={() => setGroundOn(true)} title="Stand at the selected site and look around">
             Ground view
           </button>
@@ -818,7 +844,12 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
         </div>
       )}
 
-      {loaded && !groundOn && <ScaleBar kmPerPx={kmPerPx} note="at view centre, reference sphere" />}
+      <div className="lunar-footnote">
+        {loaded && !groundOn && <ScaleBar kmPerPx={kmPerPx} note="at view centre, reference sphere" />}
+        {sky?.synthetic && (
+          <div className="sky-note">SYNTHETIC sky — not for analysis (see Data &amp; limits).</div>
+        )}
+      </div>
 
       <aside className="lunar-panel">
         {children && <div className="lunar-scenario">{children}</div>}
@@ -876,10 +907,28 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
 
         <section>
           <h2>Display</h2>
+          <h3>Relief</h3>
+          <label className="select">
+            Quality
+            <select value={demLabel} onChange={(e) => changeQuality(e.target.value)}>
+              <option value="4">ldem_4 — 4 px/°, 4 MB (light)</option>
+              <option value="16">ldem_16 — 16 px/°, 66 MB</option>
+            </select>
+          </label>
           <label className="slider">
-            Relief exaggeration <output>{exag.toFixed(1)}×</output>
+            Exaggeration <output>{exag.toFixed(1)}×</output>
             <input type="range" min={0} max={10} step={0.5} value={exag} onChange={(e) => setExag(Number(e.target.value))} />
           </label>
+          <label className="check">
+            <input type="checkbox" checked={refine} onChange={(e) => setRefine(e.target.checked)} /> Pick on displayed relief
+          </label>
+          {!refine && exag >= 2 && (
+            <p className="warn">
+              Picking on the undisplaced sphere: with strong exaggeration the read-out point can be offset from the
+              visible relief (parallax).
+            </p>
+          )}
+          <h3>Imagery</h3>
           <label className="check">
             <input type="checkbox" checked={tilesOn} onChange={(e) => setTilesOn(e.target.checked)} /> High-res imagery
             (NASA Moon Trek, online)
@@ -893,29 +942,15 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
                   : "Tiles loaded for the current view; zoom in for detail (down to ≈ 100 m/px)."}
             </p>
           )}
+          <h3>Overlays</h3>
           <label className="check">
             <input type="checkbox" checked={grid} onChange={(e) => setGrid(e.target.checked)} /> Lat/lon grid (15°)
-          </label>
-          <label className="check">
-            <input type="checkbox" checked={refine} onChange={(e) => setRefine(e.target.checked)} /> Pick on displayed relief
-          </label>
-          {!refine && exag >= 2 && (
-            <p className="warn">
-              Picking on the undisplaced sphere: with strong exaggeration the read-out point can be offset from the
-              visible relief (parallax).
-            </p>
-          )}
-          <label className="select">
-            Relief quality
-            <select value={demLabel} onChange={(e) => changeQuality(e.target.value)}>
-              <option value="4">ldem_4 — 4 px/°, 4 MB (light)</option>
-              <option value="16">ldem_16 — 16 px/°, 66 MB</option>
-            </select>
           </label>
         </section>
 
         <section className="small">
           <h2>Data &amp; limits</h2>
+          <h3>Status</h3>
           <p className="muted">{dataset}</p>
           {demStreamState && (
             <p className="muted">
@@ -940,6 +975,17 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
               ))}
             </ul>
           )}
+          {sky?.synthetic && (
+            <>
+              <h3>Sky</h3>
+              <p className="sky-note">
+                SYNTHETIC sky — low-precision formulae, mean Moon orientation (no libration), centre directions, ideal
+                horizon. Lighting, background Sun/Earth, stars and compass follow it: illustrative, not the scenario
+                result. Not for analysis.
+              </p>
+            </>
+          )}
+          <h3>Assumptions</h3>
           <ul>
             <li>
               Elevation: LOLA raster from the CGI Moon Kit, relative to a 1737.4 km sphere (not a geoid); interpolated
@@ -953,32 +999,46 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, startUtc, dura
               Feature shown: nearest IAU centre whose circle (IAU diameter / 2) contains the point — circular
               approximation of the outlines.
             </li>
+          </ul>
+          <h3>Sources</h3>
+          <ul className="muted">
             <li>
-              Lighting, background Sun/Earth and compass follow the SYNTHETIC mock sky (low-precision formulae, mean
-              lunar orientation without libration) — illustrative, not the scenario result.
+              Elevation and colour: NASA SVS{" "}
+              <a href="https://svs.gsfc.nasa.gov/4720" target="_blank" rel="noopener">
+                CGI Moon Kit
+              </a>{" "}
+              (LRO LROC WAC, LOLA).
+            </li>
+            <li>
+              Feature names:{" "}
+              <a href="https://planetarynames.wr.usgs.gov" target="_blank" rel="noopener">
+                IAU/USGS Gazetteer of Planetary Nomenclature
+              </a>
+              .
+            </li>
+            <li>
+              High-res imagery: LRO WAC global mosaic ({TREK_LAYER}, NASA/GSFC/Arizona State University) streamed from{" "}
+              <a href="https://trek.nasa.gov/moon/" target="_blank" rel="noopener">
+                NASA Moon Trek
+              </a>{" "}
+              — imagery only (its built-in shading is fixed; relief, altitude and picking still use LOLA).
+            </li>
+            <li>
+              Landing sites (white = crewed, green = robotic, {LANDING_SITES.length} soft landings):{" "}
+              <a href={LANDING_SOURCE.url} target="_blank" rel="noopener">
+                LROC Anthropogenic Objects
+              </a>{" "}
+              ({LANDING_SOURCE.citation}; table updated {LANDING_SOURCE.updated}) — positions measured on LROC NAC images;
+              spacecraft not yet located there (e.g. Luna 9, Luna 13) are not shown.
+            </li>
+            <li>
+              Stars:{" "}
+              <a href="https://cdsarc.cds.unistra.fr/viz-bin/cat/V/50" target="_blank" rel="noopener">
+                Yale Bright Star Catalogue
+              </a>{" "}
+              (5th rev. ed., Hoffleit &amp; Warren 1991), V ≤ 6, J2000 positions, no precession.
             </li>
           </ul>
-          <p className="muted">
-            Sources: NASA SVS{" "}
-            <a href="https://svs.gsfc.nasa.gov/4720" target="_blank" rel="noopener">
-              CGI Moon Kit
-            </a>{" "}
-            (LRO LROC WAC, LOLA);{" "}
-            <a href="https://planetarynames.wr.usgs.gov" target="_blank" rel="noopener">
-              IAU/USGS Gazetteer of Planetary Nomenclature
-            </a>
-            ; high-res imagery: LRO WAC global mosaic ({TREK_LAYER}, NASA/GSFC/Arizona State University) streamed from{" "}
-            <a href="https://trek.nasa.gov/moon/" target="_blank" rel="noopener">
-              NASA Moon Trek
-            </a>{" "}
-            — imagery only (its built-in shading is fixed; relief, altitude and picking still use LOLA).
-            {" "}Landing sites (white = crewed, green = robotic, {LANDING_SITES.length} soft landings):{" "}
-            <a href={LANDING_SOURCE.url} target="_blank" rel="noopener">
-              LROC Anthropogenic Objects
-            </a>{" "}
-            ({LANDING_SOURCE.citation}; table updated {LANDING_SOURCE.updated}) — positions measured on LROC NAC images;
-            spacecraft not yet located there (e.g. Luna 9, Luna 13) are not shown.
-          </p>
         </section>
       </aside>
 

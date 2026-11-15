@@ -4,6 +4,7 @@ import { getCelestialState } from "../../api/celestial";
 import type { CelestialStateResponse } from "../../api/celestialTypes";
 import { AU_M, EARTH_MEAN_RADIUS_M } from "../../lib/constants";
 import { DATA_README_URL } from "../../lib/links";
+import { centreShift } from "../../lib/viewFit";
 import { ScaleBar } from "../ScaleBar";
 import { BODY_ENLARGEMENT, CelestialScene, type SceneView } from "./CelestialScene";
 import { MoonPhaseIcon } from "./MoonPhaseIcon";
@@ -40,6 +41,9 @@ function Row({ k, v, hint }: { k: string; v: string; hint?: string }) {
     </>
   );
 }
+
+const OVERLAY_RIGHT_PX = 20 + 300;
+const PANEL_PX = 380;
 
 /** `active` is false while the tab is hidden: rendering and playback pause. */
 export function CelestialDashboard({ active }: { active: boolean }) {
@@ -83,11 +87,26 @@ export function CelestialDashboard({ active }: { active: boolean }) {
     setAnchor(d);
   };
   const offsetHours = (date.getTime() - anchor.getTime()) / HOUR_MS;
+  const sceneShift = window.innerWidth < 640 ? 0 : centreShift(OVERLAY_RIGHT_PX, panelOpen ? PANEL_PX : 0);
 
   return (
     <div className={`dash${panelOpen ? "" : " panel-collapsed"}`}>
       {state ? (
-        <CelestialScene state={state} view={view} enlargeBodies={enlargeBodies} active={active} onScale={setKmPerPx} />
+        <CelestialScene
+          state={state}
+          view={view}
+          enlargeBodies={enlargeBodies}
+          active={active}
+          onScale={setKmPerPx}
+          offsetX={sceneShift}
+          footnote={
+            <ScaleBar
+              kmPerPx={view === "earth-moon" ? kmPerPx : null}
+              note={`distances at Earth's centre${enlargeBodies ? `; radii ×${BODY_ENLARGEMENT}` : ""}`}
+              fallback="Schematic — not to scale"
+            />
+          }
+        />
       ) : (
         <div className="celestial-canvas placeholder">Loading…</div>
       )}
@@ -96,7 +115,7 @@ export function CelestialDashboard({ active }: { active: boolean }) {
       <div className="dash-overlay">
         {state && (
           <div className="phase-row">
-            <MoonPhaseIcon fraction={state.derived.illuminated_fraction} waxing={state.derived.waxing} />
+            <MoonPhaseIcon fraction={state.derived.illuminated_fraction} waxing={state.derived.waxing} size={44} />
             <div>
               <div className="big">{state.derived.phase_name}</div>
               <div className="muted">
@@ -170,11 +189,6 @@ export function CelestialDashboard({ active }: { active: boolean }) {
         {error && <div className="error" role="alert">{error}</div>}
       </div>
 
-      <ScaleBar
-        kmPerPx={view === "earth-moon" ? kmPerPx : null}
-        note={`distances at Earth's centre${enlargeBodies ? `; radii ×${BODY_ENLARGEMENT}` : ""}`}
-        fallback="Schematic — not to scale"
-      />
 
       <button
         className="dash-panel-toggle"

@@ -28,6 +28,7 @@ const DEFAULT_REQUEST: ScenarioRequest = {
 export function App() {
   const [request, setRequest] = useState(DEFAULT_REQUEST);
   const [sites, setSites] = useState<PresetSite[]>([]);
+  const [focus, setFocus] = useState<{ lat: number; lon: number; seq: number } | null>(null);
   const [result, setResult] = useState<ScenarioResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -92,6 +93,7 @@ export function App() {
           durationHours={request.duration_hours}
           stepMinutes={request.step_minutes}
           observerHeightM={request.site.observer_height_m}
+          focus={focus}
         >
           {/* Scenario settings and results live in the explorer's "⋯" panel. */}
           <ScenarioForm
@@ -101,6 +103,7 @@ export function App() {
             busy={busy}
             onEvaluate={() => run(api.evaluate)}
             onSynthetic={() => run(api.evaluateSynthetic)}
+            onSiteChosen={(lat, lon) => setFocus((f) => ({ lat, lon, seq: (f?.seq ?? 0) + 1 }))}
           />
           {error && <div className="error" role="alert">{error}</div>}
           {result && <ResultPanel result={result} />}

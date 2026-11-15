@@ -18,6 +18,7 @@
 import * as THREE from "three";
 
 import { bodyRotationToThree } from "../lib/sceneFrame";
+import { makeStarField } from "../lib/stars";
 import { DEG } from "../lib/constants";
 import { makeSun } from "./globe";
 import { SUN_ANG_RADIUS } from "./groundAuto";
@@ -27,6 +28,7 @@ import { WANG_LAYERS, type WangBank } from "./wangBank";
 import { type AzEl, azElToEnu, wrap360 } from "./skyGeometry";
 
 const SKY_DIST = 1_500_000; // m, beyond the 400 km terrain
+const STAR_DIST = 2_500_000;
 const SHADOW_HALF = 30_000; // m: shadow-map window half-width (4096 px → ≈ 15 m texels)
 const SHADOW_DEPTH = 450_000; // m: light placed this far toward the Sun, casters up to there
 const EARTH_ANG_RADIUS = Math.atan(6371 / 384_400); // mean, seen from the Moon
@@ -95,6 +97,7 @@ export interface GroundSky {
   earth: AzEl;
   /** Earth body-fixed → ENU, row-major 3×3 (optional texture orientation) */
   earthToEnu?: number[];
+  eclToEnu?: number[];
 }
 
 export interface GroundViewState {
@@ -111,6 +114,7 @@ export class GroundView {
   private readonly fill = new THREE.HemisphereLight(0xb8c0d0, 0x000000, 0.6);
   private readonly sunBody: THREE.Group;
   private readonly earthBody: THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial>;
+  private readonly stars = makeStarField(STAR_DIST);
   private readonly textures: THREE.Texture[] = [];
   private readonly resizeObserver: ResizeObserver;
   private terrain: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial> | null = null;
@@ -166,6 +170,8 @@ export class GroundView {
     );
     this.earthBody.visible = false;
     this.scene.add(this.earthBody);
+    this.stars.visible = false;
+    this.scene.add(this.stars);
     new THREE.TextureLoader().load(`${DATA_BASE}earth_bluemarble_2048.png`, (tex) => {
       if (!this.renderer.domElement.isConnected) return tex.dispose();
       tex.colorSpace = THREE.SRGBColorSpace;
@@ -233,6 +239,7 @@ export class GroundView {
 
   setSky(sky: GroundSky | null): void {
     this.sunBody.visible = this.earthBody.visible = sky !== null;
+    this.stars.visible = !!sky?.eclToEnu;
     this.renderer.shadowMap.needsUpdate = true;
     this.requestRender();
     if (!sky) return;
@@ -242,6 +249,7 @@ export class GroundView {
     this.sunBody.position.copy(sun).multiplyScalar(SKY_DIST);
     this.earthBody.position.copy(earth).multiplyScalar(SKY_DIST);
     if (sky.earthToEnu) this.earthBody.quaternion.setFromRotationMatrix(bodyRotationToThree(sky.earthToEnu));
+    if (sky.eclToEnu) this.stars.quaternion.setFromRotationMatrix(bodyRotationToThree(sky.eclToEnu));
   }
 
   /**
