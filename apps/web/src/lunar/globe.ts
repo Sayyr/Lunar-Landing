@@ -17,9 +17,11 @@ import { bodyRotationToThree } from "../lib/sceneFrame";
 import { makeStarField } from "../lib/stars";
 import { centreShift, easeInOutQuad, refitDistance } from "../lib/viewFit";
 import { latLonToUnit, MOON_RADIUS_KM, pointToUv, uvToLatLon } from "./geo";
+import { patchLunarLambert } from "./lunarLambert";
 import type { Heightmap } from "./heightmap";
 import { DATA_BASE } from "./loaders";
 import type { MoonSky, Vec3 } from "./skyGeometry";
+import { sampleImage } from "./tileGain";
 import { TILE_STENCIL, TileLayer, type TileStatus } from "./tileLayer";
 
 // Background bodies are drawn at SKY_DIST from the camera (always "at infinity": no parallax when
@@ -224,9 +226,6 @@ export class Globe {
       map: colorTex,
       color: colorTex ? 0xffffff : 0x8d8d8d,
       displacementMap: heightTex,
-      // The same raster doubles as bumpMap: shading follows the relief without recomputing
-      // normals or another texture in memory.
-      bumpMap: heightTex,
       roughness: 1,
       metalness: 0,
     });
@@ -235,6 +234,10 @@ export class Globe {
     material.stencilWrite = true;
     material.stencilRef = TILE_STENCIL;
     material.stencilFunc = THREE.NotEqualStencilFunc;
+    material.onBeforeCompile = (shader) => {
+      shader.fragmentShader = patchLunarLambert(shader.fragmentShader);
+    };
+    material.customProgramCacheKey = () => "moon-lunar-lambert";
     this.mesh = new THREE.Mesh(geometry, material);
     this.mesh.renderOrder = 1;
     scene.add(this.mesh);
@@ -255,7 +258,8 @@ export class Globe {
     scene.add(this.siteMarker);
 
     // --- Streaming high-resolution imagery (NASA Moon Trek), over the base mesh ------------------
-    this.tiles = new TileLayer(heightmap, heightTex, renderer.capabilities.getMaxAnisotropy(), colorImage?.width ?? 0);
+    const reference = colorImage ? sampleImage(colorImage, 720, 360) : null;
+    this.tiles = new TileLayer(heightmap, renderer.capabilities.getMaxAnisotropy(), colorImage?.width ?? 0, reference, colorTex);
     this.tiles.onChange = this.requestRender;
     scene.add(this.tiles.group);
 
@@ -325,10 +329,7 @@ export class Globe {
     const m = this.mesh.material;
     m.displacementScale = this.scale;
     m.displacementBias = 0;
-    // bumpScale in the same unit as displacement (shaded slopes = displayed slopes); floor at 1×
-    // to keep shading of the real slopes at exaggeration 0.
-    m.bumpScale = Math.max(x, 1) / MOON_RADIUS_KM;
-    this.tiles.setScale(this.scale, m.bumpScale);
+    this.tiles.setScale(this.scale);
     for (const o of this.overlays) o.setScale(this.scale);
     // Closest approach: ~17 km above the highest displayed point.
     this.controls.minDistance = 1 + (this.heightmap?.maxKm ?? 0) * this.scale + 0.01;

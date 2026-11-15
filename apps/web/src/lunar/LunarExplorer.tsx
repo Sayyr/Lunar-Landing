@@ -997,6 +997,10 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, focus, startUt
               Feature shown: nearest IAU centre whose circle (IAU diameter / 2) contains the point — circular
               approximation of the outlines.
             </li>
+            <li>
+              Shading: lunar-Lambert photometric function (McEwen 1996 cubic phase weight) on the smooth sphere; crater
+              relief shading is the imagery's own (fixed Sun); no cast shadows on the globe.
+            </li>
           </ul>
           <h3>Sources</h3>
           <ul className="muted">
@@ -1019,7 +1023,7 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, focus, startUt
               <a href="https://trek.nasa.gov/moon/" target="_blank" rel="noopener">
                 NASA Moon Trek
               </a>{" "}
-              — imagery only (its built-in shading is fixed; relief, altitude and picking still use LOLA).
+              — imagery only (its built-in shading is fixed; relief, altitude and picking still use LOLA); each tile's mean brightness is scaled to the CGI Moon Kit mosaic over its footprint, takes that mosaic's colour, and fades into it between 3× and 12× the camera altitude.
             </li>
             <li>
               Landing sites (white = crewed, green = robotic, {LANDING_SITES.length} soft landings):{" "}

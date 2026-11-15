@@ -5,7 +5,7 @@ import { TILE_STENCIL, TileLayer } from "./tileLayer";
 
 /** TileLayer with downloads answered synchronously (no network in tests). */
 function layer(fail = false) {
-  const l = new TileLayer(null, null, 1, 4096);
+  const l = new TileLayer(null, 1, 4096);
   const urls: string[] = [];
   (l as unknown as { loader: { load: unknown } }).loader.load = (url: string, ok: (t: THREE.Texture) => void, _p: unknown, err: () => void) => {
     urls.push(url);
@@ -83,22 +83,26 @@ describe("TileLayer level of detail", () => {
 });
 
 describe("TileLayer lighting", () => {
-  it("tiles reuse the base LOLA bump map with a per-tile UV transform patched into three's shader", () => {
-    const heightTex = new THREE.DataTexture(new Float32Array(4), 2, 2, THREE.RedFormat, THREE.FloatType);
-    const l = new TileLayer(null, heightTex, 1, 4096);
+  it("tiles take the base mosaic's tint and fade into it with camera distance", () => {
+    const base = new THREE.Texture();
+    const l = new TileLayer(null, 1, 4096, null, base);
     (l as unknown as { loader: { load: unknown } }).loader.load = (_u: string, ok: (t: THREE.Texture) => void) => ok(new THREE.Texture());
-    l.setScale(2 / 1737.4, 2 / 1737.4);
+    l.setScale(2 / 1737.4);
     for (let i = 0; i < 20; i++) l.update(camera(0.05), 1000);
     const mesh = l.group.children.find((m) => m.visible) as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
-    expect(mesh.material.bumpMap).toBe(heightTex); // shared, not cloned: no raster re-upload
-    expect(mesh.material.bumpScale).toBeCloseTo(2 / 1737.4);
-
-    // The patched line must exist in three's real uv_vertex chunk, or the patch would silently no-op.
-    const shader = { uniforms: {} as Record<string, { value: unknown }>, vertexShader: THREE.ShaderChunk.uv_vertex, fragmentShader: "" };
+    const shader = {
+      uniforms: {} as Record<string, { value: unknown }>,
+      vertexShader: THREE.ShaderLib.physical.vertexShader,
+      fragmentShader: THREE.ShaderLib.physical.fragmentShader,
+    };
     mesh.material.onBeforeCompile(shader as never, undefined as never);
-    expect(shader.vertexShader).toContain("tileBumpTransform * vec3( BUMPMAP_UV, 1 )");
-    expect(shader.vertexShader).not.toContain("bumpMapTransform * vec3( BUMPMAP_UV, 1 )");
-    expect(shader.uniforms.tileBumpTransform.value).toBeInstanceOf(THREE.Matrix3);
+    expect(shader.uniforms.tileBaseMap.value).toBe(base);
+    expect(shader.vertexShader).toContain("vGlobalUv = ( tileGlobalUv * vec3( uv, 1 ) ).xy;");
+    expect(shader.fragmentShader).toContain("texture2D( tileBaseMap, vGlobalUv )");
+    const fade = (shader.uniforms.tileFade as { value: THREE.Vector2 }).value;
+    expect(fade.x).toBeCloseTo(3 * (camera(0.05).position.length() - 1));
+    expect(fade.y).toBeGreaterThan(fade.x);
+    expect(shader.fragmentShader).toContain("#include <map_fragment>");
   });
 
   it("drawn tiles mark the stencil so the base mesh cannot show through them", () => {
