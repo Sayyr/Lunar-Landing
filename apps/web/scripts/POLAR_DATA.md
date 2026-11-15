@@ -44,7 +44,11 @@ lander-footprint (metre-scale) slope. Full conventions and provenance: `manifest
 ## 4 km disc slope grid (`public/data/polar_s_grid/grid_4km.json`, git-ignored)
 
 Used by the "South-pole grid" page. Generated offline from the same raw float32 file by
-`services/science/tools/slope_grid.cpp` (~2 s, 2.8 MB JSON):
+`services/science/tools/slope_grid.cpp` (~2 s, 2.8 MB JSON).
+
+Local dev, one command: `apps/web/scripts/setup-slope-grid.sh` downloads `LDEM_85S_20M` if missing (920 MB, size and
+SHA-256 checked, same hashes as the Dockerfile), builds `slope-grid` and writes the grid. By hand, with the DEM
+already in `data-raw/lola_polar/`:
 
 ```sh
 cmake --build services/science/build --target slope-grid

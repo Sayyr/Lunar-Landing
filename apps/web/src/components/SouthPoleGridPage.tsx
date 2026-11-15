@@ -8,10 +8,8 @@ import { formatLat, formatLon } from "../lunar/geo";
 import { type Disc, fractionAtMost, fractionColour, GRID_URL, loadSlopeGrid, rankDiscs, type SlopeGrid } from "../lunar/slopeGrid";
 
 const GRID_NAMES = ["Grid 1", "Grid 2", "Grid 3", "Grid 4"];
-const SETUP_CMD =
-  "cmake --build services/science/build --target slope-grid && services/science/build/slope-grid " +
-  "apps/web/data-raw/lola_polar/ldem_85s_20m_float.img apps/web/data-raw/lola_polar/ldem_85s_20m_float.lbl " +
-  "apps/web/public/data/polar_s_grid/grid_4km.json";
+// Local dev (downloads LDEM_85S_20M if missing, 920 MB, checksum-verified). Docker builds the grid into the web image.
+const SETUP_CMD = "apps/web/scripts/setup-slope-grid.sh";
 
 /** Map radius (km) of latitude lat (south polar stereographic, true at the pole). */
 const rhoKm = (lat: number) => 2 * MOON_RADIUS_KM * Math.tan(((90 + lat) * Math.PI) / 360);
@@ -177,7 +175,8 @@ export function SouthPoleGridPage({ active, onShow }: { active: boolean; onShow:
       <div className="grid-page">
         <h2>South-pole slope grid</h2>
         <p className="warn">
-          Grid file not installed ({GRID_URL}). It is derived offline from LDEM_85S_20M (see apps/web/scripts/POLAR_DATA.md):
+          Grid file not installed ({GRID_URL}). It is derived offline from LDEM_85S_20M (see apps/web/scripts/POLAR_DATA.md). Local
+          dev: run the script below. Docker: the web image builds it (apps/web/Dockerfile, stage "grid"); rebuild the image.
         </p>
         <pre className="small">{SETUP_CMD}</pre>
       </div>
