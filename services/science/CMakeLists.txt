@@ -8,6 +8,12 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
+# MSVC: static C runtime (/MT), as NAIF builds CSPICE (cl default). With the default /MD, CSPICE's
+# fio.h `extern int isatty(int)` clashes with the dllimport declaration of the UCRT (error C2375).
+if(MSVC)
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+
 option(SELENE_BUILD_TESTS "Build tests and the fixture generator" ON)
 option(SELENE_SANITIZE "Build with AddressSanitizer + UndefinedBehaviorSanitizer" OFF)
 option(SELENE_FUZZ "Build the libFuzzer target fuzz-handler (clang only)" OFF)
