@@ -25,7 +25,11 @@ export function CreateMission({ scenario, onScenario, sites, onFocus, onCreate, 
   const [area, setArea] = useState("");
   const [eff, setEff] = useState("");
   const site = scenario.site;
-  const setSite = (lat: number, lon: number) => onScenario({ ...scenario, site: { ...site, latitude_deg: lat, longitude_deg: lon } });
+  // Ignore a cleared / partial field (NaN) instead of sending it to the scenario.
+  const setSite = (lat: number, lon: number) =>
+    Number.isFinite(lat) && Number.isFinite(lon) && onScenario({ ...scenario, site: { ...site, latitude_deg: lat, longitude_deg: lon } });
+  // Typed coordinates: fly the globe there once the field is left (or Enter is pressed).
+  const flyToTyped = () => onFocus(site.latitude_deg, site.longitude_deg);
 
   return (
     <form
@@ -55,14 +59,14 @@ export function CreateMission({ scenario, onScenario, sites, onFocus, onCreate, 
       <div className="grid2">
         <label title="Planetocentric">
           Latitude (°)
-          <input type="number" required min={-90} max={90} step="any" value={site.latitude_deg} onChange={(e) => setSite(e.target.valueAsNumber, site.longitude_deg)} />
+          <input type="number" required min={-90} max={90} step="any" value={site.latitude_deg} onChange={(e) => setSite(e.target.valueAsNumber, site.longitude_deg)} onBlur={flyToTyped} />
         </label>
         <label title="East-positive, [-180, 180)">
           Longitude (°E)
-          <input type="number" required min={-180} max={179.9999} step="any" value={site.longitude_deg} onChange={(e) => setSite(site.latitude_deg, e.target.valueAsNumber)} />
+          <input type="number" required min={-180} max={179.9999} step="any" value={site.longitude_deg} onChange={(e) => setSite(site.latitude_deg, e.target.valueAsNumber)} onBlur={flyToTyped} />
         </label>
       </div>
-      <p className="muted small">…or click the Moon to place the site.</p>
+      <p className="muted small">…or click the Moon to place the site (typed coordinates move the globe there).</p>
       <label>
         Landing date &amp; time (UTC)
         {/* datetime-local has no timezone: its value is read as UTC. */}
