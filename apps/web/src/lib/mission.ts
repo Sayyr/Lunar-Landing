@@ -69,7 +69,8 @@ export function buildMissionRequest(scenario: ScenarioRequest, s: MissionSetting
     delay: { landing_delay_hours: delayHours, end_policy: s.endPolicy, pre_landing_net_load_w: s.preLandingLoadW },
     power: s.power,
     radio: radio && { min_earth_elevation_deg: radio.min_earth_elevation_deg, link: radio.link, stations: radio.stations },
-    // Without a power model the battery reserve cannot be evaluated: do not send it.
+    // Without a power model the battery reserve cannot be evaluated: do not send it. Slope coverage is
+    // decided by the science service (installed DEMs); where none covers the site it is "not evaluated".
     constraints: s.power ? s.constraints : { ...s.constraints, min_battery_soc: null },
   };
 }

@@ -11,10 +11,15 @@ services:
       SELENE_KERNEL_DIR: /data/kernels
       # Raw LOLA DEM for POST /terrain/slope/check (missing on the host -> status dem_unavailable).
       SELENE_DEM_PATH: /data/dem/ldem_85s_20m_float.img
+      # Slope check elsewhere on the Moon (scripts/setup-slope-dem.sh, ~53 GB, run once on the host):
+      # SLDEM2015 tiles for 60S-60N, then the 60 m polar products. Missing files are logged and skipped.
+      SELENE_SLDEM_DIR: /data/slope/sldem2015
+      SELENE_SLOPE_DEM_PATHS: /data/slope/polar/ldem_60s_60m_float.img:/data/slope/polar/ldem_60n_60m_float.img
     volumes:
       # Kernels are NOT in the image; mount them read-only (see data/README.md).
       - ../data/kernels:/data/kernels:ro
       - ../apps/web/data-raw/lola_polar:/data/dem:ro
+      - ../data/dem:/data/slope:ro
     ports: ["127.0.0.1:8000:8000"]
     restart: unless-stopped
     healthcheck:

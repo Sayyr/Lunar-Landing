@@ -67,6 +67,33 @@ mtime, recorded SHA-256).
 The DEM-scale slope (20 m grid, Horn 3×3 ≈ 60 m window) is **not** lander-footprint slope; a `pass` is a
 screening result, not a validated landing site.
 
+## Slope DEMs for the rest of the Moon (landing slope outside 85°S–90°S)
+
+`scripts/setup-slope-dem.sh` downloads them into `data/dem/` (≈ 53 GB, run once by hand, never by the deploy;
+`--tile 30s_00s_045_090` fetches a single SLDEM tile to try it out). The science service reads them through
+`SELENE_SLDEM_DIR` and `SELENE_SLOPE_DEM_PATHS` (set in `infra/compose.yaml`); a missing set is logged and skipped.
+The slope check uses the **finest installed product whose coverage holds the whole 4 km disc**, in this order:
+
+| Order | Product | Coverage | Pixel | Grid |
+|---|---|---|---|---|
+| 1 | `LDEM_85S_20M` (`SELENE_DEM_PATH`, above) | 85°S–90°S | 20 m | polar stereographic, south |
+| 2 | `SLDEM2015_512_*_FLOAT` tiles, 32 × 1.4 GB | 60°S–60°N | 59 m at the equator (512 px/deg) | simple cylindrical |
+| 3 | `LDEM_60S_60M`, `LDEM_60N_60M`, 2 × 3.9 GB | 60°–90° S / N | 60 m | polar stereographic |
+
+| Item | Value (from the PDS labels) |
+|---|---|
+| Source | <https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/sldem2015/tiles/float_img/>, <https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/data/lola_gdr/polar/float_img/> |
+| Data set | `LRO-L-LOLA-4-GDR-V1.0`; SLDEM2015 = LOLA altimetry co-registered with SELENE (Kaguya) Terrain Camera stereo (label DESCRIPTION) |
+| Heights | float32 km relative to a 1737.4 km sphere |
+| Frame | `MEAN EARTH/POLAR AXIS OF DE421`; latitude planetocentric, longitude east-positive |
+| Integrity | PDS publishes no checksum: the script checks each size against its label (LINES × RECORD_BYTES) and writes a SHA-256 computed locally to `SHA256SUMS` |
+| License | NASA PDS, public; credit NASA/GSFC LOLA team (and JAXA SELENE TC for SLDEM2015) |
+
+SLDEM2015 tiles are pixel-registered (`line = LINE_PROJECTION_OFFSET − lat·512`,
+`sample = SAMPLE_PROJECTION_OFFSET + (lon − 180)·512`); the service refuses a tile whose offsets do not match
+and assembles the installed ones into one global grid that wraps at 0°/360°. A disc touching a tile that is not
+installed is `out_of_coverage`, never partially evaluated. Validation: `docs/validation.md`.
+
 ## Provenance record (fill in when files are installed)
 
 The web visualization datasets (LOLA `ldem_*.tif`, LROC colour mosaic, IAU gazetteer, Blue Marble) are fetched by

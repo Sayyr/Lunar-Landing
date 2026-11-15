@@ -79,7 +79,7 @@ HttpResponse App::mission_route(const EphemerisProvider& provider, const std::st
     MissionContext ctx;
     ctx.provider = &provider;
     ctx.terrain = TerrainContext{dem_.get(), dem_reason_, horizon_cache_.get()};
-    ctx.slope_dem = dem_.get();
+    ctx.slope_dems = slope_dem_ptrs();
     ctx.slope_unavailable_reason = dem_reason_;
     try {
         return {200, simulate_mission(req, ctx)};
@@ -99,11 +99,12 @@ HttpResponse App::slope_check_route(const std::string& body) const {
     } catch (const ValidationError& e) {
         return validation_error(e.details, SLOPE_INVALID);
     }
-    if (!dem_) return {200, slope_check(req, nullptr, dem_reason_)};  // cheap, not cached
-    const std::string key = slope_cache_key(req, dem_->info());
+    if (slope_dems_.empty()) return {200, slope_check(req, nullptr, dem_reason_)};  // cheap, not cached
+    std::string key = to_json(req).dump();
+    for (const auto& d : slope_dems_) key += "\n" + d->info().identity;
     if (auto hit = slope_cache_->get(key)) return {200, std::move(*hit)};
     try {
-        json out = slope_check(req, dem_.get(), dem_reason_);
+        json out = slope_check_any(req, slope_dem_ptrs(), dem_reason_);
         slope_cache_->put(key, out);
         return {200, std::move(out)};
     } catch (const std::exception& e) {  // DEM I/O failure: never a fabricated verdict

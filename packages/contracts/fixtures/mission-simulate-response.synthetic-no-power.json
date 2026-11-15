@@ -111,7 +111,7 @@
     "Radio link: windows from the radio-link model (analytic low-precision ephemeris, ideal horizon plus the antenna mask, caller's link budget and stations). A closing budget is a necessary condition, not a link guarantee.",
     "Energy not modelled (no power system given): no battery or array figures, no energy constraint. Sun visibility is still reported.",
     "Corrections are re-simulated with the same models; 'go' means every applied constraint passes under these screening models, not a mission certification.",
-    "Landing slope: 20 m LOLA DEM slope (Horn 3x3) over a 4 km disc centred on the site; not lander-footprint slope."
+    "Landing slope: Horn 3x3 slope of the finest installed LOLA DEM covering the 4 km disc centred on the site (named in the landing_slope constraint note); not lander-footprint slope."
   ],
   "warnings": [
     "SYNTHETIC DATA: these numbers do not describe the real Sun or Earth.",

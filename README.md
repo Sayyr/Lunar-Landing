@@ -107,7 +107,7 @@ CI (`.github/workflows/ci.yml`) runs the same commands.
 | `POST /celestial/tracks` | same request: Moon orbit trace (one sidereal month) and Earth→Sun (one year) around that instant, SPICE geometric positions in ECLIPJ2000 metres, for drawing the orbits in the 3D views. Same 503 behaviour |
 | `POST /scenarios/radio-link` | **engineering estimate** of direct-to-Earth radio-link windows: Earth above the lunar-side mask (ideal horizon), a requested ground station seeing the Moon, and the free-space link budget closing with the request's hardware figures. Analytic low-precision ephemeris (Meeus), **not SPICE**; not a link guarantee. See `docs/validation.md` |
 | `POST /calcule` | former `back/` API: runs the programs of a profile (`services/api/config/profiles.json`) and streams NDJSON. The bundled programs are **simulators** whose output is labelled `synthetic` |
-| `POST /terrain/slope/check` | max-slope pass/fail of a circular zone, recomputed by the science service on the raw LOLA 20 m DEM (`SELENE_DEM_PATH`, see `data/README.md`); `dem_unavailable` without it |
+| `POST /terrain/slope/check` | max-slope pass/fail of a circular zone, recomputed by the science service on the finest installed LOLA DEM covering the zone: 20 m south polar (`SELENE_DEM_PATH`), SLDEM2015 ~59 m for 60°S–60°N (`SELENE_SLDEM_DIR`) and 60 m polar products (`SELENE_SLOPE_DEM_PATHS`), installed by `scripts/setup-slope-dem.sh` (see `data/README.md`); `dem_unavailable` without any, `out_of_coverage` where none covers the zone |
 
 ```bash
 curl -s -X POST localhost:8080/api/v1/scenarios/evaluate -H 'content-type: application/json' \

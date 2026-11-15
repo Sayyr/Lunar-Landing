@@ -138,6 +138,29 @@ inline SlopeAspect horn_at(const float* h_km, int lines, int samples, int l, int
     return {slope, aspect};
 }
 
+// Horn slope (deg) on a grid whose ground spacing differs along the two image axes (simple
+// cylindrical DEMs: east-west spacing R cos(lat) dlon, north-south spacing R dlat). Spacings are on the
+// reference sphere of radius radius_m and are scaled by (R + h) / R with the centre height, as above.
+// NaN on the border or with any non-finite height in the 3x3 window. Image "up" = decreasing line.
+inline double horn_slope_xy(const float* h_km, int lines, int samples, int l, int s, double sp_right_m,
+                            double sp_up_m, double radius_m) {
+    constexpr double nan = std::numeric_limits<double>::quiet_NaN();
+    if (l < 1 || s < 1 || l >= lines - 1 || s >= samples - 1) return nan;
+    const float* up = h_km + static_cast<std::size_t>(l - 1) * samples + s;
+    const float* mid = up + samples;
+    const float* dn = mid + samples;
+    const double a = up[-1], b = up[0], c = up[1];
+    const double d = mid[-1], e = mid[0], f = mid[1];
+    const double g = dn[-1], h = dn[0], i = dn[1];
+    if (!(std::isfinite(a) && std::isfinite(b) && std::isfinite(c) && std::isfinite(d) && std::isfinite(e) &&
+          std::isfinite(f) && std::isfinite(g) && std::isfinite(h) && std::isfinite(i)))
+        return nan;
+    const double hs = (radius_m + e * 1000.0) / radius_m;
+    const double gr = ((c + 2 * f + i) - (a + 2 * d + g)) * 1000.0 / (8.0 * sp_right_m * hs);
+    const double gu = ((a + 2 * b + c) - (g + 2 * h + i)) * 1000.0 / (8.0 * sp_up_m * hs);
+    return std::atan(std::hypot(gr, gu)) * DEG;
+}
+
 inline std::uint16_t quantize(double v, double step, double wrap = 0.0) {
     if (!std::isfinite(v)) return NODATA;
     long q = std::lround(v / step);

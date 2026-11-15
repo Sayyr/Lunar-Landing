@@ -9,6 +9,10 @@ data/*
 !data/kernels/
 data/kernels/*
 !data/kernels/.gitkeep
+# slope DEMs (scripts/setup-slope-dem.sh); the directory exists so compose never creates it as root
+!data/dem/
+data/dem/*
+!data/dem/.gitkeep
 *.bsp
 *.bpc
 *.tpc

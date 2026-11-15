@@ -5,6 +5,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "ephemeris.hpp"
 #include "horizon.hpp"
@@ -23,10 +24,17 @@ struct HttpResponse {
 
 class App {
 public:
-    // dem == nullptr: POST /terrain/slope/check answers status = dem_unavailable with dem_reason.
+    // dem: the south-polar DEM (terrain horizon, and first slope DEM). slope_dems: further DEMs for the
+    // slope check, finest first (SLDEM2015 mosaic, polar 60 m products...). No DEM at all: POST
+    // /terrain/slope/check answers status = dem_unavailable with dem_reason.
     explicit App(std::optional<std::filesystem::path> kernel_dir, std::shared_ptr<const Dem> dem = nullptr,
-                 std::string dem_reason = "SELENE_DEM_PATH not set")
-        : spice_(std::move(kernel_dir)), dem_(std::move(dem)), dem_reason_(std::move(dem_reason)) {}
+                 std::string dem_reason = "SELENE_DEM_PATH not set",
+                 std::vector<std::shared_ptr<const Dem>> slope_dems = {})
+        : spice_(std::move(kernel_dir)), dem_(std::move(dem)), dem_reason_(std::move(dem_reason)) {
+        if (dem_) slope_dems_.push_back(dem_);
+        for (auto& d : slope_dems)
+            if (d) slope_dems_.push_back(std::move(d));
+    }
 
     // Routes:
     //   GET  /health
@@ -54,6 +62,12 @@ private:
     SyntheticEphemerisProvider synthetic_;
     std::shared_ptr<const Dem> dem_;  // immutable; read_window() is thread-safe
     std::string dem_reason_;
+    std::vector<std::shared_ptr<const Dem>> slope_dems_;  // finest first, dem_ included
+    std::vector<const Dem*> slope_dem_ptrs() const {
+        std::vector<const Dem*> v;
+        for (const auto& d : slope_dems_) v.push_back(d.get());
+        return v;
+    }
     // Thread-safe (internal mutex); shared_ptr keeps App copyable. See slope_cache.hpp.
     std::shared_ptr<SlopeCache> slope_cache_ = std::make_shared<SlopeCache>(256);
     // Terrain horizon profiles per site (horizon.hpp); thread-safe.

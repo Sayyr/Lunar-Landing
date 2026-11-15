@@ -337,7 +337,7 @@ static void test_slope_fixes() {
     DailySunProvider daily;
     MissionContext ctx;
     ctx.provider = &daily;
-    ctx.slope_dem = dem.get();
+    ctx.slope_dems = {dem.get()};
     json d = valid_body();
     d.erase("power");
     d["landing_utc"] = "2026-11-15T01:00:00Z";

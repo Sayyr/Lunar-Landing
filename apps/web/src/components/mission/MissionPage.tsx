@@ -389,6 +389,13 @@ export function MissionPage({ active, scenario, onScenario, draft }: { active: b
                 <strong>{aborted ? "ABORTED" : result.verdict === "go" ? "GO" : result.verdict === "no_go" ? "NO GO" : "INCOMPLETE"}</strong>
                 <span>{aborted ?? result.message}</span>
               </div>
+              {result.verdict === "incomplete" && !aborted && (
+                <div className="warn small">
+                  Incomplete: no constraint fails, but some could not be evaluated —{" "}
+                  {result.constraints.filter((c) => c.status === "not_evaluated").map((c) => `${c.label} (${c.note})`).join("; ") || "see the constraints below"}.
+                  Turn those limits off or move the site to get a GO / NO GO.
+                </div>
+              )}
               {result.status === "not_ready" && <div className="warn small">Not computed: {result.message}</div>}
               {result.verdict === "no_go" && !aborted && (() => {
                 const failing = result.constraints.filter((c) => c.status === "fail");

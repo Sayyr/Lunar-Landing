@@ -44,6 +44,23 @@ Geometric visibility is **not** power availability and **not** a radio link. Eve
 - **Coverage**: `LDEM_85S_20M` stops at 85°S. Rays leaving it are reported (`truncated_bearing_fraction`, a warning): relief north of 85°S is not included and could raise the horizon. Sites closer than 50 km to the edge are refused.
 - **Visibility policy**: body centre above the horizon at its azimuth. Finite disks (the Sun's 0.27° radius, the Earth's 0.95°) are not modelled: near a grazing horizon the true partial visibility differs.
 
+## Slope DEMs outside the south pole: checks (2026-11-15)
+
+- **Grid conventions vs. an independent product.** Heights read with the service's mapping were compared with
+  the global LOLA `ldem_16` grid (16 px/deg, 1.9 km) at 48 points. North polar `LDEM_60N_240M` with
+  `x = ρ sin(λ−λ0)`, `y = −ρ cos(λ−λ0)` (λ0 pointing down the image): mean |Δh| 61 m, max 279 m; the opposite
+  sign gives 1.0 km mean, so the convention is the right one. SLDEM2015 tile `30S–0°, 45–90°E` with the
+  pixel-registered mapping: mean |Δh| 93 m, max 295 m (differences of the order of the 1.9 km reference pixel).
+- **Slope maths.** An independent NumPy Horn 3×3 (spacing `R·dφ` north-south, `R·cos φ·dλ` east-west,
+  great-circle disc selection) reproduces the service on the real SLDEM tile: 2.245°S 52.927°E, 4 km disc,
+  3580 px, mean 2.354°, max 9.212°, 100 % ≤ 10°; 27°S 80°E, 4020 px, mean 9.723°, max 21.378°, 49.6 % ≤ 10° —
+  identical to the printed digits.
+- **Unit tests** (`services/science/tests/tests.cpp`): synthetic cylindrical tiles at 58–60°N with an 8° east-west
+  plane (wrong without the cos φ factor), a disc across the 0°/360° seam, a missing tile and a bad label
+  offset (refused); north polar round trip; `slope_check_any` order.
+- **Limit.** 59–60 m pixels (Horn window ≈ 180 m) smooth more than the 20 m south-polar product: a pass there is
+  coarser screening still, and is reported with the product name in the mission's `landing_slope` note.
+
 ## Open scientific decisions (owner: Ephemerides workstream)
 
 1. **Body-fixed frame**: decided, MOON_ME (see table). Same frame as the LOLA DEM label.

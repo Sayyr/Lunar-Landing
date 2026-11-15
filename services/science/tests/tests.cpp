@@ -1390,6 +1390,119 @@ static void test_robustness() {
     }
 }
 
+// SLDEM2015-like simple cylindrical tiles (64 px/deg, 58-60 N) on disk: label checks, mosaic across
+// the 0/360 seam, missing tile, anisotropic Horn spacing (cos lat), and slope_check_any ordering.
+static void test_cylindrical_mosaic() {
+    const fs::path dir = fs::temp_directory_path() / "selene-sldem-test";
+    fs::remove_all(dir);
+    fs::create_directories(dir);
+    const int ppd = 64, n = 128;  // 2 x 2 deg tiles
+    const double R = 1737400.0, top = 60.0, gtan = std::tan(8.0 / 57.29577951308232);
+    // z = gtan * eastward ground distance from lon 0: a plane sloping 8 deg toward east everywhere.
+    auto write_tile = [&](double west, const std::string& center_lon = "180.") {
+        char name[96];
+        std::snprintf(name, sizeof name, "sldem2015_64_58n_60n_%03d_%03d_float", static_cast<int>(west), static_cast<int>(west) + 2);
+        std::vector<float> h(static_cast<std::size_t>(n) * n);
+        for (int l = 0; l < n; ++l)
+            for (int s = 0; s < n; ++s) {
+                const double lat = top - (l + 0.5) / ppd;
+                double lon = west + (s + 0.5) / ppd;
+                if (lon > 180) lon -= 360;
+                h[static_cast<std::size_t>(l) * n + s] =
+                    static_cast<float>(gtan * R * std::cos(lat / 57.29577951308232) * lon / 57.29577951308232 / 1000.0);
+            }
+        std::ofstream(dir / (std::string(name) + ".img"), std::ios::binary)
+            .write(reinterpret_cast<const char*>(h.data()), static_cast<std::streamsize>(h.size() * 4));
+        std::ofstream(dir / (std::string(name) + ".lbl"))
+            << "PRODUCT_ID = \"" << name << "\"\nDATA_SET_ID = \"LRO-L-LOLA-4-GDR-V1.0\"\nRECORD_BYTES = " << n * 4
+            << "\nLINES = " << n << "\nLINE_SAMPLES = " << n
+            << "\nSAMPLE_TYPE = PC_REAL\nUNIT = KILOMETER\nSCALING_FACTOR = 1\nOFFSET = 1737.4\n"
+               "MAP_PROJECTION_TYPE = \"SIMPLE CYLINDRICAL\"\nMAP_RESOLUTION = 64 <pix/deg>\n"
+               "A_AXIS_RADIUS = 1737.4 <km>\nB_AXIS_RADIUS = 1737.4 <km>\nC_AXIS_RADIUS = 1737.4 <km>\n"
+               "CENTER_LATITUDE = 0. <deg>\nCENTER_LONGITUDE = " << center_lon << " <deg>\nMAP_PROJECTION_ROTATION = 0.0\n"
+               "MAP_SCALE = 0.473802 <km/pix>\nMAXIMUM_LATITUDE = 60 <deg>\nMINIMUM_LATITUDE = 58 <deg>\n"
+               "WESTERNMOST_LONGITUDE = " << west << " <deg>\nEASTERNMOST_LONGITUDE = " << west + 2 << " <deg>\n"
+               "LINE_PROJECTION_OFFSET = " << top * ppd - 0.5 << " <pix>\nSAMPLE_PROJECTION_OFFSET = "
+            << -0.5 - (west - 180.0) * ppd << " <pix>\nCOORDINATE_SYSTEM_NAME = \"MEAN EARTH/POLAR AXIS OF DE421\"\nEND\n";
+    };
+    write_tile(0);
+    write_tile(358);
+    const auto mosaic = Dem::open_sldem_dir(dir);
+    const DemInfo& d = mosaic->info();
+    CHECK(d.grid == DemGrid::cylindrical && d.wraps_lon && d.ppd == 64 && d.lines == 128 && d.samples == 360 * 64);
+    CHECK_NEAR(d.proj.scale_m, 473.802, 1e-6);  // <km/pix> converted to metres
+    CHECK(*d.max_latitude_deg == 60 && *d.min_latitude_deg == 58);
+    // pixel <-> lat/lon round trip, including a negative longitude (west of the seam)
+    const GridPos gp = dem_pixel_of(d, 59.3, -0.7);
+    CHECK_NEAR(gp.line, (60 - 59.3) * 64 - 0.5, 1e-9);
+    CHECK_NEAR(gp.sample, 359.3 * 64 - 0.5, 1e-9);
+    const LatLon back = dem_latlon_of(d, gp.line, gp.sample);
+    CHECK_NEAR(back.lat_deg, 59.3, 1e-9);
+    CHECK_NEAR(back.lon_deg, -0.7, 1e-9);
+    CHECK(mosaic->covers(10, 5) && mosaic->covers(10, 360 * 64 - 5) && mosaic->covers(10, -5) && !mosaic->covers(10, 200));
+
+    // Zone straddling the 0/360 seam, both tiles installed: east-west plane of 8 deg read correctly
+    // only if the east-west spacing carries cos(lat) (else ~4 deg at 59 N).
+    json r = check_on(mosaic, slope_req(59.0, 0.0, 8000, 9));
+    CHECK(r["status"] == "computed" && r["verdict"] == "pass");
+    CHECK_NEAR(r["stats"]["slope_mean_deg"].get<double>(), 8.0, 0.05);
+    CHECK_NEAR(r["stats"]["slope_max_deg"].get<double>(), 8.0, 0.05);
+    CHECK(r["model"]["projection"].get<std::string>().find("simple cylindrical") != std::string::npos);
+    // Zone reaching into lon 2-4 deg, whose tile is not installed: never a partial verdict.
+    r = check_on(mosaic, slope_req(59.0, 1.95, 8000, 9));
+    CHECK(r["status"] == "out_of_coverage");
+    // North of the declared MAXIMUM_LATITUDE
+    r = check_on(mosaic, slope_req(59.97, 1.0, 5000, 9));
+    CHECK(r["status"] == "out_of_coverage");
+
+    // slope_check_any: finest first; the south synthetic DEM does not cover 59 N, the mosaic does.
+    const auto south = selene::testing::tilted_plane_dem(3.0);
+    r = slope_check_any(parse_slope_check_request(slope_req(59.0, 0.0, 8000, 9)), {south.get(), mosaic.get()}, "x");
+    CHECK(r["status"] == "computed" && r["data_provenance"]["dem_product"] == "SLDEM2015_64 mosaic");
+    r = slope_check_any(parse_slope_check_request(slope_req(-89.99, 0.0, 300, 9)), {south.get(), mosaic.get()}, "x");
+    CHECK(r["status"] == "computed" && r["data_provenance"]["dem_product"] == "SYNTHETIC_TILTED_PLANE");
+    r = slope_check_any(parse_slope_check_request(slope_req(10.0, 10.0, 2000, 9)), {south.get(), mosaic.get()}, "x");
+    CHECK(r["status"] == "out_of_coverage");
+    CHECK(r["warnings"].back().get<std::string>().find("No installed slope DEM covers") != std::string::npos);
+    r = slope_check_any(parse_slope_check_request(slope_req(10.0, 10.0, 2000, 9)), {}, "nothing installed");
+    CHECK(r["status"] == "dem_unavailable");
+    // App: SELENE_DEM_PATH DEM first, then the extra slope DEMs
+    const App a(std::nullopt, south, "", {mosaic});
+    CHECK(a.handle("POST", "/terrain/slope/check", slope_req(59.0, 0.0, 8000, 9).dump()).body["status"] == "computed");
+
+    // A label whose offsets break the pixel-registered convention is refused, not guessed.
+    write_tile(0, "170.");
+    bool threw = false;
+    try {
+        Dem::open_sldem_dir(dir);
+    } catch (const std::runtime_error&) {
+        threw = true;
+    }
+    CHECK(threw);
+    fs::remove_all(dir);
+}
+
+// North polar stereographic grid: pixel <-> lat/lon round trip, lon 0 pointing down the image.
+static void test_north_polar_grid() {
+    DemInfo d = selene::testing::synthetic_info("SYNTHETIC_NORTH");
+    d.grid = DemGrid::polar_north;
+    d.proj.sign_y = -1;
+    d.min_latitude_deg = 89.9;
+    const GridPos p = dem_pixel_of(d, 89.95, 37.0);
+    const LatLon b = dem_latlon_of(d, p.line, p.sample);
+    CHECK_NEAR(b.lat_deg, 89.95, 1e-9);
+    CHECK_NEAR(b.lon_deg, 37.0, 1e-9);
+    CHECK(dem_pixel_of(d, 89.99, 0.0).line > selene::testing::SYN_POLE);    // lon 0: down
+    CHECK(dem_pixel_of(d, 89.99, 90.0).sample > selene::testing::SYN_POLE);  // lon 90 E: right
+    const auto flat = Dem::in_memory(d, std::vector<float>(static_cast<std::size_t>(d.lines) * d.samples, 0.f));
+    json r = check_on(flat, slope_req(89.99, 0.0, 300, 1));
+    CHECK(r["status"] == "computed" && r["verdict"] == "pass");
+    CHECK(r["model"]["projection"].get<std::string>().find("90N") != std::string::npos);
+    r = check_on(flat, slope_req(89.99, 0.0, 2000, 1));  // reaches south of MINIMUM_LATITUDE 89.9
+    CHECK(r["status"] == "out_of_coverage");
+    CHECK(check_on(flat, slope_req(-89.99, 0.0, 300, 1))["status"] == "out_of_coverage");
+}
+
 int main() {
     test_geometry();
     test_enu_basis();
@@ -1405,6 +1518,8 @@ int main() {
     test_slope_check();
     test_slope_cache();
     test_dem_file();
+    test_cylindrical_mosaic();
+    test_north_polar_grid();
     test_contracts();
     test_robustness();
     std::printf("%d checks, %d failures\n", g_checks, g_failures);
