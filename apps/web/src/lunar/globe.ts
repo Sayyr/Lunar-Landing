@@ -226,9 +226,6 @@ export class Globe {
       map: colorTex,
       color: colorTex ? 0xffffff : 0x8d8d8d,
       displacementMap: heightTex,
-      // The same raster doubles as bumpMap: shading follows the relief without recomputing
-      // normals or another texture in memory.
-      bumpMap: heightTex,
       roughness: 1,
       metalness: 0,
     });
@@ -262,7 +259,7 @@ export class Globe {
 
     // --- Streaming high-resolution imagery (NASA Moon Trek), over the base mesh ------------------
     const reference = colorImage ? sampleImage(colorImage, 720, 360) : null;
-    this.tiles = new TileLayer(heightmap, heightTex, renderer.capabilities.getMaxAnisotropy(), colorImage?.width ?? 0, reference, colorTex);
+    this.tiles = new TileLayer(heightmap, renderer.capabilities.getMaxAnisotropy(), colorImage?.width ?? 0, reference, colorTex);
     this.tiles.onChange = this.requestRender;
     scene.add(this.tiles.group);
 
@@ -332,10 +329,7 @@ export class Globe {
     const m = this.mesh.material;
     m.displacementScale = this.scale;
     m.displacementBias = 0;
-    // bumpScale in the same unit as displacement (shaded slopes = displayed slopes); floor at 1×
-    // to keep shading of the real slopes at exaggeration 0.
-    m.bumpScale = Math.max(x, 1) / MOON_RADIUS_KM;
-    this.tiles.setScale(this.scale, m.bumpScale);
+    this.tiles.setScale(this.scale);
     for (const o of this.overlays) o.setScale(this.scale);
     // Closest approach: ~17 km above the highest displayed point.
     this.controls.minDistance = 1 + (this.heightmap?.maxKm ?? 0) * this.scale + 0.01;

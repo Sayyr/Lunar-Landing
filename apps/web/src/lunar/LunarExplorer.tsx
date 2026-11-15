@@ -998,8 +998,8 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, focus, startUt
               approximation of the outlines.
             </li>
             <li>
-              Shading: lunar-Lambert photometric function (McEwen 1996 cubic phase weight) on LOLA slopes; albedo from
-              the colour mosaic; no cast shadows on the globe.
+              Shading: lunar-Lambert photometric function (McEwen 1996 cubic phase weight) on the smooth sphere; crater
+              relief shading is the imagery's own (fixed Sun); no cast shadows on the globe.
             </li>
           </ul>
           <h3>Sources</h3>

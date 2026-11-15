@@ -5,7 +5,7 @@ import { TILE_STENCIL, TileLayer } from "./tileLayer";
 
 /** TileLayer with downloads answered synchronously (no network in tests). */
 function layer(fail = false) {
-  const l = new TileLayer(null, null, 1, 4096);
+  const l = new TileLayer(null, 1, 4096);
   const urls: string[] = [];
   (l as unknown as { loader: { load: unknown } }).loader.load = (url: string, ok: (t: THREE.Texture) => void, _p: unknown, err: () => void) => {
     urls.push(url);
@@ -83,29 +83,11 @@ describe("TileLayer level of detail", () => {
 });
 
 describe("TileLayer lighting", () => {
-  it("tiles reuse the base LOLA bump map with a per-tile UV transform patched into three's shader", () => {
-    const heightTex = new THREE.DataTexture(new Float32Array(4), 2, 2, THREE.RedFormat, THREE.FloatType);
-    const l = new TileLayer(null, heightTex, 1, 4096);
-    (l as unknown as { loader: { load: unknown } }).loader.load = (_u: string, ok: (t: THREE.Texture) => void) => ok(new THREE.Texture());
-    l.setScale(2 / 1737.4, 2 / 1737.4);
-    for (let i = 0; i < 20; i++) l.update(camera(0.05), 1000);
-    const mesh = l.group.children.find((m) => m.visible) as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
-    expect(mesh.material.bumpMap).toBe(heightTex); // shared, not cloned: no raster re-upload
-    expect(mesh.material.bumpScale).toBeCloseTo(2 / 1737.4);
-
-    // The patched line must exist in three's real uv_vertex chunk, or the patch would silently no-op.
-    const shader = { uniforms: {} as Record<string, { value: unknown }>, vertexShader: THREE.ShaderChunk.uv_vertex, fragmentShader: "" };
-    mesh.material.onBeforeCompile(shader as never, undefined as never);
-    expect(shader.vertexShader).toContain("tileBumpTransform * vec3( BUMPMAP_UV, 1 )");
-    expect(shader.vertexShader).not.toContain("bumpMapTransform * vec3( BUMPMAP_UV, 1 )");
-    expect(shader.uniforms.tileBumpTransform.value).toBeInstanceOf(THREE.Matrix3);
-  });
-
-  it("tiles take the base mosaic's tint and fade into it at their edges", () => {
+  it("tiles take the base mosaic's tint and fade into it with camera distance", () => {
     const base = new THREE.Texture();
-    const l = new TileLayer(null, null, 1, 4096, null, base);
+    const l = new TileLayer(null, 1, 4096, null, base);
     (l as unknown as { loader: { load: unknown } }).loader.load = (_u: string, ok: (t: THREE.Texture) => void) => ok(new THREE.Texture());
-    l.setScale(2 / 1737.4, 2 / 1737.4);
+    l.setScale(2 / 1737.4);
     for (let i = 0; i < 20; i++) l.update(camera(0.05), 1000);
     const mesh = l.group.children.find((m) => m.visible) as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
     const shader = {
