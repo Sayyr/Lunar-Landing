@@ -7,6 +7,7 @@
 #include <string>
 
 #include "ephemeris.hpp"
+#include "horizon.hpp"
 #include "models.hpp"
 #include "slope_cache.hpp"
 #include "terrain.hpp"
@@ -49,6 +50,8 @@ private:
     std::string dem_reason_;
     // Thread-safe (internal mutex); shared_ptr keeps App copyable. See slope_cache.hpp.
     std::shared_ptr<SlopeCache> slope_cache_ = std::make_shared<SlopeCache>(256);
+    // Terrain horizon profiles per site (horizon.hpp); thread-safe.
+    std::shared_ptr<HorizonCache> horizon_cache_ = std::make_shared<HorizonCache>(64);
 };
 
 }  // namespace selene

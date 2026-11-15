@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://selene.local/contracts/scenario-response.schema.json",
   "title": "ScenarioResponse",
-  "description": "Result of evaluating one scenario. `status` is one of: 'computed' (real ephemerides), 'synthetic' (fixture waveforms with NO physical meaning), 'not_ready' (provider cannot compute; samples and windows are empty). Azimuth is measured from local north toward east in [0, 360); elevation is relative to the horizon model named in `model.horizon_model`.",
+  "description": "Result of evaluating one scenario. `status` is one of: 'computed' (real ephemerides), 'synthetic' (fixture waveforms with NO physical meaning), 'not_ready' (provider cannot compute; samples and windows are empty). Azimuth is measured from local north toward east in [0, 360); elevation is the angle above the local horizontal plane of the observer. A body is visible when its elevation exceeds the horizon of `model.horizon_model`: 0 deg for 'ideal_geometric', `horizon_elevation_deg` (terrain horizon at the body's azimuth) for 'dem_terrain'.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -81,6 +81,89 @@
         }
       }
     },
+    "terrain_horizon": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Only with horizon_model 'dem_terrain' and a computed result: the terrain horizon profile seen from the observer.",
+      "required": [
+        "azimuth_step_deg",
+        "elevation_deg",
+        "site_surface_height_m",
+        "observer_radius_m",
+        "max_range_m",
+        "truncated_bearing_fraction",
+        "min_covered_range_m",
+        "nodata_sample_fraction",
+        "sampling"
+      ],
+      "properties": {
+        "azimuth_step_deg": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "elevation_deg[j] is the horizon at azimuth j * azimuth_step_deg (from north toward east)."
+        },
+        "elevation_deg": {
+          "type": "array",
+          "minItems": 4,
+          "items": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          }
+        },
+        "site_surface_height_m": {
+          "type": "number",
+          "description": "DEM height under the site, above the DEM reference sphere (1737.4 km for LOLA)."
+        },
+        "observer_radius_m": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Reference radius + site_surface_height_m + observer_height_m."
+        },
+        "max_range_m": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Rays are traced up to this ground distance."
+        },
+        "truncated_bearing_fraction": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Fraction of bearings whose ray leaves the DEM coverage before max_range_m: terrain beyond is unknown."
+        },
+        "min_covered_range_m": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Shortest covered ray."
+        },
+        "nodata_sample_fraction": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "sampling": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "max_range_m",
+              "pixel_m"
+            ],
+            "properties": {
+              "max_range_m": {
+                "type": "number"
+              },
+              "pixel_m": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            }
+          },
+          "description": "DEM sampling used per distance band."
+        }
+      }
+    },
     "windows": {
       "type": "object",
       "additionalProperties": false,
@@ -98,7 +181,11 @@
       "required": ["azimuth_deg", "elevation_deg"],
       "properties": {
         "azimuth_deg": { "type": "number", "minimum": 0, "exclusiveMaximum": 360 },
-        "elevation_deg": { "type": "number", "minimum": -90, "maximum": 90 }
+        "elevation_deg": { "type": "number", "minimum": -90, "maximum": 90 },
+        "horizon_elevation_deg": {
+          "type": "number", "minimum": -90, "maximum": 90,
+          "description": "Only with horizon_model 'dem_terrain': elevation of the terrain horizon at this body's azimuth. The body centre is visible when elevation_deg > horizon_elevation_deg."
+        }
       }
     },
     "window": {

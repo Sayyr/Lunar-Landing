@@ -108,7 +108,11 @@ HttpResponse App::evaluate_with(const EphemerisProvider& provider, const std::st
     static const int64_t LAST_US = parse_utc("9999-12-31T23:59:59.999999Z");
     if (sample_times(req).back() > LAST_US)
         return validation_error({{"duration_hours", "scenario would end after 9999-12-31T23:59:59Z"}});
-    return {200, evaluate(req, provider)};
+    try {
+        return {200, evaluate(req, provider, TerrainContext{dem_.get(), dem_reason_, horizon_cache_.get()})};
+    } catch (const std::exception& e) {  // DEM I/O failure: never a fabricated result
+        return {500, error_response("internal_error", std::string("Scenario evaluation failed: ") + e.what())};
+    }
 }
 
 }  // namespace selene

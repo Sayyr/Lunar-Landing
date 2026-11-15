@@ -329,6 +329,63 @@ static void test_api(const fs::path& kdir) {
     for (int ok : same) CHECK(ok);
 }
 
+// Terrain horizon on the REAL LOLA DEM with real ephemerides. Runs only when SELENE_DEM_PATH points
+// at ldem_85s_20m_float.img (920 MB, not in Git, not in CI); otherwise it says so and is skipped.
+static void test_real_terrain(const fs::path& kdir) {
+    const char* path = std::getenv("SELENE_DEM_PATH");
+    if (!path || !*path || !fs::is_regular_file(path)) {
+        std::printf("SKIPPED: real-DEM terrain horizon (SELENE_DEM_PATH not set)\n");
+        return;
+    }
+    const auto dem = Dem::open_pds_auto(path, std::nullopt);
+    const App app{std::optional<fs::path>(kdir), dem, ""};
+    auto evaluate = [&](double lat, double lon, const char* mode) {
+        const json req = {{"site", {{"latitude_deg", lat}, {"longitude_deg", lon}, {"observer_height_m", 2.0}}},
+                          {"start_utc", "2026-11-15T00:00:00Z"}, {"duration_hours", 720}, {"step_minutes", 60},
+                          {"terrain_mode", mode}};
+        return app.handle("POST", "/evaluate", req.dump()).body;
+    };
+    auto hours = [](const json& body, const char* key) {
+        double total = 0;
+        for (const auto& w : body["windows"][key]) total += static_cast<double>(parse_utc(w["end_utc"]) - parse_utc(w["start_utc"])) / 3.6e9;
+        return total;
+    };
+
+    // Floor of Shackleton crater (about 89.67 S, 129.8 E): a known permanently shadowed region,
+    // ~4 km below its rim. The Sun must never clear the walls; the ideal horizon says "always lit".
+    json floor = evaluate(-89.67, 129.8, "dem");
+    CHECK(floor["status"] == "computed" && floor["model"]["horizon_model"] == "dem_terrain");
+    const json& th = floor["terrain_horizon"];
+    CHECK(th["site_surface_height_m"].get<double>() < -2300.0 && th["site_surface_height_m"].get<double>() > -3300.0);
+    double lowest = 90.0;
+    for (const auto& e : th["elevation_deg"]) lowest = std::min(lowest, e.get<double>());
+    CHECK(lowest > 12.0);  // walls all around
+    CHECK(floor["windows"]["sun_visible"].empty());
+    CHECK(floor["windows"]["earth_visible"].empty());
+    CHECK(hours(evaluate(-89.67, 129.8, "ideal"), "sun_visible") > 700.0);
+    bool dem_provenance = false;
+    for (const auto& p : floor["data_provenance"]) dem_provenance = dem_provenance || p["kind"] == "dem";
+    CHECK(dem_provenance && floor["synthetic"] == false);
+
+    // A high point near the Shackleton-de Gerlache ridge (about 89.45 S, 137.3 W): close to 2 km
+    // above the sphere, horizon near or below 0 deg, far more sunlight than the crater floor.
+    json ridge = evaluate(-89.45, -137.3, "dem");
+    CHECK(ridge["status"] == "computed");
+    CHECK(ridge["terrain_horizon"]["site_surface_height_m"].get<double>() > 1200.0);
+    CHECK(hours(ridge, "sun_visible") > 500.0);
+
+    // Outside the DEM (north of 85 S) and on its edge: not_ready with the reason, no numbers.
+    json out = evaluate(-84.0, 0.0, "dem");
+    CHECK(out["status"] == "not_ready" && out["samples"].empty());
+    json edge = evaluate(-85.2, 45.0, "dem");
+    CHECK(edge["status"] == "not_ready");
+    CHECK(edge["message"].get<std::string>().find("too close to the edge") != std::string::npos);
+    std::printf("real-DEM terrain horizon: Shackleton floor %.0f m, lowest horizon %.1f deg, Sun never visible; "
+                "ridge %.0f m, Sun %.0f h of 720\n",
+                th["site_surface_height_m"].get<double>(), lowest,
+                ridge["terrain_horizon"]["site_surface_height_m"].get<double>(), hours(ridge, "sun_visible"));
+}
+
 int main() {
     if (!spice::available()) {
         CHECK_THROWS(spice::utc_to_et("2026-11-14T12:00:00Z"));  // the no-CSPICE build fails cleanly
@@ -356,6 +413,7 @@ int main() {
     test_meeus_vs_spice();
     test_threads();
     test_api(kdir);
+    test_real_terrain(kdir);
 
     std::printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
