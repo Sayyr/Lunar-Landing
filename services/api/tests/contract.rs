@@ -9,7 +9,9 @@ use axum::http::{Request, StatusCode};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use http_body_util::BodyExt;
-use lunar_landing::celestial::{CelestialStateRequest, CelestialStateResponse};
+use lunar_landing::celestial::{
+    CelestialStateRequest, CelestialStateResponse, CelestialTracksResponse,
+};
 use lunar_landing::envelope::ErrorResponse;
 use lunar_landing::gateway::{AppState, SITES_JSON};
 use lunar_landing::mission::{MissionSimulateRequest, MissionSimulateResponse, Verdict};
@@ -159,6 +161,7 @@ async fn mock_science() -> String {
     let slope = load("fixtures/slope-check-response.synthetic-dem.json");
     let radio = load("fixtures/radio-link-response.computed.json");
     let celestial = load("fixtures/celestial-state-response.computed.json");
+    let tracks = load("fixtures/celestial-tracks-response.computed.json");
     let mission_not_ready = load("fixtures/mission-simulate-response.not-ready.json");
     let mission_synthetic = load("fixtures/mission-simulate-response.synthetic.json");
     let app = Router::new()
@@ -173,6 +176,10 @@ async fn mock_science() -> String {
         .route(
             "/celestial/state",
             post(move || async move { Json(celestial) }),
+        )
+        .route(
+            "/celestial/tracks",
+            post(move || async move { Json(tracks) }),
         )
         .route("/radio/evaluate", post(move || async move { Json(radio) }))
         .route(
@@ -585,6 +592,57 @@ async fn celestial_state_invalid_is_422_and_science_down_is_503() {
         app("http://127.0.0.1:9"),
         "POST",
         "/api/v1/celestial/state",
+        Some(req),
+    )
+    .await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(body["error"]["code"], "science_unavailable");
+}
+
+// ---------- celestial tracks ----------
+
+#[test]
+fn celestial_tracks_fixture() {
+    let raw = load("fixtures/celestial-tracks-response.computed.json");
+    assert_valid("celestial-tracks-response.schema.json", &raw);
+    let typed: CelestialTracksResponse = serde_json::from_value(raw).unwrap();
+    assert_valid(
+        "celestial-tracks-response.schema.json",
+        &serde_json::to_value(&typed).unwrap(),
+    );
+    assert_eq!(typed.model.provider, "spice");
+    assert!(!typed.synthetic);
+    assert!(
+        typed.moon_from_earth.positions_m.len() > 2 && typed.sun_from_earth.positions_m.len() > 2
+    );
+}
+
+#[tokio::test]
+async fn celestial_tracks_forwards_science_result() {
+    let url = mock_science().await;
+    let req = load("fixtures/celestial-state-request.valid.json");
+    let (status, body) = call(app(&url), "POST", "/api/v1/celestial/tracks", Some(req)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid("celestial-tracks-response.schema.json", &body);
+}
+
+#[tokio::test]
+async fn celestial_tracks_invalid_is_422_and_science_down_is_503() {
+    let (status, body) = call(
+        app("http://127.0.0.1:9"),
+        "POST",
+        "/api/v1/celestial/tracks",
+        Some(json!({"utc": "2026-11-15"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(body["error"]["details"][0]["field"], "utc");
+
+    let req = load("fixtures/celestial-state-request.valid.json");
+    let (status, body) = call(
+        app("http://127.0.0.1:9"),
+        "POST",
+        "/api/v1/celestial/tracks",
         Some(req),
     )
     .await;

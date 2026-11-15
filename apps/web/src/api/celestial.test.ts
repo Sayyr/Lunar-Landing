@@ -4,13 +4,14 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { moonSky } from "../lunar/skyGeometry";
-import { eclipticOfDateToJ2000, getCelestialState, getMoonTrack, resetCelestialClient } from "./celestial";
-import type { CelestialStateResponse } from "./celestialTypes";
+import { getCelestialState, getCelestialTracks, resetCelestialClient } from "./celestial";
+import type { CelestialStateResponse, CelestialTracksResponse } from "./celestialTypes";
 
-// Real SPICE output (generated fixture, 2026-11-15T00:00:00Z).
-const FIXTURE: CelestialStateResponse = JSON.parse(
-  readFileSync(fileURLToPath(new URL("../../../../packages/contracts/fixtures/celestial-state-response.computed.json", import.meta.url)), "utf8"),
-);
+// Real SPICE output (generated fixtures, 2026-11-15T00:00:00Z).
+const fixture = (name: string) =>
+  JSON.parse(readFileSync(fileURLToPath(new URL(`../../../../packages/contracts/fixtures/${name}`, import.meta.url)), "utf8"));
+const FIXTURE: CelestialStateResponse = fixture("celestial-state-response.computed.json");
+const TRACKS: CelestialTracksResponse = fixture("celestial-tracks-response.computed.json");
 const DATE = new Date("2026-11-15T00:00:00Z");
 
 const reply = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -39,27 +40,21 @@ describe("getCelestialState", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("falls back to the labelled mock when ephemerides are unavailable, then backs off", async () => {
+  it("rejects with the backend's reason when ephemerides are unavailable (no browser fallback), then backs off", async () => {
     const fetchMock = vi.fn(async () =>
       reply(503, { error: { code: "science_unavailable", message: "Ephemerides not available: SELENE_KERNEL_DIR not set", details: [] } }),
     );
     vi.stubGlobal("fetch", fetchMock);
-    const state = await getCelestialState(DATE);
-    expect(state.synthetic).toBe(true);
-    expect(state.status).toBe("synthetic");
-    expect(state.model.provider).toBe("mock_low_precision");
-    expect(state.warnings[0]).toContain("SELENE_KERNEL_DIR not set");
-    expect(state.warnings.some((w) => w.includes("SYNTHETIC"))).toBe(true);
-    // The views tick many times per second: no new request during the back-off.
-    await getCelestialState(new Date(DATE.getTime() + 1000));
+    await expect(getCelestialState(DATE)).rejects.toThrow("SELENE_KERNEL_DIR not set");
+    // The views tick many times per second: no new request during the back-off, same reason.
+    await expect(getCelestialState(new Date(DATE.getTime() + 1000))).rejects.toThrow("SELENE_KERNEL_DIR not set");
+    await expect(getCelestialTracks(DATE)).rejects.toThrow("SELENE_KERNEL_DIR not set");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("falls back when the network fails", async () => {
+  it("rejects when the network fails", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => Promise.reject(new TypeError("fetch failed"))));
-    const state = await getCelestialState(DATE);
-    expect(state.synthetic).toBe(true);
-    expect(state.warnings[0]).toContain("fetch failed");
+    await expect(getCelestialState(DATE)).rejects.toThrow("Backend not reachable (fetch failed)");
   });
 
   it("rejects an invalid date without calling the backend", async () => {
@@ -81,24 +76,25 @@ describe("real state through the existing sky geometry", () => {
   });
 });
 
-describe("orbit traces", () => {
-  it("rotates ecliptic-of-date points to J2000 by the precession in longitude", () => {
-    // 26.87 years after J2000: p = 1.3969°/century × 0.2687 ≈ 0.3754°; longitude decreases.
-    const [[x, y, z]] = eclipticOfDateToJ2000([[1, 0, 0.5]], DATE);
-    expect((Math.atan2(y, x) * 180) / Math.PI).toBeCloseTo(-0.3754, 3);
-    expect(Math.hypot(x, y)).toBeCloseTo(1, 12);
-    expect(z).toBe(0.5);
-    // At J2000 itself: identity.
-    expect(eclipticOfDateToJ2000([[1, 2, 3]], new Date(Date.UTC(2000, 0, 1, 12)))[0]).toEqual([1, 2, 3]);
+describe("getCelestialTracks", () => {
+  beforeEach(() => resetCelestialClient());
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("returns the backend's SPICE traces, asked for the exact instant, and caches them", async () => {
+    const fetchMock = vi.fn(async () => reply(200, TRACKS));
+    vi.stubGlobal("fetch", fetchMock);
+    const t = await getCelestialTracks(DATE);
+    await getCelestialTracks(new Date(DATE.getTime()));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toMatch(/\/v1\/celestial\/tracks$/);
+    expect(JSON.parse(init.body as string)).toEqual({ utc: "2026-11-15T00:00:00.000Z" });
+    expect(t.model.provider).toBe("spice");
   });
 
-  it("the J2000 trace passes close to the real Moon position", () => {
+  it("the Moon trace passes through the state's Moon position (same instant, same frame)", () => {
     const moon = FIXTURE.moon_from_earth.position_m;
-    const nearest = (track: [number, number, number][]) =>
-      Math.min(...track.map((p) => Math.hypot(p[0] - moon[0], p[1] - moon[1], p[2] - moon[2])));
-    const j2000 = nearest(getMoonTrack(DATE, true));
-    // Low-precision trace sampled every ~3 h: within a few thousand km of the SPICE position.
-    expect(j2000).toBeLessThan(6_000_000);
-    expect(j2000).toBeLessThan(nearest(getMoonTrack(DATE, false)) + 1);
+    const nearest = Math.min(...TRACKS.moon_from_earth.positions_m.map((p) => Math.hypot(p[0] - moon[0], p[1] - moon[1], p[2] - moon[2])));
+    expect(nearest).toBeLessThan(1);
   });
 });

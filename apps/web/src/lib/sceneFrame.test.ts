@@ -1,10 +1,16 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { Vector3 } from "three";
 import { describe, expect, it } from "vitest";
 
-import { earthFixedToEcliptic } from "../mock/lowPrecisionEphemeris";
+import type { CelestialStateResponse, CelestialTracksResponse } from "../api/celestialTypes";
 import { latLonToUnit } from "../lunar/geo";
-import { getMoonTrack } from "../api/celestial";
 import { bodyRotationToThree, closeLoop, eclToThree } from "./sceneFrame";
+
+// Real SPICE output (generated contract fixtures, 2026-11-15T00:00:00Z), read at test time.
+const fixture = (name: string) =>
+  JSON.parse(readFileSync(fileURLToPath(new URL(`../../../../packages/contracts/fixtures/${name}`, import.meta.url)), "utf8"));
 
 describe("eclToThree", () => {
   it("maps the ecliptic plane onto the Three.js XZ plane", () => {
@@ -23,7 +29,7 @@ describe("bodyRotationToThree", () => {
   });
 
   it("agrees with applying the body→ecliptic matrix and then eclToThree", () => {
-    const m = earthFixedToEcliptic(2461000.25, 2461000.25);
+    const m = (fixture("celestial-state-response.computed.json") as CelestialStateResponse).earth_orientation;
     const R = bodyRotationToThree(m);
     for (const [lat, lon] of [[0, 0], [0, 90], [45, -120], [-60, 10], [90, 0]]) {
       const local = latLonToUnit(lat, lon); // mesh-local point, same Y-up convention
@@ -51,12 +57,10 @@ describe("closeLoop", () => {
     expect(out[3][1]).toBeCloseTo(0);
   });
 
-  it("one-sidereal-month Moon track: residual is small (< 3 % of the distance) before closing", () => {
-    for (const d of ["2026-11-13T13:04:00Z", "2026-11-20T00:00:00Z", "2027-03-01T00:00:00Z"]) {
-      const t = getMoonTrack(new Date(d));
-      const [a, b] = [t[0], t[t.length - 1]];
-      const gap = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
-      expect(gap / Math.hypot(...a)).toBeLessThan(0.03);
-    }
+  it("one-sidereal-month Moon track from the API: residual is small (< 3 % of the distance) before closing", () => {
+    const t = (fixture("celestial-tracks-response.computed.json") as CelestialTracksResponse).moon_from_earth.positions_m;
+    const [a, b] = [t[0], t[t.length - 1]];
+    const gap = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+    expect(gap / Math.hypot(...a)).toBeLessThan(0.03);
   });
 });

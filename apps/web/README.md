@@ -5,7 +5,7 @@ React + TypeScript + Vite. Two views, switched in the header (state kept in the 
 | Tab | URL | What |
 |---|---|---|
 | **Site scenario** | `#/` | Interactive 3D Moon (LOLA relief, LROC colour, IAU feature names on hover, search). Clicking the surface selects the scenario site; the form sends it to the API. |
-| **Sun · Earth · Moon** | `#/sky` | Pick a UTC date → Moon position relative to Earth and to the Sun, phase, 3D Earth–Moon and Sun–Earth–Moon views. **Mock data** for now (see below). |
+| **Sun · Earth · Moon** | `#/sky` | Pick a UTC date → Moon position relative to Earth and to the Sun, phase, 3D Earth–Moon and Sun–Earth–Moon views. SPICE data from the API (see below). |
 
 The lunar explorer was ported from the former stand-alone `apps/moon-explorer` (vanilla JS); its logic is
 unchanged, its UI text translated to English.
@@ -93,24 +93,25 @@ document.addEventListener("moonclick", (e) => {
 
 Interactions: mouse hover; click = marker + scenario site. Touch: tap = hover (tooltip), long press = marker + site.
 
-## Sun · Earth · Moon state — SPICE, with a labelled mock fallback (`src/components/celestial/`, `src/mock/`)
+## Sun · Earth · Moon state — from the API only (`src/components/celestial/`, `src/api/celestial.ts`)
 
 `src/api/celestial.ts` is the single integration point for the dashboard, the globe lighting, the sky compass and
-the ground view. It calls `POST /api/v1/celestial/state` (science service: CSPICE + DE440, geometric positions in
-ECLIPJ2000, real lunar orientation; contract in `packages/contracts/schemas/celestial-state-response.schema.json`).
-If that fails (no kernels on the server, services down, date outside 1849–2150) it returns
-`src/mock/celestialMock.ts` instead, flagged `status: "synthetic"`, with the reason as first warning, and the UI
-shows its SYNTHETIC labels. After a failure the backend is retried every 15 s. The orbit traces are always
-low-precision browser curves (decorative), rotated to J2000 when the state is real.
+the ground view. No ephemeris is computed in the browser: everything comes from the API (science service, CSPICE +
+DE440, ECLIPJ2000, routed by the Rust gateway):
 
-The mock runs the **low-precision published formulae** (Astronomical Almanac Moon and Sun series, IAU 1982 GMST):
+- `POST /api/v1/celestial/state`: geometric Sun/Earth/Moon state at one instant, phase, Moon and Earth orientation
+  (`packages/contracts/schemas/celestial-state-response.schema.json`).
+- `POST /api/v1/celestial/tracks`: Moon orbit trace over one sidereal month and Earth→Sun over one year, centred on
+  the day shown, fetched once per UTC day (`celestial-tracks-response.schema.json`). Decorative lines.
 
-- Frame: geocentric ecliptic and mean equinox **of date** (not J2000 / ECLIPJ2000); TT = UTC + 69.184 s.
-- Source-stated accuracy (spot-checked in `lowPrecisionEphemeris.test.ts` against Meeus' worked examples and the
-  2024-04-08 / 2025-03-14 eclipses, not validated further): Moon λ 0.3°, β 0.2°; Sun λ 0.01° (1950–2050).
-- 3D: Earth–Moon view has true distances (Earth/Moon radii optionally ×6), the Sun at a compressed distance with its true
-  angular size; the Sun–Earth–Moon view is schematic, not to scale. Earth texture oriented by GMST + obliquity; Moon
-  near side toward Earth (no libration). Shadows/eclipses are not rendered. The Sun is a procedural shader.
+When the backend cannot answer (no kernels on the server, services down, date outside 1849–2150) both reject with the
+reason; the views say "Ephemerides unavailable" / "Sky unavailable" and draw no positions. After a failure the backend
+is retried every 15 s.
+
+3D: Earth–Moon view has true distances (Earth/Moon radii optionally ×6), the Sun at a compressed distance with its true
+angular size; the Sun–Earth–Moon view is schematic, not to scale. Moon orientation from SPICE (MOON_ME, librations
+included); Earth texture oriented by the IAU rotation model. Shadows/eclipses are not rendered. The Sun is a procedural
+shader.
 
 ## Deployment
 

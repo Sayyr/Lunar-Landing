@@ -1,5 +1,5 @@
 // 3D models of the Sun, Earth and Moon. Appearance only: positions and orientations are passed in
-// from the celestial state (mock for now); nothing here computes astronomy.
+// from the celestial state (API, SPICE); nothing here computes astronomy.
 
 import { Html } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";

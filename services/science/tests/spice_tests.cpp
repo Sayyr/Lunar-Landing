@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "app.hpp"
+#include "celestial.hpp"
 #include "ephemeris.hpp"
 #include "geometry.hpp"
 #include "lunar_ephemeris.hpp"
@@ -387,6 +388,26 @@ static void test_real_terrain(const fs::path& kdir) {
                 ridge["terrain_horizon"]["site_surface_height_m"].get<double>(), hours(ridge, "sun_visible"));
 }
 
+// Same JSON structure, numbers equal to a relative 1e-9 (fixtures generated on another libm).
+static bool near_json(const json& x, const json& y) {
+    if (x.is_number() && y.is_number()) {
+        const double p = x.get<double>(), q = y.get<double>();
+        return std::fabs(p - q) <= std::max(1e-9, 1e-9 * std::max(std::fabs(p), std::fabs(q)));
+    }
+    if (x.type() != y.type() || x.size() != y.size()) return false;
+    if (x.is_object()) {
+        for (auto it = x.begin(); it != x.end(); ++it)
+            if (!y.contains(it.key()) || !near_json(it.value(), y.at(it.key()))) return false;
+        return true;
+    }
+    if (x.is_array()) {
+        for (size_t i = 0; i < x.size(); ++i)
+            if (!near_json(x[i], y[i])) return false;
+        return true;
+    }
+    return x == y;
+}
+
 // POST /celestial/state: geometric Sun/Earth/Moon state for the 3D views.
 static void test_celestial_state(const fs::path& kdir) {
     const App app{std::optional<fs::path>(kdir)};
@@ -465,25 +486,39 @@ static void test_celestial_state(const fs::path& kdir) {
 
     // Live output still matches the generated contract fixture (relative 1e-9: other libm).
     const json fixture = json::parse(std::ifstream(fs::path(SELENE_CONTRACTS_DIR) / "fixtures/celestial-state-response.computed.json"));
-    std::function<bool(const json&, const json&)> near = [&](const json& x, const json& y) {
-        if (x.is_number() && y.is_number()) {
-            const double p = x.get<double>(), q = y.get<double>();
-            return std::fabs(p - q) <= std::max(1e-9, 1e-9 * std::max(std::fabs(p), std::fabs(q)));
-        }
-        if (x.type() != y.type() || x.size() != y.size()) return false;
-        if (x.is_object()) {
-            for (auto it = x.begin(); it != x.end(); ++it)
-                if (!y.contains(it.key()) || !near(it.value(), y.at(it.key()))) return false;
-            return true;
-        }
-        if (x.is_array()) {
-            for (size_t i = 0; i < x.size(); ++i)
-                if (!near(x[i], y[i])) return false;
-            return true;
-        }
-        return x == y;
-    };
-    CHECK(near(state("2026-11-15T00:00:00Z").body, fixture));
+    CHECK(near_json(state("2026-11-15T00:00:00Z").body, fixture));
+}
+
+// POST /celestial/tracks: orbit traces for the 3D views.
+static void test_celestial_tracks(const fs::path& kdir) {
+    const App app{std::optional<fs::path>(kdir)};
+    auto call = [&](const char* path) { return app.handle("POST", path, json{{"utc", "2026-11-15T00:00:00Z"}}.dump()); };
+    auto vec = [](const json& j) { return Vec3{j[0].get<double>(), j[1].get<double>(), j[2].get<double>()}; };
+    const HttpResponse r = call("/celestial/tracks");
+    CHECK(r.status == 200);
+    const json& b = r.body;
+    CHECK(b["status"] == "computed" && b["synthetic"] == false && b["model"]["provider"] == "spice");
+    const json& moon = b["moon_from_earth"];
+    const json& sun = b["sun_from_earth"];
+    CHECK(moon["positions_m"].size() == MOON_TRACK_STEPS + 1 && sun["positions_m"].size() == SUN_TRACK_STEPS + 1);
+    CHECK(std::fabs(moon["step_hours"].get<double>() - SIDEREAL_MONTH_DAYS * 24 / MOON_TRACK_STEPS) < 1e-12);
+    CHECK(moon["start_utc"] == "2026-11-01T08:08:24.201Z");  // utc - 13.660831 d
+    // Physical ranges on every sample (same bounds as the state test).
+    for (const auto& p : moon["positions_m"]) CHECK(norm(vec(p)) > 3.56e8 && norm(vec(p)) < 4.07e8);
+    for (const auto& p : sun["positions_m"]) CHECK(norm(vec(p)) > 1.47e11 && norm(vec(p)) < 1.522e11);
+    // The middle sample is the requested instant: equal to /celestial/state there (1 us of rounding: < 1 m).
+    const json st = call("/celestial/state").body;
+    const Vec3 mid_moon = vec(moon["positions_m"][MOON_TRACK_STEPS / 2]), mid_sun = vec(sun["positions_m"][SUN_TRACK_STEPS / 2]);
+    const Vec3 st_moon = vec(st["moon_from_earth"]["position_m"]), st_sun = vec(st["sun_from_earth"]["position_m"]);
+    for (int i = 0; i < 3; ++i) CHECK(std::fabs(mid_moon[i] - st_moon[i]) < 1.0 && std::fabs(mid_sun[i] - st_sun[i]) < 50.0);
+    // One sidereal month brings the Moon back near its start (< 3 % of the distance: perturbations).
+    const Vec3 a = vec(moon["positions_m"].front()), z = vec(moon["positions_m"].back());
+    CHECK(norm(Vec3{a[0] - z[0], a[1] - z[1], a[2] - z[2]}) / norm(a) < 0.03);
+    // Outside the ephemeris: explicit 503, no positions.
+    const HttpResponse out = app.handle("POST", "/celestial/tracks", json{{"utc", "2300-01-01T00:00:00Z"}}.dump());
+    CHECK(out.status == 503 && !out.body.contains("moon_from_earth"));
+    const json fixture = json::parse(std::ifstream(fs::path(SELENE_CONTRACTS_DIR) / "fixtures/celestial-tracks-response.computed.json"));
+    CHECK(near_json(b, fixture));
 }
 
 int main() {
@@ -515,6 +550,7 @@ int main() {
     test_api(kdir);
     test_real_terrain(kdir);
     test_celestial_state(kdir);
+    test_celestial_tracks(kdir);
 
     std::printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;

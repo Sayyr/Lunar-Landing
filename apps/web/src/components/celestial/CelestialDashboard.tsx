@@ -62,7 +62,8 @@ export function CelestialDashboard({ active }: { active: boolean }) {
     let current = true;
     getCelestialState(date)
       .then((s) => current && (setState(s), setError(null)))
-      .catch((e) => current && setError(e instanceof Error ? e.message : String(e)));
+      // No stale positions: a state for another date would be shown as if it were this one.
+      .catch((e) => current && (setState(null), setError(e instanceof Error ? e.message : String(e))));
     return () => {
       current = false;
     };
@@ -108,7 +109,7 @@ export function CelestialDashboard({ active }: { active: boolean }) {
           }
         />
       ) : (
-        <div className="celestial-canvas placeholder">Loading…</div>
+        <div className="celestial-canvas placeholder">{error ? "Ephemerides unavailable" : "Loading…"}</div>
       )}
 
       {/* Top-left overlay: phase summary, view, time controls (same place as the scenario compass). */}
@@ -183,9 +184,6 @@ export function CelestialDashboard({ active }: { active: boolean }) {
           </select>
         </div>
 
-        {state?.synthetic && (
-          <div className="sky-note" title={state.warnings[0]}>SYNTHETIC MOCK — low-precision formulae in the browser, not SPICE. Not for analysis.</div>
-        )}
         {error && <div className="error" role="alert">{error}</div>}
       </div>
 
@@ -210,7 +208,7 @@ export function CelestialDashboard({ active }: { active: boolean }) {
                 <span className="dot moon" /> Moon relative to Earth
               </h2>
               <dl className="kv">
-                <Row k="Distance (centre–centre)" v={`${fmtKm(state.moon_from_earth.distance_m, 100)} · ${(state.moon_from_earth.distance_m / EARTH_MEAN_RADIUS_M).toFixed(1)} R⊕`} hint="Rounded to 100 km: the mock's stated accuracy is ~0.3 %." />
+                <Row k="Distance (centre–centre)" v={`${fmtKm(state.moon_from_earth.distance_m, 100)} · ${(state.moon_from_earth.distance_m / EARTH_MEAN_RADIUS_M).toFixed(1)} R⊕`} hint="Rounded to 100 km for display." />
                 <Row k="Ecliptic longitude λ" v={fmtDeg(state.moon_from_earth.longitude_deg)} />
                 <Row k="Ecliptic latitude β" v={fmtSignedDeg(state.moon_from_earth.latitude_deg)} />
                 <Row k="Right ascension α" v={fmtRa(state.moon_from_earth.right_ascension_deg)} />

@@ -1,4 +1,4 @@
-import type { CelestialStateResponse } from "./celestialTypes";
+import type { CelestialStateResponse, CelestialTracksResponse } from "./celestialTypes";
 import type { MissionRequest, MissionResponse } from "./missionTypes";
 import type {
   ErrorResponse,
@@ -54,6 +54,9 @@ export const api = {
   /** Sun/Earth/Moon geometric state (SPICE) for the 3D views; 503 when ephemerides are unavailable. */
   celestialState: (utc: string) =>
     request<CelestialStateResponse>("/v1/celestial/state", { method: "POST", body: JSON.stringify({ utc }) }),
+  /** Moon and Sun orbit traces (SPICE) around `utc`, for the 3D views; 503 when ephemerides are unavailable. */
+  celestialTracks: (utc: string) =>
+    request<CelestialTracksResponse>("/v1/celestial/tracks", { method: "POST", body: JSON.stringify({ utc }) }),
   /** Direct-to-Earth radio-link windows (engineering estimate, analytic ephemeris — not a link guarantee). */
   radioLink: (req: RadioLinkRequest) =>
     request<RadioLinkResponse>("/v1/scenarios/radio-link", { method: "POST", body: JSON.stringify(req) }),

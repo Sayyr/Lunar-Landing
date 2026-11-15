@@ -1,9 +1,9 @@
 // Sun / Earth directions as seen from the Moon, and their local azimuth/elevation at a site.
-// VISUALIZATION of the celestial state (today the SYNTHETIC mock, later the backend): no new
+// VISUALIZATION of the celestial state (API, SPICE): no new
 // ephemeris maths here, only frame rotations.
 //
 // Frames:
-//   - input: CelestialStateResponse vectors (ecliptic of date, metres) and `moon_orientation`
+//   - input: CelestialStateResponse vectors (ECLIPJ2000, metres) and `moon_orientation`
 //     (row-major 3×3, Moon body-fixed → ecliptic of date);
 //   - output "body": Moon body-fixed, +X = lon 0°, +Y = lon 90° E, +Z = north pole (unit vectors).
 // Directions are from the Moon's CENTRE: topocentric parallax (≤ 0.26° for Earth, negligible for

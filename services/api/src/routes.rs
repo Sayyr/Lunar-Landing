@@ -34,6 +34,7 @@ pub fn gateway_router(state: AppState) -> Router {
         .route("/terrain/slope/check", post(gateway::slope_check))
         .route("/scenarios/radio-link", post(gateway::radio_link))
         .route("/celestial/state", post(gateway::celestial_state))
+        .route("/celestial/tracks", post(gateway::celestial_tracks))
         .with_state(state)
 }
 

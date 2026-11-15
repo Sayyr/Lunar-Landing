@@ -1,4 +1,4 @@
-//! Celestial-state contract types (mirror `packages/contracts/schemas/celestial-state-*.schema.json`)
+//! Celestial-state and orbit-track contract types (mirror `packages/contracts/schemas/celestial-*.schema.json`)
 //! and gateway-side input validation. No astronomy here: the science service computes the state.
 
 use serde::{Deserialize, Serialize};
@@ -84,6 +84,31 @@ pub struct CelestialStateResponse {
     pub derived: Derived,
     pub earth_orientation: [f64; 9],
     pub moon_orientation: [f64; 9],
+    pub model: CelestialModel,
+    pub assumptions: Vec<String>,
+    pub warnings: Vec<String>,
+}
+
+/// One orbit trace: geometric Earth->body positions (metres, ECLIPJ2000) at a fixed step.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Track {
+    pub start_utc: String,
+    pub step_hours: f64,
+    pub positions_m: Vec<[f64; 3]>,
+}
+
+/// `POST /celestial/tracks` response (request body: [`CelestialStateRequest`]).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CelestialTracksResponse {
+    pub schema_version: String,
+    pub status: String,
+    pub synthetic: bool,
+    pub utc: String,
+    pub frame: Frame,
+    pub moon_from_earth: Track,
+    pub sun_from_earth: Track,
     pub model: CelestialModel,
     pub assumptions: Vec<String>,
     pub warnings: Vec<String>,
