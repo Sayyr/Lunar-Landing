@@ -98,6 +98,12 @@ struct Apparent {
 // body name or id, e.g. "SUN", "EARTH".
 Apparent apparent_position(const std::string& target, double et, const Vec3& observer_km);
 
+// GEOMETRIC position (spkpos_c, no light-time or aberration correction) of `target` relative to
+// `observer` in `frame` at `et`, km. Any frame the loaded kernels define, e.g. "ECLIPJ2000", "J2000".
+// For scene placement; apparent directions of a surface site use apparent_position().
+Vec3 geometric_position_km(const std::string& target, const std::string& observer, const std::string& frame,
+                           double et);
+
 struct AzEl {
     double azimuth_deg;    // from local north toward east, [0, 360); 0 when the target is at zenith/nadir
     double elevation_deg;  // above the ideal geometric horizon of the reference sphere

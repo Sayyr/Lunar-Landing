@@ -1,0 +1,91 @@
+{
+  "schema_version": "0.1.0",
+  "status": "computed",
+  "synthetic": false,
+  "utc": "2026-11-15T00:00:00.000Z",
+  "frame": {
+    "name": "ECLIPJ2000 (geocentric origin)",
+    "description": "Ecliptic and equinox of J2000. +X toward the J2000 equinox, +Z toward the north ecliptic pole. Not the ecliptic of date."
+  },
+  "moon_from_earth": {
+    "longitude_deg": 294.992597043572,
+    "latitude_deg": -2.5039623144508165,
+    "distance_m": 404749174.3132746,
+    "position_m": [
+      170843717.76184013,
+      -366499159.811304,
+      -17682874.94155127
+    ],
+    "right_ascension_deg": 297.42618770794127,
+    "declination_deg": -23.595021801177168
+  },
+  "moon_from_sun": {
+    "longitude_deg": 52.119280688247144,
+    "latitude_deg": -0.009790437452780068,
+    "distance_m": 147814222549.50604,
+    "position_m": [
+      90760832833.79845,
+      116668397491.66544,
+      -25257809.663438383
+    ]
+  },
+  "sun_from_earth": {
+    "longitude_deg": 232.25860457296034,
+    "latitude_deg": 0.002932531290813831,
+    "distance_m": 147999031144.27847,
+    "position_m": [
+      -90589989116.0366,
+      -117034896651.47675,
+      7574934.721887112
+    ]
+  },
+  "derived": {
+    "elongation_deg": 62.76232774057023,
+    "phase_angle_deg": 117.09817969523353,
+    "illuminated_fraction": 0.27224168766727197,
+    "waxing": true,
+    "phase_name": "Waxing crescent"
+  },
+  "earth_orientation": [
+    0.5924942220862913,
+    -0.8055704644244316,
+    0.002612210053987302,
+    0.7384858504795508,
+    0.5444435638977695,
+    0.39776859399880987,
+    -0.32185283195251685,
+    -0.23374651350833267,
+    0.91748205540318
+  ],
+  "moon_orientation": [
+    -0.4646469049959435,
+    -0.8853621273264018,
+    0.015399908238650001,
+    0.8854018655083344,
+    -0.4642735709138749,
+    0.02266247791483339,
+    -0.012914729267460512,
+    0.024165157705824142,
+    0.9996245569817704
+  ],
+  "model": {
+    "provider": "spice",
+    "time_scale_note": "UTC at the API boundary; converted to ET (TDB seconds past J2000) by SPICE str2et with the leap-second kernel.",
+    "nominal_accuracy": "JPL DE440 ephemeris through CSPICE; geometric positions (no light-time or aberration correction). Not validated against JPL Horizons for this endpoint.",
+    "kernel_set": [
+      "naif0012.tls",
+      "de440s.bsp",
+      "pck00011.tpc",
+      "moon_pa_de440_200625.bpc",
+      "moon_de440_250416.tf"
+    ]
+  },
+  "assumptions": [
+    "Positions are geometric (no light-time, no aberration): consistent for placing bodies in a scene; the apparent directions of a lunar site come from the scenario evaluation.",
+    "Moon seen from the Sun = (Earth->Moon) - (Earth->Sun).",
+    "Illuminated fraction k = (1 + cos i)/2 with i the Sun-Moon-Earth phase angle (spherical Moon, no terrain).",
+    "Moon orientation: MOON_ME (mean Earth / polar axis, DE440 lunar orientation, librations included).",
+    "Earth orientation (texture only): IAU rotation model of pck00011.tpc (IAU_EARTH); no polar motion, no UT1-UTC."
+  ],
+  "warnings": []
+}

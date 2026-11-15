@@ -93,13 +93,17 @@ document.addEventListener("moonclick", (e) => {
 
 Interactions: mouse hover; click = marker + scenario site. Touch: tap = hover (tooltip), long press = marker + site.
 
-## Sun · Earth · Moon dashboard — mock data (`src/components/celestial/`, `src/mock/`)
+## Sun · Earth · Moon state — SPICE, with a labelled mock fallback (`src/components/celestial/`, `src/mock/`)
 
-`src/api/celestial.ts` is the single integration point. Until the science service exposes Sun/Earth/Moon state,
-it returns `src/mock/celestialMock.ts`, which runs the **low-precision published formulae** (Astronomical Almanac Moon
-and Sun series, IAU 1982 GMST) in the browser. Every response is `status: "synthetic"` and the UI says so. The draft
-response shape is in `src/api/celestialTypes.ts` (degrees, metres, UTC); add a JSON Schema to `packages/contracts`
-when the backend lands.
+`src/api/celestial.ts` is the single integration point for the dashboard, the globe lighting, the sky compass and
+the ground view. It calls `POST /api/v1/celestial/state` (science service: CSPICE + DE440, geometric positions in
+ECLIPJ2000, real lunar orientation; contract in `packages/contracts/schemas/celestial-state-response.schema.json`).
+If that fails (no kernels on the server, services down, date outside 1849–2150) it returns
+`src/mock/celestialMock.ts` instead, flagged `status: "synthetic"`, with the reason as first warning, and the UI
+shows its SYNTHETIC labels. After a failure the backend is retried every 15 s. The orbit traces are always
+low-precision browser curves (decorative), rotated to J2000 when the state is real.
+
+The mock runs the **low-precision published formulae** (Astronomical Almanac Moon and Sun series, IAU 1982 GMST):
 
 - Frame: geocentric ecliptic and mean equinox **of date** (not J2000 / ECLIPJ2000); TT = UTC + 69.184 s.
 - Source-stated accuracy (spot-checked in `lowPrecisionEphemeris.test.ts` against Meeus' worked examples and the

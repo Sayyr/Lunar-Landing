@@ -985,6 +985,17 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, focus, startUt
               </p>
             </>
           )}
+          {sky && !sky.synthetic && (
+            <>
+              <h3>Sky</h3>
+              <p className="muted small">
+                Sky from SPICE (DE440): geometric Sun/Earth directions at the Moon's centre, real lunar orientation
+                (librations included), ideal horizon. Lighting, background Sun/Earth and compass follow it. Seen from
+                the site itself the Earth can differ by up to 0.26° (parallax): the scenario result (Evaluate) gives
+                the apparent directions at the site and is the reference.
+              </p>
+            </>
+          )}
           <h3>Assumptions</h3>
           <ul>
             <li>
