@@ -5,7 +5,8 @@
 //   * Sun/Earth directions and visibility: evaluate() (SPICE or synthetic provider, ideal or DEM horizon);
 //   * direct-to-Earth link windows: evaluate_radio_link() (analytic ephemeris, ideal horizon + mask),
 //     intersected with the Earth visibility above the DEM horizon in "dem" mode;
-//   * landing-zone slope: slope_check() on a 4 km disc (radius 2000 m) of the 20 m LOLA DEM.
+//   * landing-zone slope: slope_check() on a 4 km disc (radius 2000 m) of the finest installed
+//     LOLA DEM covering it (20 m south polar, SLDEM2015 ~60 m for 60S-60N, polar 60 m products).
 // New here: a solar-array + battery energy balance (SCIENTIFIC_REFERENCE.md section 10), the delay before
 // landing, constraint verdicts, resource sizing and corrections.
 //
@@ -101,7 +102,8 @@ double battery_at_landing_wh(const PowerParams& p, double delay_hours, std::opti
 struct MissionContext {
     const EphemerisProvider* provider = nullptr;
     TerrainContext terrain;
-    const Dem* slope_dem = nullptr;  // for the landing-zone slope check
+    // Landing-zone slope check DEMs, finest first (slope_check_any). Empty = not available.
+    std::vector<const Dem*> slope_dems;
     std::string slope_unavailable_reason = "no DEM installed";
 };
 

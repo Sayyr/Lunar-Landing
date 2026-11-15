@@ -1,6 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import { api, ApiError } from "../../api/client";
 import { getCelestialState } from "../../api/celestial";
+import type { SavedMission } from "../../lib/mission";
+import { arrivalUtc, computeMissionTrajectory, toTrajectoryView, type TrajectoryView } from "../../lib/trajectory";
 import type { CelestialStateResponse } from "../../api/celestialTypes";
 import { AU_M, EARTH_MEAN_RADIUS_M } from "../../lib/constants";
 import { DATA_README_URL } from "../../lib/links";
@@ -45,8 +48,35 @@ function Row({ k, v, hint }: { k: string; v: string; hint?: string }) {
 const OVERLAY_RIGHT_PX = 20 + 300;
 const PANEL_PX = 380;
 
-/** `active` is false while the tab is hidden: rendering and playback pause. */
-export function CelestialDashboard({ active }: { active: boolean }) {
+const describeError = (e: unknown) =>
+  e instanceof ApiError && e.body
+    ? `${e.body.error.code}: ${e.body.error.message}${e.body.error.details.length ? ` (${e.body.error.details.map((d) => `${d.field}: ${d.issue}`).join("; ")})` : ""}`
+    : e instanceof Error
+      ? e.message
+      : String(e);
+
+/**
+ * `active` is false while the tab is hidden: rendering and playback pause. `site`: the landing site of
+ * the Site scenario tab, the target of the Earth→Moon trajectory.
+ */
+export function CelestialDashboard({
+  active,
+  site,
+  missions,
+  trajectory: traj,
+  onTrajectory: setTraj,
+  focus,
+}: {
+  active: boolean;
+  site: { latitude_deg: number; longitude_deg: number };
+  /** named missions from the Mission page: pick one to compute its trajectory */
+  missions: SavedMission[];
+  /** shared with the Mission page ("Trajectory for this mission") */
+  trajectory: TrajectoryView | null;
+  onTrajectory: (v: TrajectoryView | null) => void;
+  /** jump to this instant when seq changes (e.g. "View on Sun · Earth · Moon") */
+  focus: { utc: string; seq: number } | null;
+}) {
   const [date, setDate] = useState(nowMinute);
   const [anchor, setAnchor] = useState(date);
   const [view, setView] = useState<SceneView>("earth-moon");
@@ -57,6 +87,93 @@ export function CelestialDashboard({ active }: { active: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(false); // opened from the "⋯" button
   const [kmPerPx, setKmPerPx] = useState<number | null>(null);
+  const [trajBusy, setTrajBusy] = useState(false);
+  const [trajError, setTrajError] = useState<string | null>(null);
+  const [transferDays, setTransferDays] = useState(4.5);
+
+  const computeTrajectory = async () => {
+    setTrajBusy(true);
+    setTrajError(null);
+    try {
+      const r = await api.trajectorySimulate({
+        site: { latitude_deg: site.latitude_deg, longitude_deg: site.longitude_deg },
+        departure_utc: `${toInputUtc(date)}:00Z`,
+        transfer_days: transferDays,
+      });
+      setTraj(r.status === "computed" ? toTrajectoryView(r) : null);
+      if (r.status !== "computed") setTrajError(`${r.status}: ${r.message}`);
+      else setPlaying(false);
+    } catch (e) {
+      setTraj(null);
+      setTrajError(describeError(e));
+    } finally {
+      setTrajBusy(false);
+    }
+  };
+  const [trajProgress, setTrajProgress] = useState<string | null>(null);
+  const computeForMission = async (m: SavedMission) => {
+    setTrajBusy(true);
+    setTrajError(null);
+    try {
+      const res = await computeMissionTrajectory(
+        api.trajectorySimulate,
+        {
+          name: m.name,
+          site: { latitude_deg: m.result.request.site.latitude_deg, longitude_deg: m.result.request.site.longitude_deg },
+          landingUtc: m.result.pre_landing.landing_utc,
+          transferDays,
+        },
+        setTrajProgress,
+      );
+      setTraj(res.view);
+      const arrival = arrivalUtc(res.view.response);
+      if (arrival) setAbsolute(new Date(arrival));
+      setPlaying(false);
+    } catch (e) {
+      setTrajError(describeError(e));
+    } finally {
+      setTrajBusy(false);
+      setTrajProgress(null);
+    }
+  };
+  const trajEnd = traj ? traj.points[traj.points.length - 1] : null;
+  const trajArrivalUtc = traj ? arrivalUtc(traj.response) : null;
+  // SPICE Moon at the arrival instant (the "ghost" Moon) — same API as the scene state.
+  const [arrivalMoon, setArrivalMoon] = useState<{ utc: string; position_m: number[] } | null>(null);
+  useEffect(() => {
+    setArrivalMoon(null);
+    if (!trajArrivalUtc) return;
+    let current = true;
+    getCelestialState(new Date(trajArrivalUtc))
+      .then((s) => current && setArrivalMoon({ utc: trajArrivalUtc, position_m: s.moon_from_earth.position_m }))
+      .catch(() => {});
+    return () => {
+      current = false;
+    };
+  }, [trajArrivalUtc]);
+  // "Play mission": from departure to the end of descent, the Moon and Sun moving with the date.
+  const [missionPlay, setMissionPlay] = useState(false);
+  useEffect(() => {
+    if (missionPlay && trajEnd && date.getTime() >= trajEnd.t) {
+      setPlaying(false);
+      setMissionPlay(false);
+      setDate(new Date(trajEnd.t));
+    }
+  }, [missionPlay, trajEnd, date]);
+  useEffect(() => {
+    if (!playing) setMissionPlay(false);
+  }, [playing]);
+  const focusSeq = useRef(0);
+  useEffect(() => {
+    if (!focus || focus.seq === focusSeq.current) return;
+    focusSeq.current = focus.seq;
+    const d = new Date(focus.utc);
+    if (Number.isNaN(d.getTime())) return;
+    setPlaying(false);
+    setDate(d);
+    setAnchor(d);
+  }, [focus]);
+  const trajArrival = traj ? arrivalUtc(traj.response) : null;
 
   useEffect(() => {
     let current = true;
@@ -100,6 +217,8 @@ export function CelestialDashboard({ active }: { active: boolean }) {
           active={active}
           onScale={setKmPerPx}
           offsetX={sceneShift}
+          trajectory={view === "earth-moon" ? traj : null}
+          arrivalMoon={arrivalMoon}
           footnote={
             <ScaleBar
               kmPerPx={view === "earth-moon" ? kmPerPx : null}
@@ -184,6 +303,88 @@ export function CelestialDashboard({ active }: { active: boolean }) {
           </select>
         </div>
 
+        <div className="traj-box">
+          <label className="small">
+            Mission{" "}
+            <select
+              value={missions.find((m) => m.name === traj?.mission?.label)?.id ?? ""}
+              disabled={trajBusy || missions.length === 0}
+              onChange={(e) => {
+                const m = missions.find((x) => x.id === Number(e.target.value));
+                if (m) void computeForMission(m);
+              }}
+              aria-label="Mission"
+            >
+              <option value="">{missions.length ? "— pick a saved mission —" : "— no saved mission yet —"}</option>
+              {missions.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name} · landing {m.result.pre_landing.landing_utc.slice(0, 16).replace("T", " ")}
+                </option>
+              ))}
+            </select>
+          </label>
+          {trajBusy && trajProgress && <div className="muted small">Computing… {trajProgress}</div>}
+          {traj?.mission && (
+            <div className="muted small">
+              Mission “{traj.mission.label}”: end of descent {(() => {
+                const g = ((traj.points.at(-1)?.t ?? 0) - Date.parse(traj.mission.landingUtc)) / 3_600_000;
+                return `${g >= 0 ? "+" : "−"}${Math.abs(g).toFixed(1)} h`;
+              })()} vs its planned landing.
+            </div>
+          )}
+          <div className="muted small">…or a free trajectory from the date above:</div>
+          <div className="traj-title">
+            Trajectory Earth → site {Math.abs(site.latitude_deg).toFixed(2)}°{site.latitude_deg < 0 ? "S" : "N"}{" "}
+            {Math.abs(site.longitude_deg).toFixed(2)}°{site.longitude_deg < 0 ? "W" : "E"}
+          </div>
+          <label className="small">
+            transfer ≈{" "}
+            <input type="number" min={2} max={10} step={0.5} value={transferDays} onChange={(e) => setTransferDays(Number(e.target.value))} aria-label="Target transfer duration, days" />{" "}
+            d, departing at the date above
+          </label>
+          <button type="button" className="primary" disabled={trajBusy} onClick={computeTrajectory}>
+            {trajBusy ? "Computing… (a few seconds)" : "Compute trajectory"}
+          </button>
+          {traj && trajEnd && (
+            <div className="step-buttons">
+              <button
+                type="button"
+                className="primary"
+                onClick={() => {
+                  setAbsolute(new Date(traj.points[0].t));
+                  setSpeed(SPEEDS[2].hoursPerSecond);
+                  setPlaying(true);
+                  setMissionPlay(true);
+                }}
+              >
+                ▶ Play mission
+              </button>
+              <button type="button" onClick={() => setAbsolute(new Date(traj.points[0].t))}>Departure</button>
+              {trajArrival && <button type="button" onClick={() => setAbsolute(new Date(trajArrival))}>Arrival</button>}
+              <button type="button" onClick={() => setAbsolute(new Date(trajEnd.t))}>End</button>
+              <button type="button" onClick={() => setTraj(null)}>Clear</button>
+            </div>
+          )}
+          {traj && trajArrival && (
+            <div className="muted small">
+              Departure {traj.response.segments[0].utc[0].slice(0, 16).replace("T", " ")} UTC · descent starts{" "}
+              {trajArrival.slice(0, 16).replace("T", " ")} UTC · {((Date.parse(trajArrival) - traj.points[0].t) / DAY_MS).toFixed(2)} d.
+              {traj.response.descent?.contact_detecte === false && (
+                <span className="warn-text">
+                  {" "}
+                  Descent stopped without touchdown
+                  {typeof traj.response.descent.altitude_sur_site_finale_km === "number" &&
+                    ` (${(traj.response.descent.altitude_sur_site_finale_km as number).toFixed(0)} km above the site)`}
+                  .
+                </span>
+              )}{" "}
+              Demonstration model (details in ⋯).
+            </div>
+          )}
+          {view !== "earth-moon" && traj && <div className="muted small">Shown in the Earth–Moon view only.</div>}
+          {trajError && <div className="warn-text small">{trajError}</div>}
+        </div>
+
         {error && <div className="error" role="alert">{error}</div>}
       </div>
 
@@ -231,6 +432,37 @@ export function CelestialDashboard({ active }: { active: boolean }) {
                 <Row k="Sun ecliptic λ (from Earth)" v={fmtDeg(state.sun_from_earth.longitude_deg, 2)} />
               </dl>
             </section>
+
+            {traj && (
+              <section className="small">
+                <h2>Trajectory (vecteur-traj)</h2>
+                <dl className="kv small">
+                  <Row k="Status" v={traj.response.status} />
+                  <Row k="Transfer" v={String(traj.response.transfer?.statut ?? "—")} />
+                  <Row k="Descent" v={String(traj.response.descent?.statut ?? "—")} />
+                  {typeof traj.response.descent?.distance_site_finale_m === "number" && (
+                    <Row k="Final distance to site" v={`${((traj.response.descent.distance_site_finale_m as number) / 1000).toFixed(2)} km`} />
+                  )}
+                  {typeof traj.response.descent?.vitesse_finale_lunaire_ms === "number" && (
+                    <Row k="Final speed (Moon frame)" v={`${(traj.response.descent.vitesse_finale_lunaire_ms as number).toFixed(1)} m/s`} />
+                  )}
+                  {typeof traj.response.descent?.delta_v_moteur_ms === "number" && (
+                    <Row k="Descent Δv" v={`${Math.round(traj.response.descent.delta_v_moteur_ms as number)} m/s`} />
+                  )}
+                  <Row k="Frame" v={traj.response.frame?.name ?? "—"} />
+                </dl>
+                <ul className="small">
+                  {traj.response.assumptions.map((a) => (
+                    <li key={a}>{a}</li>
+                  ))}
+                </ul>
+                <ul className="small warn-text">
+                  {traj.response.warnings.map((w) => (
+                    <li key={w}>{w}</li>
+                  ))}
+                </ul>
+              </section>
+            )}
 
             <section className="small">
               <h2>Frame, model &amp; assumptions</h2>

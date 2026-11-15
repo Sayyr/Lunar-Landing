@@ -45,7 +45,7 @@ add_library(selene_science_core STATIC
   src/app.cpp src/celestial.cpp src/ephemeris.cpp src/ephemeris_spice.cpp src/evaluate.cpp src/geometry.cpp
   src/horizon.cpp
   src/intervals.cpp src/link.cpp src/lunar_ephemeris.cpp src/mission.cpp src/models.cpp src/radio.cpp src/spice.cpp
-  src/terrain.cpp)
+  src/terrain.cpp src/trajectory.cpp)
 target_include_directories(selene_science_core PUBLIC src)
 target_link_libraries(selene_science_core PUBLIC nlohmann_json::nlohmann_json)
 

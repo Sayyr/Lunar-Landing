@@ -1,0 +1,9 @@
+{
+    "site": {
+        "latitude_deg": -85.0,
+        "longitude_deg": -30.0,
+        "altitude_km": 1.5
+    },
+    "departure_utc": "2027-01-01T00:00:00Z",
+    "transfer_days": 4.5
+}

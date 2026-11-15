@@ -39,6 +39,26 @@ export interface MissionSettings {
   endPolicy: "fixed_duration" | "fixed_end";
 }
 
+/** What "Create mission" (Site scenario page) hands to the Mission page; site and date travel in the scenario. */
+export interface MissionDraft {
+  /** required: the mission is saved under this name and can be picked by it later */
+  name: string;
+  /** kg; recorded with the mission, used by no model (there is no propulsion or descent model) */
+  vehicleMassKg: number;
+  /** m²; null = no solar array given → energy not modelled */
+  panelAreaM2: number | null;
+  /** fraction 0–1; null = keep the base value */
+  panelEfficiency: number | null;
+  /** bumps on every "Create", so the Mission page re-applies the same values */
+  seq: number;
+}
+
+/** The power model a draft asks for: off without an array area, else `base` with the given area and efficiency. */
+export function draftPower(d: MissionDraft, base: PowerParams): PowerParams | null {
+  if (d.panelAreaM2 === null) return null;
+  return { ...base, panel_area_m2: d.panelAreaM2, panel_efficiency: d.panelEfficiency ?? base.panel_efficiency };
+}
+
 /** The scenario's site/time grid becomes the planned landing and the surface stay. */
 export function buildMissionRequest(scenario: ScenarioRequest, s: MissionSettings, delayHours = 0): MissionRequest {
   const radio = s.radio ? buildRadioRequest(scenario, s.radio) : null;
@@ -51,7 +71,8 @@ export function buildMissionRequest(scenario: ScenarioRequest, s: MissionSetting
     delay: { landing_delay_hours: delayHours, end_policy: s.endPolicy, pre_landing_net_load_w: s.preLandingLoadW },
     power: s.power,
     radio: radio && { min_earth_elevation_deg: radio.min_earth_elevation_deg, link: radio.link, stations: radio.stations },
-    // Without a power model the battery reserve cannot be evaluated: do not send it.
+    // Without a power model the battery reserve cannot be evaluated: do not send it. Slope coverage is
+    // decided by the science service (installed DEMs); where none covers the site it is "not evaluated".
     constraints: s.power ? s.constraints : { ...s.constraints, min_battery_soc: null },
   };
 }
@@ -195,4 +216,18 @@ export function workedEnergyStep(r: MissionResponse): WorkedEnergyStep | null {
     return { from: a.utc, to: b.utc, dtH, solarPrevW: a.solar_w, solarW: b.solar_w, genW, loadW: p.load_w, netW, prevWh: a.battery_wh, nextWh, returnedWh: b.battery_wh };
   }
   return null;
+}
+
+/** A simulated mission kept for comparison and for its Earth→Moon trajectory, picked by name. */
+export interface SavedMission {
+  id: number;
+  name: string;
+  result: MissionResponse;
+}
+
+/** "name", or "name (2)", "name (3)"... so every saved mission keeps a distinct name. */
+export function uniqueName(name: string, taken: readonly string[]): string {
+  const base = name.trim() || "Mission";
+  if (!taken.includes(base)) return base;
+  for (let i = 2; ; i++) if (!taken.includes(`${base} (${i})`)) return `${base} (${i})`;
 }

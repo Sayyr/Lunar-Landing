@@ -5,6 +5,7 @@
 #include "mission.hpp"
 #include "radio.hpp"
 #include "spice.hpp"
+#include "trajectory.hpp"
 
 namespace selene {
 
@@ -52,7 +53,43 @@ HttpResponse App::handle(const std::string& method, const std::string& path,
         return mission_route(path == "/mission/simulate" ? static_cast<const EphemerisProvider&>(spice_) : synthetic_,
                              body);
     }
+    if (path == "/trajectory/simulate") {
+        if (method != "POST") return {405, error_response("not_found", "Method Not Allowed")};
+        return trajectory_route(body);
+    }
     return {404, error_response("not_found", "Not Found")};
+}
+
+HttpResponse App::trajectory_route(const std::string& body) const {
+    static const char* TRAJ_INVALID = "Trajectory request is invalid.";
+    if (body.empty()) return validation_error({{"", "Field required"}}, TRAJ_INVALID);
+    json parsed = json::parse(body, nullptr, /*allow_exceptions=*/false);
+    if (parsed.is_discarded()) return validation_error({{"", "JSON decode error"}}, TRAJ_INVALID);
+    TrajectoryRequest req;
+    try {
+        req = parse_trajectory_request(parsed);
+    } catch (const ValidationError& e) {
+        return validation_error(e.details, TRAJ_INVALID);
+    }
+    // The tool needs the SPICE kernels and its own executable: say so, compute nothing.
+    const ProviderStatus s = spice_.status();
+    std::string why;
+    if (!trajectory_tool_) why = "vecteur-traj executable not found (SELENE_VECTEUR_TRAJ)";
+    else if (!kernel_dir_ || !s.ready) why = "ephemerides not available: " + s.reason;
+    if (!why.empty())
+        return {200, {{"schema_version", SCHEMA_VERSION}, {"status", "not_ready"}, {"synthetic", false}, {"message", why},
+                      {"request", to_json(req)}, {"frame", nullptr}, {"model", nullptr}, {"segments", json::array()},
+                      {"transfer", nullptr}, {"descent", nullptr}, {"assumptions", json::array()},
+                      {"warnings", json::array()}}};
+    const std::string key = to_json(req).dump();
+    if (auto hit = trajectory_cache_->get(key)) return {200, std::move(*hit)};
+    try {
+        json out = simulate_trajectory(req, *trajectory_tool_, *kernel_dir_);
+        trajectory_cache_->put(key, out);
+        return {200, std::move(out)};
+    } catch (const std::exception& e) {  // never a fabricated trajectory
+        return {500, error_response("internal_error", std::string("Trajectory simulation failed: ") + e.what())};
+    }
 }
 
 HttpResponse App::mission_route(const EphemerisProvider& provider, const std::string& body) const {
@@ -79,7 +116,7 @@ HttpResponse App::mission_route(const EphemerisProvider& provider, const std::st
     MissionContext ctx;
     ctx.provider = &provider;
     ctx.terrain = TerrainContext{dem_.get(), dem_reason_, horizon_cache_.get()};
-    ctx.slope_dem = dem_.get();
+    ctx.slope_dems = slope_dem_ptrs();
     ctx.slope_unavailable_reason = dem_reason_;
     try {
         return {200, simulate_mission(req, ctx)};
@@ -99,11 +136,12 @@ HttpResponse App::slope_check_route(const std::string& body) const {
     } catch (const ValidationError& e) {
         return validation_error(e.details, SLOPE_INVALID);
     }
-    if (!dem_) return {200, slope_check(req, nullptr, dem_reason_)};  // cheap, not cached
-    const std::string key = slope_cache_key(req, dem_->info());
+    if (slope_dems_.empty()) return {200, slope_check(req, nullptr, dem_reason_)};  // cheap, not cached
+    std::string key = to_json(req).dump();
+    for (const auto& d : slope_dems_) key += "\n" + d->info().identity;
     if (auto hit = slope_cache_->get(key)) return {200, std::move(*hit)};
     try {
-        json out = slope_check(req, dem_.get(), dem_reason_);
+        json out = slope_check_any(req, slope_dem_ptrs(), dem_reason_);
         slope_cache_->put(key, out);
         return {200, std::move(out)};
     } catch (const std::exception& e) {  // DEM I/O failure: never a fabricated verdict

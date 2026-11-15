@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://selene.local/contracts/trajectory-simulate-response.schema.json",
+  "title": "TrajectorySimulateResponse",
+  "description": "Result of the vecteur-traj tool converted for the 3D views: geocentric positions in ECLIPJ2000 metres (same frame as /celestial/*). status computed: transfer (and descent) found; no_solution: the tool found no admissible transfer; not_ready: tool or SPICE kernels missing. 'transfer' and 'descent' are the tool's own summary objects, passed through unchanged (French keys).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "synthetic", "message", "request", "frame", "model", "segments", "transfer", "descent", "assumptions", "warnings"],
+  "$defs": {
+    "segment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["phase", "utc", "positions_m", "altitude_above_site_km", "speed_relative_to_moon_m_s"],
+      "properties": {
+        "phase": {"type": "string", "enum": ["transfer", "descent"]},
+        "utc": {"type": "array", "items": {"type": "string"}},
+        "positions_m": {"type": "array", "items": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3}},
+        "altitude_above_site_km": {"type": "array", "items": {"type": "number"}},
+        "speed_relative_to_moon_m_s": {"type": "array", "items": {"type": "number"}}
+      }
+    }
+  },
+  "properties": {
+    "schema_version": {"const": "0.1.0"},
+    "status": {"type": "string", "enum": ["computed", "no_solution", "not_ready"]},
+    "synthetic": {"const": false},
+    "message": {"type": "string"},
+    "request": {"$ref": "trajectory-simulate-request.schema.json"},
+    "frame": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["name", "description"],
+      "properties": {"name": {"type": "string"}, "description": {"type": "string"}}
+    },
+    "model": {"type": ["object", "null"], "additionalProperties": {"type": "string"}},
+    "segments": {"type": "array", "items": {"$ref": "#/$defs/segment"}},
+    "transfer": {"type": ["object", "null"]},
+    "descent": {"type": ["object", "null"]},
+    "assumptions": {"type": "array", "items": {"type": "string"}},
+    "warnings": {"type": "array", "items": {"type": "string"}}
+  }
+}

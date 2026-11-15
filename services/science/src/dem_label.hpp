@@ -1,8 +1,11 @@
 // PDS3 label (.LBL) parser for LOLA gridded polar DEMs (LDEM_*_FLOAT.IMG). Header-only so the offline
 // tiler (tools/slope_tiles.cpp) and the service (terrain.cpp) accept exactly the same products.
 //
-// Only south-polar stereographic products on a sphere, PC_REAL float32 heights in km and no map
-// rotation are accepted; anything else throws (we never guess a projection).
+// parse_label_any() accepts LOLA float products on a sphere, PC_REAL float32 heights in km, no map
+// rotation, in one of: polar stereographic centred on either pole (LDEM_*S_*, LDEM_*N_*), or simple
+// cylindrical (SLDEM2015 tiles). parse_label() additionally requires the SOUTH polar stereographic
+// grid that the offline tools (slope-tiles, slope-grid) are written for. Anything else throws (we
+// never guess a projection).
 #pragma once
 
 #include <filesystem>
@@ -25,6 +28,11 @@ struct Label {
     std::string producer_id, producer_full_name, producer_institution_name, product_creation_time;
     std::string instrument_host_name, instrument_id;
     std::optional<double> maximum_latitude;        // MAXIMUM_LATITUDE (deg), declared coverage edge
+    std::optional<double> minimum_latitude;        // MINIMUM_LATITUDE (deg)
+    // Simple cylindrical only (empty otherwise): MAP_RESOLUTION (pix/deg), WESTERN/EASTERNMOST_LONGITUDE.
+    std::optional<double> map_resolution, westernmost_longitude, easternmost_longitude;
+    bool polar() const { return projection == "POLAR STEREOGRAPHIC"; }
+    bool cylindrical() const { return projection == "SIMPLE CYLINDRICAL"; }
 };
 
 inline bool label_find(const std::string& text, const std::string& key, std::string& out) {
@@ -42,13 +50,16 @@ inline std::string label_value(const std::string& text, const std::string& key) 
     return v;
 }
 
-inline Label parse_label_text(const std::string& t) {
+inline Label parse_label_text_any(const std::string& t) {
     auto num = [&](const char* k) { return std::stod(label_value(t, k)); };
     Label lab;
     lab.lines = static_cast<int>(num("LINES"));
     lab.samples = static_cast<int>(num("LINE_SAMPLES"));
     lab.record_bytes = static_cast<int>(num("RECORD_BYTES"));
     lab.scale_m = num("MAP_SCALE");
+    // Polar LDEM labels state MAP_SCALE in <m/pix>, SLDEM2015 tiles in <km/pix>: always metres here.
+    if (std::regex_search(t, std::regex("(^|\\n)[ \\t]*MAP_SCALE[ \\t]*=[^\\n]*<[ \\t]*KM", std::regex::icase)))
+        lab.scale_m *= 1000.0;
     lab.line_off = num("LINE_PROJECTION_OFFSET");
     lab.sample_off = num("SAMPLE_PROJECTION_OFFSET");
     lab.radius_km = num("A_AXIS_RADIUS");
@@ -71,12 +82,40 @@ inline Label parse_label_text(const std::string& t) {
     label_find(t, "PRODUCT_CREATION_TIME", lab.product_creation_time);
     label_find(t, "INSTRUMENT_HOST_NAME", lab.instrument_host_name);
     label_find(t, "INSTRUMENT_ID", lab.instrument_id);
-    std::string max_lat;
-    if (label_find(t, "MAXIMUM_LATITUDE", max_lat)) lab.maximum_latitude = std::stod(max_lat);
+    // Optional numeric keywords: absent or not a number (e.g. 'N/A') -> empty.
+    auto opt_num = [&](const char* k) -> std::optional<double> {
+        std::string v;
+        if (!label_find(t, k, v)) return std::nullopt;
+        try {
+            return std::stod(v);
+        } catch (const std::exception&) {
+            return std::nullopt;
+        }
+    };
+    lab.maximum_latitude = opt_num("MAXIMUM_LATITUDE");
+    lab.minimum_latitude = opt_num("MINIMUM_LATITUDE");
+    lab.map_resolution = opt_num("MAP_RESOLUTION");
+    lab.westernmost_longitude = opt_num("WESTERNMOST_LONGITUDE");
+    lab.easternmost_longitude = opt_num("EASTERNMOST_LONGITUDE");
     const bool sphere = num("A_AXIS_RADIUS") == num("B_AXIS_RADIUS") && num("A_AXIS_RADIUS") == num("C_AXIS_RADIUS");
-    if (lab.sample_type != "PC_REAL" || lab.unit != "KILOMETER" || lab.projection != "POLAR STEREOGRAPHIC" ||
-        !sphere || lab.center_lat != -90.0 || lab.record_bytes != lab.samples * 4 || lab.lines < 3 ||
-        lab.samples < 3 || !(lab.scale_m > 0) || num("MAP_PROJECTION_ROTATION") != 0.0)
+    const bool grid_ok = lab.polar() ? lab.center_lat == -90.0 || lab.center_lat == 90.0
+                         : lab.cylindrical() ? lab.center_lat == 0.0 && lab.map_resolution && *lab.map_resolution > 0 &&
+                                                   lab.maximum_latitude && lab.minimum_latitude &&
+                                                   lab.westernmost_longitude && lab.easternmost_longitude
+                                             : false;
+    if (lab.sample_type != "PC_REAL" || lab.unit != "KILOMETER" || !grid_ok || !sphere ||
+        lab.record_bytes != lab.samples * 4 || lab.lines < 3 || lab.samples < 3 || !(lab.scale_m > 0) ||
+        num("MAP_PROJECTION_ROTATION") != 0.0)
+        throw std::runtime_error(
+            "unsupported product (need a polar stereographic or simple cylindrical sphere, PC_REAL float32 km, "
+            "no rotation)");
+    return lab;
+}
+
+// South polar stereographic only (offline tools).
+inline Label parse_label_text(const std::string& t) {
+    Label lab = parse_label_text_any(t);
+    if (!lab.polar() || lab.center_lat != -90.0)
         throw std::runtime_error(
             "unsupported product (need south polar stereographic sphere, PC_REAL float32 km, no rotation)");
     return lab;
@@ -89,12 +128,15 @@ inline bool is_lola_gdr(const Label& lab) {
     return lab.data_set_id.rfind("LRO-L-LOLA", 0) == 0 && lab.data_set_id.find("GDR") != std::string::npos;
 }
 
-inline Label parse_label(const std::filesystem::path& path) {
+inline std::string read_label_file(const std::filesystem::path& path) {
     std::ifstream f(path, std::ios::binary);
     if (!f) throw std::runtime_error("cannot open " + path.string());
     std::stringstream ss;
     ss << f.rdbuf();
-    return parse_label_text(ss.str());
+    return ss.str();
 }
+
+inline Label parse_label(const std::filesystem::path& path) { return parse_label_text(read_label_file(path)); }
+inline Label parse_label_any(const std::filesystem::path& path) { return parse_label_text_any(read_label_file(path)); }
 
 }  // namespace selene::dem

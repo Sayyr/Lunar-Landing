@@ -11,6 +11,15 @@ using namespace validate;
 
 namespace {
 
+// "Horn 3x3 slope on LDEM_85S_20M (20 m pixels); not lander-footprint slope" from a slope_check answer.
+std::string slope_source_note(const json& r) {
+    const json& prov = r["data_provenance"];
+    const json& base = r["model"]["baseline_m"];
+    std::string src = prov.is_object() && prov["dem_product"].is_string() ? prov["dem_product"].get<std::string>() : "DEM";
+    if (base.is_number()) src += " (" + std::to_string(static_cast<int>(std::lround(base.get<double>()))) + " m pixels)";
+    return "Horn 3x3 slope on " + src + "; not lander-footprint slope";
+}
+
 constexpr double DEG_RAD = 3.14159265358979323846 / 180.0;
 constexpr int MAX_SEARCH_POINTS = 120;
 
@@ -417,7 +426,7 @@ Sim simulate_once(const MissionRequest& req, const MissionContext& ctx, double d
                                        *req.constraints.max_slope_deg, need * 100);
         if (v == "pass" || v == "fail") {
             s.constraints.push_back(constraint("landing_slope", label, v == "pass" ? "pass" : "fail", frac, need,
-                                               std::nullopt, "20 m LOLA slope (Horn 3x3); not lander-footprint slope"));
+                                               std::nullopt, slope_source_note(*slope_result)));
             if (v == "fail") fail("landing_slope");
         } else {
             s.constraints.push_back(constraint("landing_slope", label, "not_evaluated", frac, need, std::nullopt,
@@ -747,7 +756,7 @@ json simulate_mission(const MissionRequest& req, const MissionContext& ctx) {
         sr.max_slope_deg = *req.constraints.max_slope_deg;
         sr.required_fraction = req.constraints.min_slope_ok_fraction.value_or(1.0);
         sr.max_nodata_fraction = 0.0;
-        slope = slope_check(sr, ctx.slope_dem, ctx.slope_unavailable_reason);
+        slope = slope_check_any(sr, ctx.slope_dems, ctx.slope_unavailable_reason);
     }
     const json* slope_ptr = slope ? &*slope : nullptr;
 
@@ -889,7 +898,7 @@ json simulate_mission(const MissionRequest& req, const MissionContext& ctx) {
             return " and land on " + format_utc(t.landing_us).substr(0, 16) + " UTC" +
                    (std::fabs(off) < 1e-6 ? std::string(" (the planned date)") : fmt(" (%+.1f days)", off / 24));
         };
-        if (slope_fails && ctx.slope_dem) {
+        if (slope_fails && !ctx.slope_dems.empty()) {
             const double max_slope = *req.constraints.max_slope_deg;
             const auto frac = req.constraints.min_slope_ok_fraction;
             // Nearest site within 10 km (0.5 km rings, 16 bearings) whose 4 km disc passes.
@@ -898,7 +907,7 @@ json simulate_mission(const MissionRequest& req, const MissionContext& ctx) {
             for (double r_km = 0.5; r_km <= 10.0 + 1e-9 && !moved; r_km += 0.5)
                 for (int b = 0; b < 16 && !moved; ++b) {
                     const auto [la, lo] = destination(req.site.latitude_deg, req.site.longitude_deg, b * 22.5, r_km);
-                    const json c = slope_check(landing_disc(la, lo, max_slope, frac), ctx.slope_dem, ctx.slope_unavailable_reason);
+                    const json c = slope_check_any(landing_disc(la, lo, max_slope, frac), ctx.slope_dems, ctx.slope_unavailable_reason);
                     if (c["verdict"] == "pass") {
                         moved = std::make_pair(std::round(la * 1e5) / 1e5, std::round(lo * 1e5) / 1e5);
                         moved_km = r_km;
@@ -908,7 +917,7 @@ json simulate_mission(const MissionRequest& req, const MissionContext& ctx) {
                 MissionRequest rq = req;
                 rq.site.latitude_deg = moved->first;
                 rq.site.longitude_deg = moved->second;
-                const json moved_slope = slope_check(landing_disc(moved->first, moved->second, max_slope, frac), ctx.slope_dem,
+                const json moved_slope = slope_check_any(landing_disc(moved->first, moved->second, max_slope, frac), ctx.slope_dems,
                                                      ctx.slope_unavailable_reason);
                 const Sim t = simulate_once(rq, ctx, req.landing_delay_hours, {}, &moved_slope);
                 const std::string where = fmt2("Land %.1f km away, at %.4f", moved_km, moved->first) + fmt(", %.4f", moved->second);
@@ -929,7 +938,7 @@ json simulate_mission(const MissionRequest& req, const MissionContext& ctx) {
             }
             // Smallest slope limit that passes here (same required share).
             auto passes = [&](double lim) {
-                return slope_check(landing_disc(req.site.latitude_deg, req.site.longitude_deg, lim, frac), ctx.slope_dem,
+                return slope_check_any(landing_disc(req.site.latitude_deg, req.site.longitude_deg, lim, frac), ctx.slope_dems,
                                    ctx.slope_unavailable_reason)["verdict"] == "pass";
             };
             if (passes(90.0)) {
@@ -938,8 +947,8 @@ json simulate_mission(const MissionRequest& req, const MissionContext& ctx) {
                 const double lim = std::ceil(hi * 10.0) / 10.0;
                 MissionRequest rq = req;
                 rq.constraints.max_slope_deg = lim;
-                const json relaxed = slope_check(landing_disc(req.site.latitude_deg, req.site.longitude_deg, lim, frac),
-                                                 ctx.slope_dem, ctx.slope_unavailable_reason);
+                const json relaxed = slope_check_any(landing_disc(req.site.latitude_deg, req.site.longitude_deg, lim, frac),
+                                                     ctx.slope_dems, ctx.slope_unavailable_reason);
                 const Sim t = simulate_once(rq, ctx, req.landing_delay_hours, {}, &relaxed);
                 const std::string what = fmt2("Accept slopes up to %.1f deg (instead of %.1f deg) on ", lim, max_slope) +
                                          fmt("%.0f %% of the disc", frac.value_or(1.0) * 100);
@@ -1018,8 +1027,8 @@ json simulate_mission(const MissionRequest& req, const MissionContext& ctx) {
     assumptions.push_back("Corrections are re-simulated with the same models; 'go' means every applied constraint "
                           "passes under these screening models, not a mission certification.");
     if (req.constraints.max_slope_deg)
-        assumptions.push_back("Landing slope: 20 m LOLA DEM slope (Horn 3x3) over a 4 km disc centred on the site; "
-                              "not lander-footprint slope.");
+        assumptions.push_back("Landing slope: Horn 3x3 slope of the finest installed LOLA DEM covering the 4 km disc "
+                              "centred on the site (named in the landing_slope constraint note); not lander-footprint slope.");
 
     const double cap = req.power ? req.power->battery_capacity_wh : 0.0;
     return {

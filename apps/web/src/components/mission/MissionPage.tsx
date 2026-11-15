@@ -6,13 +6,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "../../api/client";
 import type { Correction, MissionConstraints, MissionRequest, MissionResponse, PowerParams } from "../../api/missionTypes";
 import type { ScenarioRequest } from "../../api/types";
-import { applyCorrection, bestIndex, buildMissionRequest, comparisonRows, EXAMPLE_CONSTRAINTS, EXAMPLE_POWER, hoursBetween, type MissionSettings, toFormUtc } from "../../lib/mission";
+import { applyCorrection, bestIndex, buildMissionRequest, comparisonRows, draftPower, EXAMPLE_CONSTRAINTS, EXAMPLE_POWER, hoursBetween, type MissionDraft, type MissionSettings, type SavedMission, uniqueName, toFormUtc } from "../../lib/mission";
 import { DEFAULT_RADIO_SETTINGS, formatDuration } from "../../lib/radio";
 import { formatLat, formatLon } from "../../lunar/geo";
 import { MISSION_PRESETS, type MissionPreset } from "../../lib/missionPresets";
 import { DateScanStrip } from "./DateScanStrip";
 import { MissionCalculations } from "./MissionCalculations";
 import { MissionTimeline, type PlaybackSpan } from "./MissionTimeline";
+import { MissionTrajectory } from "./MissionTrajectory";
+import type { TrajectoryView } from "../../lib/trajectory";
 
 /** Playback only: hours shown before the planned landing. No trajectory is modelled. */
 const APPROACH_HOURS = 24;
@@ -39,11 +41,6 @@ const CORRECTION_LABEL: Record<Correction["kind"], string> = {
   resize_panels: "Bigger solar array",
 };
 
-interface Saved {
-  id: number;
-  name: string;
-  result: MissionResponse;
-}
 
 function Num({ label, value, onChange, step = 1, min, max, suffix }: { label: string; value: number; onChange: (v: number) => void; step?: number; min?: number; max?: number; suffix?: string }) {
   return (
@@ -69,7 +66,21 @@ function Limit({ label, value, fallback, onChange, step = 1, suffix, scale = 1 }
   );
 }
 
-export function MissionPage({ active, scenario, onScenario }: { active: boolean; scenario: ScenarioRequest; onScenario: (s: ScenarioRequest) => void }) {
+interface MissionPageProps {
+  active: boolean;
+  scenario: ScenarioRequest;
+  onScenario: (s: ScenarioRequest) => void;
+  draft: MissionDraft | null;
+  /** named, simulated missions (kept by App: the Sun · Earth · Moon page picks them by name) */
+  saved: SavedMission[];
+  onSaved: (update: (all: SavedMission[]) => SavedMission[]) => void;
+  /** Earth→Moon trajectory shared with the Sun · Earth · Moon page */
+  trajectory: TrajectoryView | null;
+  onTrajectory: (v: TrajectoryView) => void;
+  onShowTrajectory: (focusUtc: string) => void;
+}
+
+export function MissionPage({ active, scenario, onScenario, draft, saved, onSaved: setSaved, trajectory, onTrajectory, onShowTrajectory }: MissionPageProps) {
   const [power, setPower] = useState<PowerParams>(EXAMPLE_POWER);
   // Energy (solar + battery) is optional and the lowest priority: off by default.
   const [usePower, setUsePower] = useState(false);
@@ -80,6 +91,7 @@ export function MissionPage({ active, scenario, onScenario }: { active: boolean;
   const [endPolicy, setEndPolicy] = useState<MissionSettings["endPolicy"]>("fixed_duration");
   const [synthetic, setSynthetic] = useState(false);
   const [showCalc, setShowCalc] = useState(false);
+  const [massKg, setMassKg] = useState<number | null>(null);
 
   const [result, setResult] = useState<MissionResponse | null>(null);
   const [lastReq, setLastReq] = useState<MissionRequest | null>(null);
@@ -92,9 +104,11 @@ export function MissionPage({ active, scenario, onScenario }: { active: boolean;
   const [speed, setSpeed] = useState(6);
   const [delayStep, setDelayStep] = useState(24);
 
-  const [saved, setSaved] = useState<Saved[]>([]);
   const [compare, setCompare] = useState<number[]>([]);
   const nextId = useRef(1);
+  // Name of the mission on screen (from "Create mission" or "Save"); it follows delays and corrections.
+  const [missionName, setMissionName] = useState<string | null>(null);
+  const [saveName, setSaveName] = useState("");
 
   const [preset, setPreset] = useState<MissionPreset | null>(null);
   const loadPreset = (id: string) => {
@@ -110,8 +124,10 @@ export function MissionPage({ active, scenario, onScenario }: { active: boolean;
     setPreLoad(p.settings.preLandingLoadW);
     setEndPolicy(p.settings.endPolicy);
     setSynthetic(false);
+    setMissionName(null);
     setResult(null);
     setPlaying(false);
+    setMassKg(null);
   };
 
   const settings: MissionSettings = { power: usePower ? power : null, constraints, radio: useRadio ? radio : null, preLandingLoadW: preLoad, endPolicy };
@@ -122,7 +138,7 @@ export function MissionPage({ active, scenario, onScenario }: { active: boolean;
     setAborted(null);
     try {
       const r = await (synthetic ? api.missionSimulateSynthetic(req) : api.missionSimulate(req));
-      if (opts.saveBefore && result) save(result, opts.saveBefore);
+      if (opts.saveBefore && result) save(result, missionName ? `${missionName} — ${opts.saveBefore.toLowerCase()}` : opts.saveBefore, false);
       setResult(r);
       setLastReq(req);
       if (!opts.keepCursor) setCursor(Date.parse(r.pre_landing.planned_landing_utc) - APPROACH_HOURS * 3_600_000);
@@ -136,16 +152,40 @@ export function MissionPage({ active, scenario, onScenario }: { active: boolean;
     }
   };
 
-  const save = (r: MissionResponse, name?: string) => {
-    const id = nextId.current++;
-    setSaved((s) => [...s, { id, name: name ?? `Run ${id}`, result: r }]);
+  /** Saves under a distinct name; `current` = this is now the mission on screen. */
+  const save = (r: MissionResponse, name: string, current = true) => {
+    const id = Math.max(nextId.current, ...saved.map((x) => x.id + 1));
+    nextId.current = id + 1;
+    const unique = uniqueName(name, saved.map((x) => x.name));
+    setSaved((s) => [...s, { id, name: unique, result: r }]);
     setCompare((c) => (c.length < 4 ? [...c, id] : c));
+    if (current) setMissionName(unique);
   };
 
   const play = async () => {
+    setMissionName(null);
     const r = await run(buildMissionRequest(scenario, settings, 0));
     if (r) setPlaying(true);
   };
+
+  // "Create mission" on the Site scenario page: take its values and simulate once per click (seq).
+  const draftSeq = useRef(0);
+  useEffect(() => {
+    if (!draft || draft.seq === draftSeq.current) return;
+    draftSeq.current = draft.seq;
+    const p = draftPower(draft, power);
+    if (p) setPower(p);
+    setUsePower(p !== null);
+    setPreset(null);
+    setMassKg(draft.vehicleMassKg);
+    setPlaying(false);
+    // settings above reach state only on the next render: build this request from the draft's values.
+    void run(buildMissionRequest(scenario, { ...settings, power: p }, 0)).then((r) => {
+      if (!r) return;
+      save(r, draft.name);
+      setPlaying(true);
+    });
+  }, [draft]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Playback span and clock.
   const span: PlaybackSpan | null = useMemo(() => {
@@ -225,12 +265,17 @@ export function MissionPage({ active, scenario, onScenario }: { active: boolean;
   return (
     <div className="mission-page">
       <header>
-        <h2>Mission simulation</h2>
+        <h2>Mission simulation{missionName && <> — “{missionName}”</>}</h2>
         <p className="muted">
           Site {formatLat(scenario.site.latitude_deg, 3)}, {formatLon(scenario.site.longitude_deg, scenario.site.latitude_deg, 3)} (from the Site scenario tab) ·{" "}
           {scenario.terrain_mode === "dem" ? "DEM terrain horizon" : "ideal horizon"}. Engineering screening: every vehicle figure below is yours to set — the
           defaults are illustrative, not a real lander.
         </p>
+        {massKg !== null && (
+          <p className="small">
+            Vehicle mass {massKg.toLocaleString("en-US")} kg <span className="muted">— recorded only: no model below uses it (no propulsion or descent model).</span>
+          </p>
+        )}
       </header>
 
       <div className="mission-layout">
@@ -367,6 +412,13 @@ export function MissionPage({ active, scenario, onScenario }: { active: boolean;
                 <strong>{aborted ? "ABORTED" : result.verdict === "go" ? "GO" : result.verdict === "no_go" ? "NO GO" : "INCOMPLETE"}</strong>
                 <span>{aborted ?? result.message}</span>
               </div>
+              {result.verdict === "incomplete" && !aborted && (
+                <div className="warn small">
+                  Incomplete: no constraint fails, but some could not be evaluated —{" "}
+                  {result.constraints.filter((c) => c.status === "not_evaluated").map((c) => `${c.label} (${c.note})`).join("; ") || "see the constraints below"}.
+                  Turn those limits off or move the site to get a GO / NO GO.
+                </div>
+              )}
               {result.status === "not_ready" && <div className="warn small">Not computed: {result.message}</div>}
               {result.verdict === "no_go" && !aborted && (() => {
                 const failing = result.constraints.filter((c) => c.status === "fail");
@@ -553,12 +605,43 @@ export function MissionPage({ active, scenario, onScenario }: { active: boolean;
               )}
 
               <div className="actions">
-                <button type="button" onClick={() => save(result)}>Save for comparison</button>
+                <input
+                  className="mission-name"
+                  placeholder="name (required)"
+                  maxLength={60}
+                  value={saveName}
+                  onChange={(e) => setSaveName(e.target.value)}
+                  aria-label="Name to save this run under"
+                />
+                <button
+                  type="button"
+                  disabled={!saveName.trim()}
+                  title={saveName.trim() ? "" : "Give the run a name first"}
+                  onClick={() => {
+                    save(result, saveName);
+                    setSaveName("");
+                  }}
+                >
+                  Save for comparison
+                </button>
                 <button type="button" aria-expanded={showCalc} onClick={() => setShowCalc(!showCalc)}>
                   {showCalc ? "Hide calculations" : "Show calculations"}
                 </button>
               </div>
               {showCalc && <MissionCalculations result={result} />}
+
+              {missionName ? (
+                <MissionTrajectory
+                  site={{ latitude_deg: result.request.site.latitude_deg, longitude_deg: result.request.site.longitude_deg }}
+                  landingUtc={result.pre_landing.landing_utc}
+                  label={missionName}
+                  current={trajectory}
+                  onComputed={onTrajectory}
+                  onShow={onShowTrajectory}
+                />
+              ) : (
+                <p className="muted small">Save this run with a name to compute its Earth→Moon trajectory (and pick it later on Sun · Earth · Moon).</p>
+              )}
 
               <details className="small">
                 <summary>Assumptions, warnings and provenance</summary>
@@ -587,7 +670,15 @@ export function MissionPage({ active, scenario, onScenario }: { active: boolean;
                   checked={compare.includes(s.id)}
                   onChange={(e) => setCompare((c) => (e.target.checked ? [...c, s.id].slice(-4) : c.filter((x) => x !== s.id)))}
                 />
-                <input className="mission-name" value={s.name} onChange={(e) => setSaved((all) => all.map((x) => (x.id === s.id ? { ...x, name: e.target.value } : x)))} />
+                <input
+                  className="mission-name"
+                  value={s.name}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (missionName === s.name) setMissionName(v);
+                    setSaved((all) => all.map((x) => (x.id === s.id ? { ...x, name: v } : x)));
+                  }}
+                />
                 <span className={`badge verdict-badge-${s.result.verdict}`}>{s.result.verdict.replace("_", " ")}</span>
                 <button type="button" className="link-btn" onClick={() => { setSaved((all) => all.filter((x) => x.id !== s.id)); setCompare((c) => c.filter((x) => x !== s.id)); }}>remove</button>
               </label>

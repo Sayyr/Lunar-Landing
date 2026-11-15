@@ -35,6 +35,7 @@ pub fn gateway_router(state: AppState) -> Router {
         .route("/scenarios/radio-link", post(gateway::radio_link))
         .route("/celestial/state", post(gateway::celestial_state))
         .route("/celestial/tracks", post(gateway::celestial_tracks))
+        .route("/trajectory/simulate", post(gateway::trajectory_simulate))
         .with_state(state)
 }
 

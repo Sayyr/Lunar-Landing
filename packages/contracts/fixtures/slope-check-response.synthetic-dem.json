@@ -42,7 +42,9 @@
       "map_scale_m": 20.0,
       "line_projection_offset": 100.0,
       "sample_projection_offset": 100.0,
-      "maximum_latitude_deg": null
+      "maximum_latitude_deg": null,
+      "minimum_latitude_deg": null,
+      "projection": "polar stereographic, sphere R = 1737.4 km, true scale at the pole, centre 90S 0E"
     }
   },
   "assumptions": [
@@ -50,7 +52,7 @@
     "Zone = DEM pixels whose centre (exact inverse polar stereographic) lies within radius_m great-circle distance of the zone centre on the 1737.4 km reference sphere; terrain height is ignored for selection.",
     "Per-pixel slope: Horn (1981) 3x3 finite differences on the native 20 m grid, ground spacing = map_scale / k * (R + h) / R with k = 1 + (rho / 2R)^2 (services/science/src/slope_core.hpp, identical to the web slope tiles at level 0).",
     "Slope is measured from the reference-sphere radial direction, not the local gravity (geoid) normal.",
-    "No-data: non-finite or |h| > 100 km heights, or any no-data in the 3x3 window; never treated as flat. Every zone pixel must have a full 3x3 window inside the grid and lie south of the label's MAXIMUM_LATITUDE, else status = out_of_coverage.",
+    "No-data: non-finite or |h| > 100 km heights, or any no-data in the 3x3 window; never treated as flat. Every zone pixel must have a full 3x3 window inside the grid, lie within the label's declared MINIMUM/MAXIMUM_LATITUDE and (mosaic) in an installed tile, else status = out_of_coverage.",
     "fraction_ok = valid pixels with slope <= max_slope_deg / valid pixels. verdict = insufficient_data if nodata_count / pixel_count > max_nodata_fraction (or no valid pixel), else pass iff fraction_ok >= required_fraction, else fail.",
     "slope_p95_deg is the nearest-rank 95th percentile of valid pixel slopes; worst_pixel is the steepest valid pixel (first in raster order on ties)."
   ],

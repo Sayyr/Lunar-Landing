@@ -13,3 +13,4 @@ pub mod scenario;
 pub mod science;
 pub mod service;
 pub mod terrain;
+pub mod trajectory;

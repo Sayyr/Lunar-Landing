@@ -122,7 +122,7 @@
     "Panel pointing 'vertical'; constant load; battery charge/discharge efficiencies applied per step (trapezoid on the sampled power). Screening estimate, not a power-system design.",
     "Delay before landing: battery drawn at 80.0 W net for the whole delay.",
     "Corrections are re-simulated with the same models; 'go' means every applied constraint passes under these screening models, not a mission certification.",
-    "Landing slope: 20 m LOLA DEM slope (Horn 3x3) over a 4 km disc centred on the site; not lander-footprint slope."
+    "Landing slope: Horn 3x3 slope of the finest installed LOLA DEM covering the 4 km disc centred on the site (named in the landing_slope constraint note); not lander-footprint slope."
   ],
   "warnings": [
     "SYNTHETIC DATA: these numbers do not describe the real Sun or Earth.",
