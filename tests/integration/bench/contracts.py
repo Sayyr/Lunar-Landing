@@ -25,6 +25,8 @@ SCHEMA_FILES = {
     "sites": "sites-response.schema.json",
     "slope_request": "slope-check-request.schema.json",
     "slope_response": "slope-check-response.schema.json",
+    "celestial_request": "celestial-state-request.schema.json",
+    "celestial_response": "celestial-state-response.schema.json",
     "radio_request": "radio-link-request.schema.json",
     "radio_response": "radio-link-response.schema.json",
 }

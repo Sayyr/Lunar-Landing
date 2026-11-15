@@ -44,6 +44,7 @@ Build **SELENE**, a scientifically defensible, interactive lunar landing-site an
 - `POST /scenarios/evaluate`
 - `POST /scenarios/compare`
 - `POST /scenarios/search` (after MVP)
+- `POST /celestial/state` (SPICE geometric Sun/Earth/Moon state for the 3D views)
 - `POST /scenarios/radio-link` (engineering tier: direct-to-Earth radio-link windows; analytic ephemeris, not SPICE)
 - `GET /terrain/{site_id}` (after terrain availability)
 

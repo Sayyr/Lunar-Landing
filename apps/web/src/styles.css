@@ -361,6 +361,17 @@ details ul { padding-left: 1.1rem; margin: 0.3rem 0; }
   display: flex; flex-direction: column; align-items: flex-start; gap: 4px; pointer-events: none; text-shadow: 0 1px 3px #000; }
 .lunar-footnote .sky-note { margin-top: 0; font-size: 9px; color: #a8876a; }
 
+/* Delay robustness */
+.timeline .line-joint { fill: none; stroke: var(--ok); stroke-width: 1.6; }
+.timeline .dot-pass { fill: var(--ok); }
+.timeline .dot-fail { fill: var(--bad); }
+.sw.joint { background: var(--ok); }
+.delay .actions button.active { background: #2b3546; border-color: #5a75a6; }
+.delay-table { display: block; max-height: 20rem; overflow: auto; }
+.delay-table .row-fail td, .delay-table .row-fail th { color: var(--bad); }
+.delay-table .row-na td, .delay-table .row-na th { color: var(--muted); }
+.delay-table .reasons { text-align: left; white-space: normal; min-width: 9rem; }
+
 /* DEM terrain horizon */
 .timeline .terrain { stroke-dasharray: 4 3; stroke-width: 1; opacity: 0.8; }
 .horizon-profile .ground { fill: #2a3242; stroke: var(--muted); stroke-width: 1; }

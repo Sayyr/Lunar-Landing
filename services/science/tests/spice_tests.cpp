@@ -18,6 +18,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <string>
 #include <thread>
 #include <utility>
@@ -386,6 +387,105 @@ static void test_real_terrain(const fs::path& kdir) {
                 ridge["terrain_horizon"]["site_surface_height_m"].get<double>(), hours(ridge, "sun_visible"));
 }
 
+// POST /celestial/state: geometric Sun/Earth/Moon state for the 3D views.
+static void test_celestial_state(const fs::path& kdir) {
+    const App app{std::optional<fs::path>(kdir)};
+    auto state = [&](const char* utc) { return app.handle("POST", "/celestial/state", json{{"utc", utc}}.dump()); };
+    auto vec = [](const json& j) { return Vec3{j[0].get<double>(), j[1].get<double>(), j[2].get<double>()}; };
+    auto mat = [](const json& j) {
+        spice::Mat3 m{};
+        for (int r = 0; r < 3; ++r)
+            for (int c = 0; c < 3; ++c) m[r][c] = j[3 * r + c].get<double>();
+        return m;
+    };
+
+    HttpResponse r = state("2026-11-15T00:00:00Z");
+    CHECK(r.status == 200);
+    const json& b = r.body;
+    CHECK(b["status"] == "computed" && b["synthetic"] == false && b["model"]["provider"] == "spice");
+    CHECK(b["model"]["kernel_set"].size() == spice::required_kernels().size());
+    CHECK(b["utc"] == "2026-11-15T00:00:00.000Z");
+
+    // Physical ranges: Earth-Moon 356 000-407 000 km, Earth-Sun 147-152.2 million km.
+    const Vec3 moon = vec(b["moon_from_earth"]["position_m"]), sun = vec(b["sun_from_earth"]["position_m"]);
+    CHECK(norm(moon) > 3.56e8 && norm(moon) < 4.07e8);
+    CHECK(norm(sun) > 1.47e11 && norm(sun) < 1.522e11);
+    CHECK(std::fabs(b["moon_from_earth"]["distance_m"].get<double>() - norm(moon)) < 1e-3);
+    // The Sun stays in the ecliptic plane (|latitude| < 0.01 deg in ECLIPJ2000 near 2026);
+    // the Moon within its 5.3 deg orbital inclination; its declination within +-28.7 deg.
+    CHECK(std::fabs(b["sun_from_earth"]["latitude_deg"].get<double>()) < 0.01);
+    CHECK(std::fabs(b["moon_from_earth"]["latitude_deg"].get<double>()) < 5.4);
+    CHECK(std::fabs(b["moon_from_earth"]["declination_deg"].get<double>()) < 28.8);
+    // Internal consistency: Sun->Moon = Earth->Moon - Earth->Sun (same geometric epoch).
+    const Vec3 ms = vec(b["moon_from_sun"]["position_m"]);
+    for (int i = 0; i < 3; ++i) CHECK(std::fabs(ms[i] - (moon[i] - sun[i])) < 1.0);
+    // k = (1 + cos i) / 2.
+    const double k = (1 + std::cos(deg_to_rad(b["derived"]["phase_angle_deg"].get<double>()))) / 2;
+    CHECK(std::fabs(b["derived"]["illuminated_fraction"].get<double>() - k) < 1e-12);
+
+    // Orientation matrices are proper rotations and equal the SPICE frame rotations.
+    const double et = spice::utc_to_et(std::string("2026-11-15T00:00:00Z"));
+    const spice::Mat3 moon_rot = mat(b["moon_orientation"]), earth_rot = mat(b["earth_orientation"]);
+    check_rotation(moon_rot);
+    check_rotation(earth_rot);
+    const spice::Mat3 ref = spice::frame_rotation("MOON_ME", "ECLIPJ2000", et);
+    for (int r2 = 0; r2 < 3; ++r2)
+        for (int c = 0; c < 3; ++c) CHECK(std::fabs(moon_rot[r2][c] - ref[r2][c]) < 1e-12);
+    // The Moon's +X axis (mean sub-Earth meridian) points at the Earth within the librations (< 8.5 deg).
+    const Vec3 x_axis = {moon_rot[0][0], moon_rot[1][0], moon_rot[2][0]};
+    const double cos_lib = -(x_axis[0] * moon[0] + x_axis[1] * moon[1] + x_axis[2] * moon[2]) / norm(moon);
+    CHECK(rad_to_deg(std::acos(cos_lib)) < 8.5);
+    // The Moon's pole stays within ~1.6 deg of the ecliptic pole (inclination 1.54 deg).
+    CHECK(rad_to_deg(std::acos(moon_rot[2][2])) < 1.7);
+    // The Earth's pole is tilted by the obliquity (23.44 deg) from the ecliptic pole.
+    CHECK(std::fabs(rad_to_deg(std::acos(earth_rot[2][2])) - 23.44) < 0.05);
+
+    // Known events (almanac dates, to the minute): full Moon 2026-11-24 14:53 UTC, new Moon
+    // 2026-11-09 07:02 UTC. Elongation in ecliptic longitude is 180 / 0 deg at those instants.
+    r = state("2026-11-24T14:53:00Z");
+    CHECK(r.body["derived"]["phase_name"] == "Full Moon");
+    CHECK(r.body["derived"]["illuminated_fraction"].get<double>() > 0.99);
+    double d_lon = std::fabs(std::remainder(r.body["moon_from_earth"]["longitude_deg"].get<double>() -
+                                            r.body["sun_from_earth"]["longitude_deg"].get<double>() - 180.0, 360.0));
+    CHECK(d_lon < 0.05);
+    r = state("2026-11-09T07:02:00Z");
+    CHECK(r.body["derived"]["phase_name"] == "New Moon");
+    CHECK(r.body["derived"]["illuminated_fraction"].get<double>() < 0.01);
+    d_lon = std::fabs(std::remainder(r.body["moon_from_earth"]["longitude_deg"].get<double>() -
+                                     r.body["sun_from_earth"]["longitude_deg"].get<double>(), 360.0));
+    CHECK(d_lon < 0.05);
+    // Waxing between new and full, waning after full.
+    CHECK(state("2026-11-15T00:00:00Z").body["derived"]["waxing"] == true);
+    CHECK(state("2026-11-28T00:00:00Z").body["derived"]["waxing"] == false);
+
+    // Outside the ephemeris: an explicit 503, no positions; the service keeps working.
+    r = state("2300-01-01T00:00:00Z");
+    CHECK(r.status == 503 && r.body["error"]["code"] == "science_unavailable" && !r.body.contains("moon_from_earth"));
+    CHECK(state("2026-11-15T00:00:00Z").status == 200);
+
+    // Live output still matches the generated contract fixture (relative 1e-9: other libm).
+    const json fixture = json::parse(std::ifstream(fs::path(SELENE_CONTRACTS_DIR) / "fixtures/celestial-state-response.computed.json"));
+    std::function<bool(const json&, const json&)> near = [&](const json& x, const json& y) {
+        if (x.is_number() && y.is_number()) {
+            const double p = x.get<double>(), q = y.get<double>();
+            return std::fabs(p - q) <= std::max(1e-9, 1e-9 * std::max(std::fabs(p), std::fabs(q)));
+        }
+        if (x.type() != y.type() || x.size() != y.size()) return false;
+        if (x.is_object()) {
+            for (auto it = x.begin(); it != x.end(); ++it)
+                if (!y.contains(it.key()) || !near(it.value(), y.at(it.key()))) return false;
+            return true;
+        }
+        if (x.is_array()) {
+            for (size_t i = 0; i < x.size(); ++i)
+                if (!near(x[i], y[i])) return false;
+            return true;
+        }
+        return x == y;
+    };
+    CHECK(near(state("2026-11-15T00:00:00Z").body, fixture));
+}
+
 int main() {
     if (!spice::available()) {
         CHECK_THROWS(spice::utc_to_et("2026-11-14T12:00:00Z"));  // the no-CSPICE build fails cleanly
@@ -414,6 +514,7 @@ int main() {
     test_threads();
     test_api(kdir);
     test_real_terrain(kdir);
+    test_celestial_state(kdir);
 
     std::printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;

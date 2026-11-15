@@ -719,6 +719,28 @@ static void test_evaluate_with_terrain() {
     CHECK(r.body["message"].get<std::string>().find("too close to the edge") != std::string::npos);
 }
 
+// POST /celestial/state without kernels: validation works, and no position is ever invented.
+static void test_celestial_state_without_kernels() {
+    const json valid = load(CONTRACTS / "fixtures/celestial-state-request.valid.json");
+    HttpResponse r = app.handle("POST", "/celestial/state", valid.dump());
+    CHECK(r.status == 503);
+    CHECK(r.body["error"]["code"] == "science_unavailable");
+    CHECK(r.body["error"]["message"].get<std::string>().find("SELENE_KERNEL_DIR not set") != std::string::npos);
+    CHECK(!r.body.contains("moon_from_earth"));
+    CHECK(app.handle("GET", "/celestial/state", "").status == 405);
+    CHECK(app.handle("POST", "/celestial/state", "").status == 422);
+    CHECK(app.handle("POST", "/celestial/state", "{bad").status == 422);
+    CHECK(app.handle("POST", "/celestial/state", "[]").status == 422);
+    int n_invalid = 0;
+    for (const auto& entry : fs::directory_iterator(CONTRACTS / "fixtures/invalid-celestial-state-requests")) {
+        ++n_invalid;
+        r = app.handle("POST", "/celestial/state", load(entry.path()).dump());
+        if (r.status != 422) std::fprintf(stderr, "accepted invalid fixture %s\n", entry.path().string().c_str());
+        CHECK(r.status == 422 && r.body["error"]["code"] == "validation_error");
+    }
+    CHECK(n_invalid >= 5);
+}
+
 static void test_time() {
     CHECK(format_utc(parse_utc("2026-11-15T00:00:00Z")) == "2026-11-15T00:00:00.000Z");
     CHECK(format_utc(parse_utc("1970-01-01T00:00:00Z")) == "1970-01-01T00:00:00.000Z");
@@ -1375,6 +1397,7 @@ int main() {
     test_radio_link();
     test_terrain_horizon();
     test_evaluate_with_terrain();
+    test_celestial_state_without_kernels();
     test_time();
     test_api();
     test_slope_check();

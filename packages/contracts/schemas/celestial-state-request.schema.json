@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://selene.local/contracts/celestial-state-request.schema.json",
+  "title": "CelestialStateRequest",
+  "description": "One UTC instant for the Sun/Earth/Moon state used by the 3D views.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "utc"
+  ],
+  "properties": {
+    "utc": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$",
+      "description": "UTC ISO 8601 with a literal 'Z'. Must lie inside the loaded ephemeris (DE440s: 1849-2150)."
+    }
+  }
+}

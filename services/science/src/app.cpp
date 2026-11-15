@@ -1,7 +1,9 @@
 #include "app.hpp"
 
+#include "celestial.hpp"
 #include "evaluate.hpp"
 #include "radio.hpp"
+#include "spice.hpp"
 
 namespace selene {
 
@@ -36,6 +38,10 @@ HttpResponse App::handle(const std::string& method, const std::string& path,
         if (method != "POST") return {405, error_response("not_found", "Method Not Allowed")};
         return slope_check_route(body);
     }
+    if (path == "/celestial/state") {
+        if (method != "POST") return {405, error_response("not_found", "Method Not Allowed")};
+        return celestial_route(body);
+    }
     if (path == "/radio/evaluate") {
         if (method != "POST") return {405, error_response("not_found", "Method Not Allowed")};
         return radio_route(body);
@@ -63,6 +69,27 @@ HttpResponse App::slope_check_route(const std::string& body) const {
         return {200, std::move(out)};
     } catch (const std::exception& e) {  // DEM I/O failure: never a fabricated verdict
         return {500, error_response("internal_error", std::string("Slope check failed: ") + e.what())};
+    }
+}
+
+HttpResponse App::celestial_route(const std::string& body) const {
+    static const char* CELESTIAL_INVALID = "Celestial state request is invalid.";
+    if (body.empty()) return validation_error({{"", "Field required"}}, CELESTIAL_INVALID);
+    json parsed = json::parse(body, nullptr, /*allow_exceptions=*/false);
+    if (parsed.is_discarded()) return validation_error({{"", "JSON decode error"}}, CELESTIAL_INVALID);
+    int64_t utc_us = 0;
+    try {
+        utc_us = parse_celestial_state_request(parsed);
+    } catch (const ValidationError& e) {
+        return validation_error(e.details, CELESTIAL_INVALID);
+    }
+    // No kernels, or an epoch outside them: an explicit error, never invented positions.
+    const ProviderStatus s = spice_.status();
+    if (!s.ready) return {503, error_response("science_unavailable", "Ephemerides not available: " + s.reason)};
+    try {
+        return {200, celestial_state(utc_us)};
+    } catch (const spice::Error& e) {
+        return {503, error_response("science_unavailable", std::string("Ephemerides not available: ") + e.what())};
     }
 }
 

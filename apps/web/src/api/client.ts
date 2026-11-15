@@ -1,3 +1,4 @@
+import type { CelestialStateResponse } from "./celestialTypes";
 import type {
   ErrorResponse,
   HealthResponse,
@@ -49,6 +50,9 @@ export const api = {
   /** Server-side slope check of a circular zone on the full-resolution DEM (science service). */
   slopeCheck: (req: SlopeCheckRequest) =>
     request<SlopeCheckResponse>("/v1/terrain/slope/check", { method: "POST", body: JSON.stringify(req) }),
+  /** Sun/Earth/Moon geometric state (SPICE) for the 3D views; 503 when ephemerides are unavailable. */
+  celestialState: (utc: string) =>
+    request<CelestialStateResponse>("/v1/celestial/state", { method: "POST", body: JSON.stringify({ utc }) }),
   /** Direct-to-Earth radio-link windows (engineering estimate, analytic ephemeris — not a link guarantee). */
   radioLink: (req: RadioLinkRequest) =>
     request<RadioLinkResponse>("/v1/scenarios/radio-link", { method: "POST", body: JSON.stringify(req) }),

@@ -197,6 +197,17 @@ Apparent apparent_position(const std::string& target, double et, const Vec3& obs
     return {{state[0], state[1], state[2]}, lt};
 }
 
+Vec3 geometric_position_km(const std::string& target, const std::string& observer, const std::string& frame,
+                           double et) {
+    Lock lock(mtx());
+    init_error_mode();
+    require_loaded();
+    SpiceDouble pos[3], lt = 0;
+    spkpos_c(target.c_str(), et, frame.c_str(), "NONE", observer.c_str(), pos, &lt);
+    check("spkpos_c");
+    return {pos[0], pos[1], pos[2]};
+}
+
 AzEl az_el(const std::string& target, double et, double lat_deg, double lon_deg, double height_m) {
     const Apparent a = apparent_position(target, et, site_position_km(lat_deg, lon_deg, height_m));
     const auto [az, el] =
@@ -235,6 +246,7 @@ Mat3 frame_rotation(const std::string&, const std::string&, double) { unavailabl
 std::array<double, 3> moon_radii_km() { unavailable(); }
 Vec3 site_position_km(double, double, double) { unavailable(); }
 Apparent apparent_position(const std::string&, double, const Vec3&) { unavailable(); }
+Vec3 geometric_position_km(const std::string&, const std::string&, const std::string&, double) { unavailable(); }
 AzEl az_el(const std::string&, double, double, double, double) { unavailable(); }
 AzEl az_el_azlcpo(const std::string&, double, double, double, double) { unavailable(); }
 

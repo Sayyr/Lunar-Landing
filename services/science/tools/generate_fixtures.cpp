@@ -6,6 +6,7 @@
 // slope-check synthetic-dem fixture runs on a SYNTHETIC tilted plane (tests/synthetic_dem.hpp).
 
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 
@@ -45,5 +46,15 @@ int main() {
     dem_request["duration_hours"] = 48;
     dem_request["step_minutes"] = 360;
     write("scenario-response.synthetic-dem.json", on_wall.handle("POST", "/evaluate/synthetic", dem_request.dump()).body);
+    // Needs real kernels (SELENE_KERNEL_DIR); skipped otherwise so the other fixtures still regenerate.
+    const char* kernels = std::getenv("SELENE_KERNEL_DIR");
+    const selene::App live(kernels && *kernels ? std::optional<fs::path>(kernels) : std::nullopt);
+    json celestial = json::parse(std::ifstream(FIXTURES / "celestial-state-request.valid.json"));
+    const selene::HttpResponse state = live.handle("POST", "/celestial/state", celestial.dump());
+    if (state.status == 200)
+        write("celestial-state-response.computed.json", state.body);
+    else
+        std::printf("skipped celestial-state-response.computed.json: %s\n",
+                    state.body["error"]["message"].get<std::string>().c_str());
     return 0;
 }

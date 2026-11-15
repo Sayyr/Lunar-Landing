@@ -23,6 +23,9 @@ Sites below are **synthetic test points** (`packages/contracts/fixtures/sites.js
    *Compare A and B*. The table shows, for A, B and B − A: Sun, Earth and joint visibility fractions, longest outages,
    window counts and first sunrise/Earthrise. Talking point: a one-week delay changes Earth visibility and the first
    Earthrise; the site is the same.
+   Then open *Delay robustness*: 14 days, 1-day step, set e.g. *Min. Earth above horizon* 50 % and *Max. Earth outage*
+   24 h, *Evaluate 15 delays*. The chart and table show which delays meet the constraints, the worst case and the spread;
+   *Ranked* orders them by stated criteria (no weighted score). From SYN-A on 2026-11-15, delays of +0, +1 and +14 days fail.
 4. **Another site.** Set B to −85°, −30°E and shift 0, compare again: more Earth, less Sun, different outages. Optional: B at
    0°, −180°E (far side) gives 0 % Earth and a 720 h outage over a 30-day span, a quick sanity check.
    **Terrain.** Set *Horizon model* to *DEM terrain horizon* and evaluate the floor of Shackleton crater

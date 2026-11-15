@@ -61,6 +61,8 @@ def test_every_schema_file_is_known_to_the_bench():
         ("slope_request", "slope-check-request.valid.json"),
         ("slope_response", "slope-check-response.dem-unavailable.json"),
         ("slope_response", "slope-check-response.synthetic-dem.json"),
+        ("celestial_request", "celestial-state-request.valid.json"),
+        ("celestial_response", "celestial-state-response.computed.json"),
         ("radio_request", "radio-link-request.valid.json"),
         ("radio_response", "radio-link-response.computed.json"),
     ],

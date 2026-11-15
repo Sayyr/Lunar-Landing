@@ -8,6 +8,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::Value;
 
+use crate::celestial::{CelestialStateRequest, CelestialStateResponse};
 use crate::envelope::{ApiError, ErrorCode, ErrorResponse};
 use crate::radio::{RadioLinkRequest, RadioLinkResponse};
 use crate::scenario::{ScenarioRequest, ScenarioResponse};
@@ -80,6 +81,13 @@ impl ScienceClient {
         self.post("/radio/evaluate", req).await
     }
 
+    pub async fn celestial_state(
+        &self,
+        req: &CelestialStateRequest,
+    ) -> Result<CelestialStateResponse, ApiError> {
+        self.post("/celestial/state", req).await
+    }
+
     async fn post<Req: Serialize, Resp: DeserializeOwned>(
         &self,
         path: &str,
@@ -106,10 +114,19 @@ impl ScienceClient {
         }
         // Forward the science service's own error envelope when it is well-formed.
         match serde_json::from_slice::<ErrorResponse>(&bytes) {
-            Ok(err) if status.is_client_error() => Err(ApiError {
-                status: StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::BAD_GATEWAY),
-                body: err.error,
-            }),
+            // 4xx, and the science service's own "ephemerides unavailable" (503 science_unavailable):
+            // the client must see that reason, not a generic upstream error.
+            Ok(err)
+                if status.is_client_error()
+                    || (status == reqwest::StatusCode::SERVICE_UNAVAILABLE
+                        && err.error.code == ErrorCode::ScienceUnavailable) =>
+            {
+                Err(ApiError {
+                    status: StatusCode::from_u16(status.as_u16())
+                        .unwrap_or(StatusCode::BAD_GATEWAY),
+                    body: err.error,
+                })
+            }
             _ => Err(ApiError::new(
                 StatusCode::BAD_GATEWAY,
                 ErrorCode::UpstreamError,
