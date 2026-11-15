@@ -1,18 +1,47 @@
 # Demo script
 
-## Current state (iteration 1 — skeleton)
+Works offline once installed: no live NASA API is called during the demo.
+Sites below are **synthetic test points** (`packages/contracts/fixtures/sites.json`), not landing-site recommendations.
 
-Works offline. Needs no live NASA API.
+## Before the demo
 
-1. Start the stack (`docker compose -f infra/compose.yaml up --build`, or `scripts/dev.sh`). See README.
-2. Open the web app. Header badges show live status: **API**, **Science**, **Ephemerides NOT ready** (hover for the reason).
-3. Click on the globe (drag to rotate) or choose a preset. Presets are synthetic test points, not landing sites. The red marker moves and the lat/lon fields update.
-4. **Evaluate (real ephemerides)** → `NOT READY` card: the SPICE provider isn't implemented yet and no kernels are installed. No numbers are shown.
-5. **Load SYNTHETIC demo data** → orange dashed panel with a "SYNTHETIC DEMO DATA" banner, watermark on the timeline, and the window list. Point out the assumptions and provenance sections.
-6. Set horizon model to *DEM terrain horizon* → `NOT READY` (no DEM installed).
+1. `scripts/setup-spice.sh` once (CSPICE + SPICE kernels, SHA-256 checked; `--kernels` alone for Docker).
+2. Start the stack: `docker compose -f infra/compose.yaml up --build`, or `scripts/dev.sh`.
+3. Header badges must read **API**, **Science** and **Ephemerides ready**. If they say *NOT ready*, hover for the
+   reason (usually: kernels not installed or `SELENE_KERNEL_DIR` not set) and fix that before going on.
 
-Talking point: the system refuses to show fake physics. Synthetic data exists only to build the UI and is labelled everywhere: response `status`, the `synthetic` flag, provenance, warnings, UI banner and watermark.
+## Main path (about 5 minutes)
 
-## Target demo (P0 complete) — to be written
+1. **Pick site A.** Click the globe near the south pole, or choose the preset *SYN-A* (−89.5°, 0°E). Explain: planetocentric
+   latitude, east-positive longitude, lunar frame `MOON_ME`.
+2. **Evaluate (real ephemerides)**, 72 h, 10 min step. The card says `COMPUTED`:
+   - Timeline of Sun and Earth centre elevation, with the above-horizon bars.
+   - Model block: provider `spice`, frame `MOON_ME`, the five kernels, UTC → ET/TDB note.
+   - Talking point: near the pole the Sun skims the horizon and the Earth rises and sets with the libration, over days,
+     not hours.
+3. **Delay the landing.** Open *Compare with scenario B*. Keep B's site = A's site and set *B start shift* to 7 days, then
+   *Compare A and B*. The table shows, for A, B and B − A: Sun, Earth and joint visibility fractions, longest outages,
+   window counts and first sunrise/Earthrise. Talking point: a one-week delay changes Earth visibility and the first
+   Earthrise; the site is the same.
+4. **Another site.** Set B to −85°, −30°E and shift 0, compare again: more Earth, less Sun, different outages. Optional: B at
+   0°, −180°E (far side) gives 0 % Earth and a 720 h outage over a 30-day span, a quick sanity check.
+5. **Radio link** (engineering estimate). Open *Radio link to Earth*, *Compute radio windows*. Explain the three conditions
+   (Earth above the lunar mask, a ground station sees the Moon, budget closes) and that it is not a link guarantee.
+6. **Terrain.** Switch to the ground view at the site to show the LOLA relief and the shadows (visual only); the slope check
+   gives a DEM-based pass/fail for a zone.
 
-Site A south-polar → windows over N days → shift landing by several days → compare with site B → explain with timeline and horizon view. Use only sites with cited coordinate sources.
+## What to say about limits
+
+- Horizon is the **ideal geometric** one: terrain does not block the Sun or Earth in the numbers (`terrain_mode: dem` answers
+  `not_ready`). The ground view and its horizon are visualisations, not the scientific horizon.
+- Visibility is of body **centres**; finite Sun/Earth disks are not modelled.
+- Geometric Sun visibility is not power; geometric Earth visibility is not a radio link.
+- Ephemerides: CSPICE + DE440, cross-checked against the team's SpiceyPy script and against JPL Horizons on 48 cases
+  (`docs/validation.md`). The radio estimate uses an analytic ephemeris (≤ 0.04° from SPICE in our checks).
+- Comparison metrics are computed in the browser from the windows returned by the science service (interval arithmetic
+  only); outages touching the span edges are lower bounds.
+
+## Fallback without kernels
+
+*Evaluate* answers `NOT READY` with the reason and no numbers. *Load SYNTHETIC demo data* still shows the UI, with the orange
+SYNTHETIC banner and watermark: say explicitly that those curves are not the Sun or Earth.
