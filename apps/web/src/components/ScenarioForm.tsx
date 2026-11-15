@@ -105,7 +105,7 @@ export function ScenarioForm({ value, onChange, sites, busy, onEvaluate, onSynth
         Horizon model
         <select value={value.terrain_mode} onChange={(e) => onChange({ ...value, terrain_mode: e.target.value as TerrainMode })}>
           <option value="ideal">Ideal geometric horizon</option>
-          <option value="dem">DEM terrain horizon (not available)</option>
+          <option value="dem">DEM terrain horizon (LOLA 20 m, 85°S–90°S)</option>
         </select>
       </label>
       <div className="actions">

@@ -146,7 +146,7 @@ export function ComparePanel({ scenario }: { scenario: ScenarioRequest }) {
           )}
           <p className="muted small">
             Over the sampled span of each scenario ({ma ? formatDuration(ma.spanHours) : "—"}). Outages at the span edges are lower
-            bounds (the window may continue outside it). Ideal geometric horizon, body centres; terrain not modelled.
+            bounds (the window may continue outside it). Body centres, horizon model of the scenario above (ideal: no terrain; DEM: terrain horizon).
           </p>
           <Side label="A" req={run.reqA} out={run.a} />
           <Side label="B" req={run.reqB} out={run.b} />

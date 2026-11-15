@@ -135,3 +135,46 @@ def test_plausibility_bounds_reject_gross_errors():
     resp = copy.deepcopy(SYNTHETIC)
     resp["status"] = "computed"
     assert inv.check_physical_plausibility(resp)
+
+
+# --- DEM terrain horizon fixture -----------------------------------------------------------
+
+SYNTHETIC_DEM = load_json(SHARED_FIXTURES / "scenario-response.synthetic-dem.json")
+
+
+def test_terrain_fixture_is_consistent():
+    assert inv.check_all(SYNTHETIC_DEM) == []
+    assert SYNTHETIC_DEM["synthetic"] is True, "synthetic DEM fixture must be flagged"
+
+
+def _drop_terrain(r):
+    del r["terrain_horizon"]
+
+
+def _shift_horizon(r):
+    r["samples"][0]["sun"]["horizon_elevation_deg"] += 1.0
+
+
+def _drop_sample_horizon(r):
+    del r["samples"][1]["earth"]["horizon_elevation_deg"]
+
+
+def _raise_all_horizons(r):
+    # windows no longer match "elevation above the terrain horizon"
+    for s in r["samples"]:
+        s["sun"]["horizon_elevation_deg"] = 80.0
+        s["earth"]["horizon_elevation_deg"] = 80.0
+    r["terrain_horizon"]["elevation_deg"] = [80.0] * len(r["terrain_horizon"]["elevation_deg"])
+
+
+@pytest.mark.parametrize("mutate", [_drop_terrain, _shift_horizon, _drop_sample_horizon, _raise_all_horizons], ids=lambda f: f.__name__)
+def test_terrain_checks_detect_injected_defects(mutate):
+    resp = copy.deepcopy(SYNTHETIC_DEM)
+    mutate(resp)
+    assert inv.check_all(resp), f"{mutate.__name__} went undetected"
+
+
+def test_ideal_response_must_not_carry_terrain_data():
+    resp = copy.deepcopy(SYNTHETIC)
+    resp["samples"][0]["sun"]["horizon_elevation_deg"] = 1.0
+    assert inv.check_all(resp)

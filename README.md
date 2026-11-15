@@ -101,7 +101,7 @@ CI (`.github/workflows/ci.yml`) runs the same commands.
 |---|---|
 | `GET /health` | gateway status + embedded science health (`ephemeris.ready`, reason) |
 | `GET /sites` | preset sites. Currently **synthetic test points only** (not landing sites). |
-| `POST /scenarios/evaluate` | real Sun/Earth azimuth/elevation from SPICE (DE440, MOON_ME, ideal horizon) → `status: "computed"`; `not_ready` when CSPICE or the kernels are not installed. Agrees with JPL Horizons to 0.01 arcsec on 48 reference rows (`docs/validation.md`) |
+| `POST /scenarios/evaluate` | Sun/Earth azimuth/elevation and visibility windows from SPICE (`status: "computed"`). `terrain_mode: "ideal"`: ideal geometric horizon. `terrain_mode: "dem"`: terrain horizon traced on the LOLA 20 m DEM (`SELENE_DEM_PATH`, sites within 85°S–90°S and at least 50 km from the DEM edge); the response then carries the horizon profile and each sample its horizon. `status: "not_ready"` with the reason and no numbers when kernels or the DEM are missing, the site is outside the DEM, or the epoch is outside DE440s |
 | `POST /demo/synthetic/evaluate` | **SYNTHETIC** demo data (`status: "synthetic"`, `synthetic: true`) |
 | `POST /scenarios/radio-link` | **engineering estimate** of direct-to-Earth radio-link windows: Earth above the lunar-side mask (ideal horizon), a requested ground station seeing the Moon, and the free-space link budget closing with the request's hardware figures. Analytic low-precision ephemeris (Meeus), **not SPICE**; not a link guarantee. See `docs/validation.md` |
 | `POST /calcule` | former `back/` API: runs the programs of a profile (`services/api/config/profiles.json`) and streams NDJSON. The bundled programs are **simulators** whose output is labelled `synthetic` |

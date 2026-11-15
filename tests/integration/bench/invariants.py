@@ -169,7 +169,11 @@ def _positive_runs(elev: list[float]) -> list[tuple[int, int]]:
 
 
 def check_windows(resp: dict) -> list[str]:
-    """Windows must be the above-horizon runs of the sampled elevation (threshold 0, strict)."""
+    """Windows must be the above-horizon runs of the samples (strict).
+
+    The horizon is 0 deg for the ideal model and `horizon_elevation_deg` (terrain horizon at the
+    body's azimuth) when the response carries it.
+    """
     samples = resp["samples"]
     if not samples:
         return []
@@ -181,7 +185,7 @@ def check_windows(resp: dict) -> list[str]:
     for body in BODIES:
         key = WINDOW_KEY[body]
         windows = resp["windows"][key]
-        elev = [s[body]["elevation_deg"] for s in samples]
+        elev = [s[body]["elevation_deg"] - s[body].get("horizon_elevation_deg", 0.0) for s in samples]
         runs = _positive_runs(elev)
         if len(windows) != len(runs):
             p.append(f"{key}: {len(windows)} windows but {len(runs)} above-horizon sample runs")
@@ -215,7 +219,7 @@ def check_windows(resp: dict) -> list[str]:
 
 def check_all(resp: dict, sent: dict | None = None) -> list[str]:
     problems = check_labelling(resp) + check_time_grid(resp) + check_directions(resp)
-    problems += check_windows(resp)
+    problems += check_windows(resp) + check_terrain(resp)
     if sent is not None:
         problems += check_request_echo(resp, sent)
     return problems
@@ -257,4 +261,44 @@ def check_physical_plausibility(resp: dict) -> list[str]:
                     f"at sample {k} (bound {MAX_ELEVATION_RATE_DEG_PER_H}°/h)"
                 )
                 break
+    return p
+
+
+# --- DEM terrain horizon ------------------------------------------------------------------
+
+
+def check_terrain(resp: dict) -> list[str]:
+    """The terrain block and the per-sample horizon appear together, only for the DEM model."""
+    p: list[str] = []
+    dem = resp["model"]["horizon_model"] == "dem_terrain"
+    terrain = resp.get("terrain_horizon")
+    has_numbers = bool(resp["samples"])
+    per_sample = [body for s in resp["samples"] for body in BODIES if "horizon_elevation_deg" in s[body]]
+    if not dem:
+        if terrain is not None or per_sample:
+            p.append("ideal-horizon response carries terrain horizon data")
+        return p
+    if not has_numbers:
+        if terrain is not None:
+            p.append("terrain_horizon present without samples")
+        return p
+    if terrain is None:
+        return ["dem_terrain result without a terrain_horizon block"]
+    if len(per_sample) != len(resp["samples"]) * len(BODIES):
+        p.append("dem_terrain result: some samples lack horizon_elevation_deg")
+    n = len(terrain["elevation_deg"])
+    if abs(n * terrain["azimuth_step_deg"] - 360.0) > 1e-9:
+        p.append(f"terrain profile: {n} bearings x {terrain['azimuth_step_deg']} deg is not 360 deg")
+    if not any(d["kind"] in ("dem", "synthetic") and "DEM" in d["notes"] for d in resp["data_provenance"]):
+        p.append("dem_terrain result has no DEM provenance entry")
+    # Each sample's horizon must be the profile interpolated at the body's azimuth.
+    step, prof = terrain["azimuth_step_deg"], terrain["elevation_deg"]
+    for k, s in enumerate(resp["samples"]):
+        for body in BODIES:
+            x = (s[body]["azimuth_deg"] % 360.0) / step
+            i, f = int(x) % n, x - int(x)
+            want = prof[i] * (1 - f) + prof[(i + 1) % n] * f
+            if abs(want - s[body].get("horizon_elevation_deg", want)) > 1e-6:
+                p.append(f"sample {k} {body}: horizon {s[body]['horizon_elevation_deg']} != profile {want:.6f}")
+                return p
     return p

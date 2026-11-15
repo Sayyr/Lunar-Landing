@@ -35,9 +35,9 @@ Set `SELENE_KERNEL_DIR` to `data/kernels` (`scripts/dev.sh` does it automaticall
 The service loads exactly these five files by name; the response lists them in `model.kernel_set` and
 `data_provenance` (with the SHA-256 read from `SHA256SUMS`, not recomputed).
 
-## DEM for the science service (terrain slope check)
+## DEM for the science service (terrain slope check and terrain horizon)
 
-`POST /terrain/slope/check` reads the raw LOLA `LDEM_85S_20M` float32 grid. It is the same file the web
+`POST /terrain/slope/check` and `POST /evaluate` with `terrain_mode: "dem"` (terrain horizon, `services/science/src/horizon.hpp`) read the raw LOLA `LDEM_85S_20M` float32 grid. It is the same file the web
 polar tiles are built from (`apps/web/scripts/setup-polar-dem.sh` downloads it to `apps/web/data-raw/lola_polar/`,
 see `apps/web/scripts/POLAR_DATA.md`); nothing is downloaded by the service.
 

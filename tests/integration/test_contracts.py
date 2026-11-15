@@ -55,6 +55,7 @@ def test_every_schema_file_is_known_to_the_bench():
         ("request", "scenario-request.valid.json"),
         ("response", "scenario-response.not-ready.json"),
         ("response", "scenario-response.synthetic.json"),
+        ("response", "scenario-response.synthetic-dem.json"),
         ("sites", "sites.json"),
         ("error", "error.validation.json"),
         ("slope_request", "slope-check-request.valid.json"),

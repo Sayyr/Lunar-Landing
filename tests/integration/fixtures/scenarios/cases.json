@@ -56,8 +56,13 @@
       "heavy": true
     },
     "dem-terrain": {
-      "purpose": "DEM terrain mode: must be not_ready until a DEM is installed.",
+      "purpose": "DEM terrain mode at 85 S: not_ready, either no DEM is installed or the site is on the edge of LDEM_85S_20M.",
       "expect_not_ready": true
+    },
+    "dem-terrain-near-pole": {
+      "purpose": "DEM terrain mode at a site LDEM_85S_20M covers: terrain horizon when the DEM is installed, not_ready otherwise.",
+      "dem": true,
+      "polar": true
     }
   },
   "invalid": {

@@ -1,6 +1,7 @@
 import { memo } from "react";
 
 import type { ScenarioResponse, VisibilityWindow } from "../api/types";
+import { HorizonProfile } from "./HorizonProfile";
 import { Timeline } from "./Timeline";
 
 function WindowList({ title, windows }: { title: string; windows: VisibilityWindow[] }) {
@@ -68,7 +69,10 @@ export const ResultPanel = memo(function ResultPanel({ result }: { result: Scena
         <>
           <div className="legend">
             <span className="sw sun" /> Sun centre elevation <span className="sw earth" /> Earth centre elevation
-            <span className="muted"> · bars = above ideal horizon (geometric only — not power or link availability)</span>
+            <span className="muted">
+              {" "}· bars = above the {result.terrain_horizon ? "terrain" : "ideal"} horizon (geometric only — not power or link availability)
+              {result.terrain_horizon && <> · dashed = terrain horizon at the body's azimuth</>}
+            </span>
           </div>
           <Timeline
             samples={result.samples}
@@ -76,6 +80,24 @@ export const ResultPanel = memo(function ResultPanel({ result }: { result: Scena
             earthWindows={result.windows.earth_visible}
             watermark={synthetic ? "SYNTHETIC" : undefined}
           />
+          {result.terrain_horizon && (
+            <>
+              <h4>Terrain horizon from the site</h4>
+              <HorizonProfile terrain={result.terrain_horizon} samples={result.samples} />
+              <p className="muted small">
+                Skyline elevation versus azimuth; dots = Sun (yellow) and Earth (blue) centres over the scenario. Ground at the
+                site: {result.terrain_horizon.site_surface_height_m.toFixed(0)} m relative to the 1737.4 km sphere. Rays traced
+                to {(result.terrain_horizon.max_range_m / 1000).toFixed(0)} km
+                {result.terrain_horizon.truncated_bearing_fraction > 0 && (
+                  <>
+                    ; {(result.terrain_horizon.truncated_bearing_fraction * 100).toFixed(0)} % of directions leave the DEM
+                    earlier (from {(result.terrain_horizon.min_covered_range_m / 1000).toFixed(0)} km): terrain beyond is unknown
+                  </>
+                )}
+                .
+              </p>
+            </>
+          )}
           <div className="grid2">
             <WindowList title="Sun above horizon" windows={result.windows.sun_visible} />
             <WindowList title="Earth above horizon" windows={result.windows.earth_visible} />
