@@ -10,13 +10,17 @@ import { LunarExplorer } from "./lunar/LunarExplorer";
 import { RadioLinkPanel } from "./components/RadioLinkPanel";
 import { ComparePanel } from "./components/ComparePanel";
 import { DelaySweepPanel } from "./components/DelaySweepPanel";
+import { LandingSitesPage } from "./components/LandingSitesPage";
 
 const CelestialDashboard = lazy(() =>
   import("./components/celestial/CelestialDashboard").then((m) => ({ default: m.CelestialDashboard })),
 );
 
-type Tab = "scenario" | "sky";
-const tabFromHash = (): Tab => (window.location.hash === "#/sky" ? "sky" : "scenario");
+type Tab = "scenario" | "sky" | "sites";
+const tabFromHash = (): Tab => {
+  const h = window.location.hash;
+  return h === "#/sky" ? "sky" : h === "#/sites" ? "sites" : "scenario";
+};
 
 // Synthetic example from CLAUDE.md — not a recommended landing site.
 const DEFAULT_REQUEST: ScenarioRequest = {
@@ -75,6 +79,7 @@ export function App() {
         <nav className="tabs" aria-label="Views">
           <a href="#/" className={tab === "scenario" ? "active" : ""}>Site scenario</a>
           <a href="#/sky" className={tab === "sky" ? "active" : ""}>Sun · Earth · Moon</a>
+          <a href="#/sites" className={tab === "sites" ? "active" : ""}>Landing sites</a>
         </nav>
       </header>
       {/* Both views stay mounted (hidden + paused) so switching tabs keeps the globe, its GPU data and state. */}
@@ -84,6 +89,16 @@ export function App() {
             <CelestialDashboard active={tab === "sky"} />
           </Suspense>
         )}
+      </main>
+      <main className="sites-main" hidden={tab !== "sites"}>
+        <LandingSitesPage
+          active={tab === "sites"}
+          onShow={(s) => {
+            setRequest((r) => ({ ...r, site: { ...r.site, latitude_deg: s.lat, longitude_deg: s.lon } }));
+            setFocus((f) => ({ lat: s.lat, lon: s.lon, seq: (f?.seq ?? 0) + 1 }));
+            window.location.hash = "#/";
+          }}
+        />
       </main>
       <main className="scenario-main" hidden={tab !== "scenario"}>
         <LunarExplorer
