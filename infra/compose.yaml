@@ -49,6 +49,8 @@ services:
       # reports "not installed".
       - ../apps/web/public/data/polar_s:/usr/share/nginx/html/data/polar_s:ro
       - ../apps/web/public/data/polar_s_slope:/usr/share/nginx/html/data/polar_s_slope:ro
+      # 4 km disc slope grid of the "South-pole grid" page (~3 MB, slope-grid tool, POLAR_DATA.md).
+      - ../apps/web/public/data/polar_s_grid:/usr/share/nginx/html/data/polar_s_grid:ro
     depends_on:
       api:
         condition: service_started
