@@ -1,5 +1,5 @@
 import type { PresetSite, ScenarioRequest, TerrainMode } from "../api/types";
-import { LANDING_SITES, landingLabel } from "../lunar/landingSites";
+import { SiteSelect } from "./SiteSelect";
 
 interface Props {
   value: ScenarioRequest;
@@ -47,37 +47,13 @@ export function ScenarioForm({ value, onChange, sites, busy, onEvaluate, onSynth
     <form className="form" onSubmit={(e) => e.preventDefault()}>
       <label>
         Site
-        <select
-          value=""
-          onChange={(e) => {
-            const v = e.target.value;
-            const [kind, id] = [v.slice(0, v.indexOf(":")), v.slice(v.indexOf(":") + 1)];
-            const s = kind === "landing" ? LANDING_SITES.find((x) => x.id === id) : undefined;
-            const p = kind === "preset" ? sites.find((x) => x.id === id) : undefined;
-            const chosen = s ? { lat: s.lat, lon: s.lon } : p ? { lat: p.latitude_deg, lon: p.longitude_deg } : null;
-            if (!chosen) return;
-            setSite({ latitude_deg: chosen.lat, longitude_deg: chosen.lon });
-            onSiteChosen?.(chosen.lat, chosen.lon);
+        <SiteSelect
+          sites={sites}
+          onChosen={(lat, lon) => {
+            setSite({ latitude_deg: lat, longitude_deg: lon });
+            onSiteChosen?.(lat, lon);
           }}
-        >
-          <option value="">— choose a site —</option>
-          <optgroup label="Past soft landings (LROC)">
-            {LANDING_SITES.map((s) => (
-              <option key={s.id} value={`landing:${s.id}`}>
-                {landingLabel(s)}
-              </option>
-            ))}
-          </optgroup>
-          {sites.length > 0 && (
-            <optgroup label="Synthetic test points">
-              {sites.map((s) => (
-                <option key={s.id} value={`preset:${s.id}`} title={s.notes}>
-                  {s.name}
-                </option>
-              ))}
-            </optgroup>
-          )}
-        </select>
+        />
       </label>
       <div className="grid3">
         <NumberField label="Latitude (°)" title="Planetocentric" value={site.latitude_deg} min={-90} max={90} step={0.1}

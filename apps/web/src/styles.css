@@ -513,3 +513,14 @@ button.primary { background: #2b6cb0; border-color: #2b6cb0; color: #fff; font-w
 .mission-calc code { background: var(--panel); padding: 0 0.25rem; border-radius: 3px; }
 .mission-calc a { color: var(--earth); }
 .mission-calc-example { border-left: 2px solid var(--sun); padding-left: 0.5rem; }
+
+/* "Create mission" on the Site scenario page: button bottom-centre over the globe, card on the left under the compass. */
+.scenario-main { position: relative; }
+.create-mission-btn { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 7; padding: 8px 18px; }
+.create-mission { position: absolute; top: 200px; left: 1.25rem; z-index: 7; width: min(340px, calc(100% - 2.5rem));
+  max-height: calc(100% - 216px); overflow-y: auto; box-sizing: border-box; padding: 0.75rem; display: flex; flex-direction: column;
+  gap: 0.6rem; background: rgba(10, 12, 18, 0.92); border: 1px solid var(--line); border-radius: 4px; }
+.create-mission header { display: flex; justify-content: space-between; align-items: center; }
+.create-mission h2 { margin: 0; font-size: 0.95rem; }
+.create-mission .grid2, .create-mission .actions, .create-mission p { margin: 0; }
+.create-mission input, .create-mission select { width: 100%; min-width: 0; box-sizing: border-box; }

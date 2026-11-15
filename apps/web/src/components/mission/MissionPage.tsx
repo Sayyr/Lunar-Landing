@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "../../api/client";
 import type { Correction, MissionConstraints, MissionRequest, MissionResponse, PowerParams } from "../../api/missionTypes";
 import type { ScenarioRequest } from "../../api/types";
-import { applyCorrection, bestIndex, buildMissionRequest, comparisonRows, EXAMPLE_CONSTRAINTS, EXAMPLE_POWER, hoursBetween, type MissionSettings, toFormUtc } from "../../lib/mission";
+import { applyCorrection, bestIndex, buildMissionRequest, comparisonRows, draftPower, EXAMPLE_CONSTRAINTS, EXAMPLE_POWER, hoursBetween, type MissionDraft, type MissionSettings, toFormUtc } from "../../lib/mission";
 import { DEFAULT_RADIO_SETTINGS, formatDuration } from "../../lib/radio";
 import { formatLat, formatLon } from "../../lunar/geo";
 import { MISSION_PRESETS, type MissionPreset } from "../../lib/missionPresets";
@@ -69,7 +69,7 @@ function Limit({ label, value, fallback, onChange, step = 1, suffix, scale = 1 }
   );
 }
 
-export function MissionPage({ active, scenario, onScenario }: { active: boolean; scenario: ScenarioRequest; onScenario: (s: ScenarioRequest) => void }) {
+export function MissionPage({ active, scenario, onScenario, draft }: { active: boolean; scenario: ScenarioRequest; onScenario: (s: ScenarioRequest) => void; draft: MissionDraft | null }) {
   const [power, setPower] = useState<PowerParams>(EXAMPLE_POWER);
   // Energy (solar + battery) is optional and the lowest priority: off by default.
   const [usePower, setUsePower] = useState(false);
@@ -80,6 +80,7 @@ export function MissionPage({ active, scenario, onScenario }: { active: boolean;
   const [endPolicy, setEndPolicy] = useState<MissionSettings["endPolicy"]>("fixed_duration");
   const [synthetic, setSynthetic] = useState(false);
   const [showCalc, setShowCalc] = useState(false);
+  const [massKg, setMassKg] = useState<number | null>(null);
 
   const [result, setResult] = useState<MissionResponse | null>(null);
   const [lastReq, setLastReq] = useState<MissionRequest | null>(null);
@@ -112,6 +113,7 @@ export function MissionPage({ active, scenario, onScenario }: { active: boolean;
     setSynthetic(false);
     setResult(null);
     setPlaying(false);
+    setMassKg(null);
   };
 
   const settings: MissionSettings = { power: usePower ? power : null, constraints, radio: useRadio ? radio : null, preLandingLoadW: preLoad, endPolicy };
@@ -146,6 +148,21 @@ export function MissionPage({ active, scenario, onScenario }: { active: boolean;
     const r = await run(buildMissionRequest(scenario, settings, 0));
     if (r) setPlaying(true);
   };
+
+  // "Create mission" on the Site scenario page: take its values and simulate once per click (seq).
+  const draftSeq = useRef(0);
+  useEffect(() => {
+    if (!draft || draft.seq === draftSeq.current) return;
+    draftSeq.current = draft.seq;
+    const p = draftPower(draft, power);
+    if (p) setPower(p);
+    setUsePower(p !== null);
+    setPreset(null);
+    setMassKg(draft.vehicleMassKg);
+    setPlaying(false);
+    // settings above reach state only on the next render: build this request from the draft's values.
+    void run(buildMissionRequest(scenario, { ...settings, power: p }, 0)).then((r) => r && setPlaying(true));
+  }, [draft]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Playback span and clock.
   const span: PlaybackSpan | null = useMemo(() => {
@@ -231,6 +248,11 @@ export function MissionPage({ active, scenario, onScenario }: { active: boolean;
           {scenario.terrain_mode === "dem" ? "DEM terrain horizon" : "ideal horizon"}. Engineering screening: every vehicle figure below is yours to set — the
           defaults are illustrative, not a real lander.
         </p>
+        {massKg !== null && (
+          <p className="small">
+            Vehicle mass {massKg.toLocaleString("en-US")} kg <span className="muted">— recorded only: no model below uses it (no propulsion or descent model).</span>
+          </p>
+        )}
       </header>
 
       <div className="mission-layout">

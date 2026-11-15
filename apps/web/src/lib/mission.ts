@@ -39,6 +39,24 @@ export interface MissionSettings {
   endPolicy: "fixed_duration" | "fixed_end";
 }
 
+/** What "Create mission" (Site scenario page) hands to the Mission page; site and date travel in the scenario. */
+export interface MissionDraft {
+  /** kg; recorded with the mission, used by no model (there is no propulsion or descent model) */
+  vehicleMassKg: number;
+  /** m²; null = no solar array given → energy not modelled */
+  panelAreaM2: number | null;
+  /** fraction 0–1; null = keep the base value */
+  panelEfficiency: number | null;
+  /** bumps on every "Create", so the Mission page re-applies the same values */
+  seq: number;
+}
+
+/** The power model a draft asks for: off without an array area, else `base` with the given area and efficiency. */
+export function draftPower(d: MissionDraft, base: PowerParams): PowerParams | null {
+  if (d.panelAreaM2 === null) return null;
+  return { ...base, panel_area_m2: d.panelAreaM2, panel_efficiency: d.panelEfficiency ?? base.panel_efficiency };
+}
+
 /** The scenario's site/time grid becomes the planned landing and the surface stay. */
 export function buildMissionRequest(scenario: ScenarioRequest, s: MissionSettings, delayHours = 0): MissionRequest {
   const radio = s.radio ? buildRadioRequest(scenario, s.radio) : null;

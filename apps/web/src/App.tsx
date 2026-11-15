@@ -13,6 +13,8 @@ import { DelaySweepPanel } from "./components/DelaySweepPanel";
 import { LandingSitesPage } from "./components/LandingSitesPage";
 import { SouthPoleGridPage } from "./components/SouthPoleGridPage";
 import { MissionPage } from "./components/mission/MissionPage";
+import { CreateMission } from "./components/mission/CreateMission";
+import type { MissionDraft } from "./lib/mission";
 
 const CelestialDashboard = lazy(() =>
   import("./components/celestial/CelestialDashboard").then((m) => ({ default: m.CelestialDashboard })),
@@ -42,6 +44,8 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<Tab>(tabFromHash);
   const [skyOpened, setSkyOpened] = useState(tab === "sky");
+  const [creating, setCreating] = useState(false);
+  const [draft, setDraft] = useState<MissionDraft | null>(null);
   if (tab === "sky" && !skyOpened) setSkyOpened(true);
 
   useEffect(() => {
@@ -110,9 +114,27 @@ export function App() {
         <SouthPoleGridPage active={tab === "grid"} onShow={(lat, lon) => showOnGlobe(lat, lon)} />
       </main>
       <main className="sites-main" hidden={tab !== "mission"}>
-        <MissionPage active={tab === "mission"} scenario={request} onScenario={setRequest} />
+        <MissionPage active={tab === "mission"} scenario={request} onScenario={setRequest} draft={draft} />
       </main>
       <main className="scenario-main" hidden={tab !== "scenario"}>
+        {creating ? (
+          <CreateMission
+            scenario={request}
+            onScenario={setRequest}
+            sites={sites}
+            onFocus={(lat, lon) => setFocus((f) => ({ lat, lon, seq: (f?.seq ?? 0) + 1 }))}
+            onClose={() => setCreating(false)}
+            onCreate={(d) => {
+              setDraft((p) => ({ ...d, seq: (p?.seq ?? 0) + 1 }));
+              setCreating(false);
+              window.location.hash = "#/mission";
+            }}
+          />
+        ) : (
+          <button type="button" className="primary create-mission-btn" onClick={() => setCreating(true)}>
+            Create mission
+          </button>
+        )}
         <LunarExplorer
           active={tab === "scenario"}
           siteLat={request.site.latitude_deg}
