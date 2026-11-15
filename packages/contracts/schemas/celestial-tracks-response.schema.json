@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://selene.local/contracts/celestial-tracks-response.schema.json",
+  "title": "CelestialTracksResponse",
+  "description": "Moon and Sun orbit traces for drawing in the 3D views (POST /celestial/tracks, same request body as /celestial/state): geometric Earth->Moon over one mean sidereal month and Earth->Sun over one Julian year, both centred on utc, ECLIPJ2000 metres. For display, not analysis. When ephemerides are unavailable the services answer 503 with the error envelope: this response never carries invented positions.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "synthetic",
+    "utc",
+    "frame",
+    "moon_from_earth",
+    "sun_from_earth",
+    "model",
+    "assumptions",
+    "warnings"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1.0"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "computed"
+      ]
+    },
+    "synthetic": {
+      "const": false
+    },
+    "utc": {
+      "type": "string"
+    },
+    "frame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "description"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "moon_from_earth": {
+      "$ref": "#/$defs/track"
+    },
+    "sun_from_earth": {
+      "$ref": "#/$defs/track"
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "time_scale_note",
+        "nominal_accuracy",
+        "kernel_set"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "spice"
+          ]
+        },
+        "time_scale_note": {
+          "type": "string"
+        },
+        "nominal_accuracy": {
+          "type": "string"
+        },
+        "kernel_set": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$defs": {
+    "vec3": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "number"
+      }
+    },
+    "track": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start_utc",
+        "step_hours",
+        "positions_m"
+      ],
+      "properties": {
+        "start_utc": {
+          "type": "string",
+          "description": "UTC of the first position."
+        },
+        "step_hours": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Time between consecutive positions."
+        },
+        "positions_m": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/$defs/vec3"
+          },
+          "description": "Geometric Earth->body positions, metres, ECLIPJ2000."
+        }
+      }
+    }
+  }
+}

@@ -1,7 +1,15 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
-import { mockCelestialState } from "../mock/celestialMock";
+import type { CelestialStateResponse } from "../api/celestialTypes";
 import { azElToEnu, eclToEnu, enuBasis, localAzEl, moonSky, type Vec3 } from "./skyGeometry";
+
+// Real SPICE output (generated contract fixture, 2026-11-15T00:00:00Z), read at test time.
+const fixture = (name: string) =>
+  JSON.parse(readFileSync(fileURLToPath(new URL(`../../../../packages/contracts/fixtures/${name}`, import.meta.url)), "utf8"));
+const STATE: CelestialStateResponse = fixture("celestial-state-response.computed.json");
 
 const close = (a: number, b: number, eps = 1e-9) => expect(Math.abs(a - b)).toBeLessThan(eps);
 
@@ -36,20 +44,15 @@ describe("localAzEl", () => {
   });
 });
 
-describe("moonSky (from the synthetic mock)", () => {
-  const sky = moonSky(mockCelestialState(new Date("2026-11-15T00:00:00Z")));
+describe("moonSky (real SPICE state)", () => {
+  const sky = moonSky(STATE);
 
   it("returns unit vectors", () => {
     for (const v of [sky.sun, sky.earth]) close(Math.hypot(...v), 1, 1e-12);
   });
 
-  it("mean-orientation mock: Earth over lon 0°, within the Moon's ecliptic latitude (≤ 5.3°)", () => {
-    close(sky.earth[1], 0, 1e-12);
-    expect(Math.abs(Math.asin(sky.earth[2]) * 180 / Math.PI)).toBeLessThan(5.3);
-  });
-
-  it("Sun–Moon–Earth angle matches the mock's phase angle", () => {
-    const s = mockCelestialState(new Date("2026-11-15T00:00:00Z"));
+  it("Sun–Moon–Earth angle matches the state's phase angle", () => {
+    const s = STATE;
     const ang = (Math.acos(sky.sun[0] * sky.earth[0] + sky.sun[1] * sky.earth[1] + sky.sun[2] * sky.earth[2]) * 180) / Math.PI;
     close(ang, s.derived.phase_angle_deg, 1e-6);
   });
@@ -91,7 +94,7 @@ describe("enuBasis / azElToEnu", () => {
 });
 
 describe("eclToBody / eclToEnu", () => {
-  const state = mockCelestialState(new Date("2026-11-15T00:00:00Z"));
+  const state = STATE;
   const sky = moonSky(state);
   const apply = (m: number[], v: Vec3): Vec3 => [
     m[0] * v[0] + m[1] * v[1] + m[2] * v[2],

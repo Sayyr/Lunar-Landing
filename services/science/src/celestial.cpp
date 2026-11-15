@@ -49,6 +49,37 @@ const char* phase_name(double elongation_lon_deg) {
     return NAMES[static_cast<int>(std::fmod(wrap_azimuth_deg(elongation_lon_deg) + 22.5, 360.0) / 45.0) % 8];
 }
 
+json scene_frame() {
+    return {{"name", "ECLIPJ2000 (geocentric origin)"},
+            {"description", "Ecliptic and equinox of J2000. +X toward the J2000 equinox, +Z toward the north "
+                            "ecliptic pole. Not the ecliptic of date."}};
+}
+
+json spice_model() {
+    json kernels = json::array();
+    for (const spice::KernelFile& k : spice::required_kernels()) kernels.push_back(k.name);
+    return {{"provider", "spice"},
+            {"time_scale_note", "UTC at the API boundary; converted to ET (TDB seconds past J2000) by SPICE "
+                                "str2et with the leap-second kernel."},
+            {"nominal_accuracy", "JPL DE440 ephemeris through CSPICE; geometric positions (no light-time or "
+                                 "aberration correction). Not validated against JPL Horizons for this endpoint."},
+            {"kernel_set", kernels}};
+}
+
+// Geometric Earth -> target positions (metres, SCENE_FRAME) at `steps` + 1 UTC instants spanning
+// `span_days`, centred on `centre_us`.
+json track(const char* target, int64_t centre_us, double span_days, int steps) {
+    const double step_hours = span_days * 24.0 / steps;
+    const int64_t start_us = centre_us - static_cast<int64_t>(std::llround(span_days / 2 * 86400e6));
+    json positions = json::array();
+    for (int i = 0; i <= steps; ++i) {
+        const int64_t t = start_us + static_cast<int64_t>(std::llround(i * step_hours * 3600e6));
+        const Vec3 km = spice::geometric_position_km(target, "EARTH", SCENE_FRAME, spice::utc_to_et(t));
+        positions.push_back({km[0] * 1000.0, km[1] * 1000.0, km[2] * 1000.0});
+    }
+    return {{"start_utc", format_utc(start_us)}, {"step_hours", step_hours}, {"positions_m", positions}};
+}
+
 }  // namespace
 
 int64_t parse_celestial_state_request(const json& body) {
@@ -87,18 +118,12 @@ json celestial_state(int64_t utc_us) {
     moon_from_earth["right_ascension_deg"] = longitude_deg(moon_equatorial);
     moon_from_earth["declination_deg"] = latitude_deg(moon_equatorial);
 
-    json kernels = json::array();
-    for (const spice::KernelFile& k : spice::required_kernels()) kernels.push_back(k.name);
-
     return {
         {"schema_version", SCHEMA_VERSION},
         {"status", "computed"},
         {"synthetic", false},
         {"utc", format_utc(utc_us)},
-        {"frame",
-         {{"name", "ECLIPJ2000 (geocentric origin)"},
-          {"description", "Ecliptic and equinox of J2000. +X toward the J2000 equinox, +Z toward the north "
-                          "ecliptic pole. Not the ecliptic of date."}}},
+        {"frame", scene_frame()},
         {"moon_from_earth", moon_from_earth},
         {"moon_from_sun", relative(moon_from_sun)},
         {"sun_from_earth", relative(sun)},
@@ -110,13 +135,7 @@ json celestial_state(int64_t utc_us) {
           {"phase_name", phase_name(lon_difference)}}},
         {"earth_orientation", row_major(spice::frame_rotation("IAU_EARTH", SCENE_FRAME, et))},
         {"moon_orientation", row_major(spice::frame_rotation(spice::FRAME, SCENE_FRAME, et))},
-        {"model",
-         {{"provider", "spice"},
-          {"time_scale_note", "UTC at the API boundary; converted to ET (TDB seconds past J2000) by SPICE "
-                              "str2et with the leap-second kernel."},
-          {"nominal_accuracy", "JPL DE440 ephemeris through CSPICE; geometric positions (no light-time or "
-                               "aberration correction). Not validated against JPL Horizons for this endpoint."},
-          {"kernel_set", kernels}}},
+        {"model", spice_model()},
         {"assumptions",
          {"Positions are geometric (no light-time, no aberration): consistent for placing bodies in a scene; "
           "the apparent directions of a lunar site come from the scenario evaluation.",
@@ -125,6 +144,25 @@ json celestial_state(int64_t utc_us) {
           "Moon orientation: MOON_ME (mean Earth / polar axis, DE440 lunar orientation, librations included).",
           "Earth orientation (texture only): IAU rotation model of pck00011.tpc (IAU_EARTH); no polar motion, "
           "no UT1-UTC."}},
+        {"warnings", json::array()},
+    };
+}
+
+json celestial_tracks(int64_t utc_us) {
+    return {
+        {"schema_version", SCHEMA_VERSION},
+        {"status", "computed"},
+        {"synthetic", false},
+        {"utc", format_utc(utc_us)},
+        {"frame", scene_frame()},
+        {"moon_from_earth", track("MOON", utc_us, SIDEREAL_MONTH_DAYS, MOON_TRACK_STEPS)},
+        {"sun_from_earth", track("SUN", utc_us, JULIAN_YEAR_DAYS, SUN_TRACK_STEPS)},
+        {"model", spice_model()},
+        {"assumptions",
+         {"Orbit traces for drawing only: geometric positions sampled at a fixed step, joined by straight segments.",
+          "Moon trace: one mean sidereal month (27.321662 d) centred on utc; the real path does not close exactly "
+          "(solar perturbations, apsidal and nodal precession).",
+          "Sun trace: Earth->Sun over one Julian year (365.25 d) centred on utc; Earth's orbit is its opposite."}},
         {"warnings", json::array()},
     };
 }

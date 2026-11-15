@@ -1,4 +1,4 @@
-// Regenerate packages/contracts/fixtures/{scenario,slope-check,radio-link}-response.*.json from the service code.
+// Regenerate packages/contracts/fixtures/{scenario,slope-check,radio-link,celestial-*}-response.*.json from the service code.
 //
 // Build and run from services/science:
 //   cmake --build build --target generate-fixtures && ./build/generate-fixtures
@@ -62,10 +62,13 @@ int main() {
     const selene::App live(kernels && *kernels ? std::optional<fs::path>(kernels) : std::nullopt);
     json celestial = json::parse(std::ifstream(FIXTURES / "celestial-state-request.valid.json"));
     const selene::HttpResponse state = live.handle("POST", "/celestial/state", celestial.dump());
-    if (state.status == 200)
-        write("celestial-state-response.computed.json", state.body);
-    else
-        std::printf("skipped celestial-state-response.computed.json: %s\n",
-                    state.body["error"]["message"].get<std::string>().c_str());
+    for (const char* name : {"state", "tracks"}) {
+        const std::string file = std::string("celestial-") + name + "-response.computed.json";
+        const selene::HttpResponse r = live.handle("POST", std::string("/celestial/") + name, celestial.dump());
+        if (r.status == 200)
+            write(file.c_str(), r.body);
+        else
+            std::printf("skipped %s: %s\n", file.c_str(), r.body["error"]["message"].get<std::string>().c_str());
+    }
     return 0;
 }

@@ -1,6 +1,5 @@
-// Mirror of packages/contracts/schemas/celestial-state-response.schema.json (`POST /celestial/state`,
-// status "computed", provider "spice"), widened with the browser's low-precision mock used as a
-// labelled fallback when the backend has no ephemerides (status "synthetic", "0.0.1-draft").
+// Mirror of packages/contracts/schemas/celestial-{state,tracks}-response.schema.json (`POST /celestial/state`
+// and `/celestial/tracks`, provider "spice"). Unavailable ephemerides are a 503, never a response.
 // Public units follow CLAUDE.md: degrees, metres, UTC ISO 8601.
 
 export interface EclipticCoords {
@@ -17,9 +16,9 @@ export interface EclipticCoords {
 export type RelativePosition = EclipticCoords;
 
 export interface CelestialStateResponse {
-  schema_version: "0.1.0" | "0.0.1-draft";
-  status: "synthetic" | "computed";
-  synthetic: boolean;
+  schema_version: "0.1.0";
+  status: "computed";
+  synthetic: false;
   utc: string;
   frame: {
     name: string;
@@ -42,13 +41,36 @@ export interface CelestialStateResponse {
   earth_orientation: number[];
   /** visualization only: 3×3 row-major rotation Moon body-fixed (lon 0 = mean sub-Earth point) → response frame */
   moon_orientation: number[];
-  model: {
-    provider: "mock_low_precision" | "spice";
-    time_scale_note: string;
-    nominal_accuracy: string;
-    /** SPICE kernels used (real provider only) */
-    kernel_set?: string[];
-  };
+  model: CelestialModel;
+  assumptions: string[];
+  warnings: string[];
+}
+
+export interface CelestialModel {
+  provider: "spice";
+  time_scale_note: string;
+  nominal_accuracy: string;
+  kernel_set: string[];
+}
+
+/** One orbit trace: geometric Earth→body positions (metres, response frame) at a fixed step. */
+export interface Track {
+  start_utc: string;
+  step_hours: number;
+  positions_m: [number, number, number][];
+}
+
+export interface CelestialTracksResponse {
+  schema_version: "0.1.0";
+  status: "computed";
+  synthetic: false;
+  utc: string;
+  frame: { name: string; description: string };
+  /** one mean sidereal month centred on utc */
+  moon_from_earth: Track;
+  /** Earth→Sun over one Julian year centred on utc (Earth's orbit is its opposite) */
+  sun_from_earth: Track;
+  model: CelestialModel;
   assumptions: string[];
   warnings: string[];
 }

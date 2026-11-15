@@ -39,9 +39,9 @@ HttpResponse App::handle(const std::string& method, const std::string& path,
         if (method != "POST") return {405, error_response("not_found", "Method Not Allowed")};
         return slope_check_route(body);
     }
-    if (path == "/celestial/state") {
+    if (path == "/celestial/state" || path == "/celestial/tracks") {
         if (method != "POST") return {405, error_response("not_found", "Method Not Allowed")};
-        return celestial_route(body);
+        return celestial_route(body, path == "/celestial/tracks");
     }
     if (path == "/radio/evaluate") {
         if (method != "POST") return {405, error_response("not_found", "Method Not Allowed")};
@@ -111,7 +111,7 @@ HttpResponse App::slope_check_route(const std::string& body) const {
     }
 }
 
-HttpResponse App::celestial_route(const std::string& body) const {
+HttpResponse App::celestial_route(const std::string& body, bool tracks) const {
     static const char* CELESTIAL_INVALID = "Celestial state request is invalid.";
     if (body.empty()) return validation_error({{"", "Field required"}}, CELESTIAL_INVALID);
     json parsed = json::parse(body, nullptr, /*allow_exceptions=*/false);
@@ -126,7 +126,7 @@ HttpResponse App::celestial_route(const std::string& body) const {
     const ProviderStatus s = spice_.status();
     if (!s.ready) return {503, error_response("science_unavailable", "Ephemerides not available: " + s.reason)};
     try {
-        return {200, celestial_state(utc_us)};
+        return {200, tracks ? celestial_tracks(utc_us) : celestial_state(utc_us)};
     } catch (const spice::Error& e) {
         return {503, error_response("science_unavailable", std::string("Ephemerides not available: ") + e.what())};
     }

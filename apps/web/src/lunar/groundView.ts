@@ -1,8 +1,8 @@
 // First-person view from a lunar site: an observer standing on the surface looks around.
 //
 // Inputs are deliberately the ones the science service will provide: the terrain around the
-// site (from the DEM) and the Sun / Earth AZIMUTH + ELEVATION at the site. Today the sky comes
-// from the synthetic mock; swapping in SPICE results changes nothing here.
+// site (from the DEM) and the Sun / Earth AZIMUTH + ELEVATION at the site. The sky comes from
+// the API's SPICE celestial state (api/celestial.ts).
 //
 // Scene: metres, eye at the origin, x = East, y = Up, z = −North (groundTerrain.ts).
 //   - terrain: LOLA relief at true scale, colour mosaic × procedural regolith detail, lit by the

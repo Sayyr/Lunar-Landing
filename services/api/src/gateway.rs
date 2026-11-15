@@ -5,7 +5,7 @@ use axum::response::IntoResponse;
 use axum::Json;
 use serde_json::{json, Value};
 
-use crate::celestial::{CelestialStateRequest, CelestialStateResponse};
+use crate::celestial::{CelestialStateRequest, CelestialStateResponse, CelestialTracksResponse};
 use crate::envelope::{ApiError, FieldIssue};
 use crate::mission::{MissionSimulateRequest, MissionSimulateResponse};
 use crate::radio::{RadioLinkRequest, RadioLinkResponse};
@@ -126,15 +126,30 @@ pub async fn simulate_synthetic(
     ))
 }
 
+fn parse_celestial(body: &Bytes) -> Result<CelestialStateRequest, ApiError> {
+    const INVALID: &str = "Celestial state request is invalid.";
+    let req: CelestialStateRequest = serde_json::from_slice(body)
+        .map_err(|e| ApiError::invalid(INVALID, vec![FieldIssue::new("body", &e.to_string())]))?;
+    req.validate().map_err(|d| ApiError::invalid(INVALID, d))?;
+    Ok(req)
+}
+
 /// Sun/Earth/Moon state for the 3D views, computed by the science service (SPICE). When
 /// ephemerides are unavailable the science 503 is forwarded: the gateway invents nothing.
 pub async fn celestial_state(
     State(state): State<AppState>,
     body: Bytes,
 ) -> Result<Json<CelestialStateResponse>, ApiError> {
-    const INVALID: &str = "Celestial state request is invalid.";
-    let req: CelestialStateRequest = serde_json::from_slice(&body)
-        .map_err(|e| ApiError::invalid(INVALID, vec![FieldIssue::new("body", &e.to_string())]))?;
-    req.validate().map_err(|d| ApiError::invalid(INVALID, d))?;
+    let req = parse_celestial(&body)?;
     Ok(Json(state.science.celestial_state(&req).await?))
+}
+
+/// Moon and Sun orbit traces for the 3D views (science service, SPICE); same request and errors
+/// as [`celestial_state`].
+pub async fn celestial_tracks(
+    State(state): State<AppState>,
+    body: Bytes,
+) -> Result<Json<CelestialTracksResponse>, ApiError> {
+    let req = parse_celestial(&body)?;
+    Ok(Json(state.science.celestial_tracks(&req).await?))
 }

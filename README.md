@@ -14,7 +14,7 @@ apps/web (React + TS + Vite + R3F)  --/api-->  services/api (Rust/Axum :8080)  -
 
 | Path | What |
 |---|---|
-| `apps/web` | UI: lunar explorer (LOLA relief, IAU names, site picking), scenario form, timeline, Sun·Earth·Moon dashboard (mock), status badges — see `apps/web/README.md` |
+| `apps/web` | UI: lunar explorer (LOLA relief, IAU names, site picking), scenario form, timeline, Sun·Earth·Moon dashboard, status badges — see `apps/web/README.md` |
 | `services/api` | Gateway: input validation, error envelope, forwarding to science. No astronomy math. |
 | `services/science` | C++17: geometry, ephemeris providers (SPICE via CSPICE when installed; synthetic fixture), window extraction |
 | `services/sciencepy` | Former Python implementation, **reference only** (not built, tested or deployed) |
@@ -103,7 +103,8 @@ CI (`.github/workflows/ci.yml`) runs the same commands.
 | `GET /sites` | preset sites. Currently **synthetic test points only** (not landing sites). |
 | `POST /scenarios/evaluate` | Sun/Earth azimuth/elevation and visibility windows from SPICE (`status: "computed"`). `terrain_mode: "ideal"`: ideal geometric horizon. `terrain_mode: "dem"`: terrain horizon traced on the LOLA 20 m DEM (`SELENE_DEM_PATH`, sites within 85°S–90°S and at least 50 km from the DEM edge); the response then carries the horizon profile and each sample its horizon. `status: "not_ready"` with the reason and no numbers when kernels or the DEM are missing, the site is outside the DEM, or the epoch is outside DE440s |
 | `POST /demo/synthetic/evaluate` | **SYNTHETIC** demo data (`status: "synthetic"`, `synthetic: true`) |
-| `POST /celestial/state` | Sun/Earth/Moon geometric state at one UTC instant (SPICE, ECLIPJ2000) for the 3D views: positions, phase, Moon and Earth orientation. 503 + error envelope without kernels or outside the ephemeris; the web then falls back to its labelled low-precision mock |
+| `POST /celestial/state` | Sun/Earth/Moon geometric state at one UTC instant (SPICE, ECLIPJ2000) for the 3D views: positions, phase, Moon and Earth orientation. 503 + error envelope without kernels or outside the ephemeris; the web then shows "unavailable" (no browser-side ephemeris) |
+| `POST /celestial/tracks` | same request: Moon orbit trace (one sidereal month) and Earth→Sun (one year) around that instant, SPICE geometric positions in ECLIPJ2000 metres, for drawing the orbits in the 3D views. Same 503 behaviour |
 | `POST /scenarios/radio-link` | **engineering estimate** of direct-to-Earth radio-link windows: Earth above the lunar-side mask (ideal horizon), a requested ground station seeing the Moon, and the free-space link budget closing with the request's hardware figures. Analytic low-precision ephemeris (Meeus), **not SPICE**; not a link guarantee. See `docs/validation.md` |
 | `POST /calcule` | former `back/` API: runs the programs of a profile (`services/api/config/profiles.json`) and streams NDJSON. The bundled programs are **simulators** whose output is labelled `synthetic` |
 | `POST /terrain/slope/check` | max-slope pass/fail of a circular zone, recomputed by the science service on the raw LOLA 20 m DEM (`SELENE_DEM_PATH`, see `data/README.md`); `dem_unavailable` without it |

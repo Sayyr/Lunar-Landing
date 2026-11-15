@@ -266,7 +266,8 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, focus, startUt
   // Sky time = offset in minutes from the scenario start.
   const [tMin, setTMin] = useState(0);
   const [mode, setMode] = useState<"live" | "playing" | "paused">("live");
-  const [sky, setSky] = useState<{ sun: AzEl; earth: AzEl; synthetic: boolean } | null>(null);
+  const [sky, setSky] = useState<{ sun: AzEl; earth: AzEl } | null>(null);
+  const [skyError, setSkyError] = useState<string | null>(null);
   const diskRef = useRef<HTMLDivElement>(null);
   const sunPtrRef = useRef<HTMLDivElement>(null);
   const earthPtrRef = useRef<HTMLDivElement>(null);
@@ -535,13 +536,24 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, focus, startUt
   useEffect(() => {
     if (!globe || Number.isNaN(startMs)) return;
     let stale = false;
-    getCelestialState(new Date(startMs + tMin * 60_000)).then((state) => {
-      if (stale) return;
-      const s = moonSky(state);
-      setSkyBody(s);
-      globe.setSky(s);
-      setSky({ sun: localAzEl(s.sun, siteLat, siteLon), earth: localAzEl(s.earth, siteLat, siteLon), synthetic: state.synthetic });
-    });
+    getCelestialState(new Date(startMs + tMin * 60_000)).then(
+      (state) => {
+        if (stale) return;
+        const s = moonSky(state);
+        setSkyBody(s);
+        globe.setSky(s);
+        setSky({ sun: localAzEl(s.sun, siteLat, siteLon), earth: localAzEl(s.earth, siteLat, siteLon) });
+        setSkyError(null);
+      },
+      (e) => {
+        if (stale) return;
+        // No sky from another instant: compass, Sun/Earth readouts and ground-view sky are hidden (the globe
+        // keeps its last lighting, which is display only); the footnote says why.
+        setSky(null);
+        setSkyBody(null);
+        setSkyError(e instanceof Error ? e.message : String(e));
+      },
+    );
     return () => {
       stale = true;
     };
@@ -833,9 +845,7 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, focus, startUt
 
       <div className="lunar-footnote">
         {loaded && !groundOn && <ScaleBar kmPerPx={kmPerPx} note="at view centre, reference sphere" />}
-        {sky?.synthetic && (
-          <div className="sky-note">SYNTHETIC sky — not for analysis (see Data &amp; limits).</div>
-        )}
+        {skyError && <div className="sky-note">Sky unavailable: {skyError}</div>}
       </div>
 
       <aside className="lunar-panel">
@@ -962,17 +972,7 @@ export function LunarExplorer({ active, siteLat, siteLon, onPick, focus, startUt
               ))}
             </ul>
           )}
-          {sky?.synthetic && (
-            <>
-              <h3>Sky</h3>
-              <p className="sky-note">
-                SYNTHETIC sky — low-precision formulae, mean Moon orientation (no libration), centre directions, ideal
-                horizon. Lighting, background Sun/Earth, stars and compass follow it: illustrative, not the scenario
-                result. Not for analysis.
-              </p>
-            </>
-          )}
-          {sky && !sky.synthetic && (
+          {sky && (
             <>
               <h3>Sky</h3>
               <p className="muted small">

@@ -8,7 +8,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::celestial::{CelestialStateRequest, CelestialStateResponse};
+use crate::celestial::{CelestialStateRequest, CelestialStateResponse, CelestialTracksResponse};
 use crate::envelope::{ApiError, ErrorCode, ErrorResponse};
 use crate::mission::{MissionSimulateRequest, MissionSimulateResponse};
 use crate::radio::{RadioLinkRequest, RadioLinkResponse};
@@ -99,6 +99,13 @@ impl ScienceClient {
         req: &CelestialStateRequest,
     ) -> Result<CelestialStateResponse, ApiError> {
         self.post("/celestial/state", req).await
+    }
+
+    pub async fn celestial_tracks(
+        &self,
+        req: &CelestialStateRequest,
+    ) -> Result<CelestialTracksResponse, ApiError> {
+        self.post("/celestial/tracks", req).await
     }
 
     async fn post<Req: Serialize, Resp: DeserializeOwned>(

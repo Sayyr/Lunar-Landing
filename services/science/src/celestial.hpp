@@ -26,4 +26,13 @@ int64_t parse_celestial_state_request(const json& body);
 // Requires loaded kernels; throws spice::Error otherwise or when the epoch is outside the kernels.
 json celestial_state(int64_t utc_us);
 
+// Orbit traces for the 3D views (packages/contracts/schemas/celestial-tracks-response.schema.json):
+// geometric Earth->Moon over one mean sidereal month and Earth->Sun over one Julian year, both
+// centred on utc, in ECLIPJ2000 metres. Same request body and errors as celestial_state.
+constexpr double SIDEREAL_MONTH_DAYS = 27.321662;
+constexpr double JULIAN_YEAR_DAYS = 365.25;
+constexpr int MOON_TRACK_STEPS = 216;  // ~3.04 h
+constexpr int SUN_TRACK_STEPS = 180;   // ~2.03 d
+json celestial_tracks(int64_t utc_us);
+
 }  // namespace selene

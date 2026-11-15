@@ -719,26 +719,28 @@ static void test_evaluate_with_terrain() {
     CHECK(r.body["message"].get<std::string>().find("too close to the edge") != std::string::npos);
 }
 
-// POST /celestial/state without kernels: validation works, and no position is ever invented.
+// POST /celestial/state and /celestial/tracks without kernels: validation works, and no position is ever invented.
 static void test_celestial_state_without_kernels() {
     const json valid = load(CONTRACTS / "fixtures/celestial-state-request.valid.json");
-    HttpResponse r = app.handle("POST", "/celestial/state", valid.dump());
-    CHECK(r.status == 503);
-    CHECK(r.body["error"]["code"] == "science_unavailable");
-    CHECK(r.body["error"]["message"].get<std::string>().find("SELENE_KERNEL_DIR not set") != std::string::npos);
-    CHECK(!r.body.contains("moon_from_earth"));
-    CHECK(app.handle("GET", "/celestial/state", "").status == 405);
-    CHECK(app.handle("POST", "/celestial/state", "").status == 422);
-    CHECK(app.handle("POST", "/celestial/state", "{bad").status == 422);
-    CHECK(app.handle("POST", "/celestial/state", "[]").status == 422);
-    int n_invalid = 0;
-    for (const auto& entry : fs::directory_iterator(CONTRACTS / "fixtures/invalid-celestial-state-requests")) {
-        ++n_invalid;
-        r = app.handle("POST", "/celestial/state", load(entry.path()).dump());
-        if (r.status != 422) std::fprintf(stderr, "accepted invalid fixture %s\n", entry.path().string().c_str());
-        CHECK(r.status == 422 && r.body["error"]["code"] == "validation_error");
+    for (const char* path : {"/celestial/state", "/celestial/tracks"}) {
+        HttpResponse r = app.handle("POST", path, valid.dump());
+        CHECK(r.status == 503);
+        CHECK(r.body["error"]["code"] == "science_unavailable");
+        CHECK(r.body["error"]["message"].get<std::string>().find("SELENE_KERNEL_DIR not set") != std::string::npos);
+        CHECK(!r.body.contains("moon_from_earth"));
+        CHECK(app.handle("GET", path, "").status == 405);
+        CHECK(app.handle("POST", path, "").status == 422);
+        CHECK(app.handle("POST", path, "{bad").status == 422);
+        CHECK(app.handle("POST", path, "[]").status == 422);
+        int n_invalid = 0;
+        for (const auto& entry : fs::directory_iterator(CONTRACTS / "fixtures/invalid-celestial-state-requests")) {
+            ++n_invalid;
+            r = app.handle("POST", path, load(entry.path()).dump());
+            if (r.status != 422) std::fprintf(stderr, "%s accepted invalid fixture %s\n", path, entry.path().string().c_str());
+            CHECK(r.status == 422 && r.body["error"]["code"] == "validation_error");
+        }
+        CHECK(n_invalid >= 5);
     }
-    CHECK(n_invalid >= 5);
 }
 
 static void test_time() {
