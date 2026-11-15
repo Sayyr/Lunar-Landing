@@ -325,3 +325,42 @@ def test_radio_link_invalid_request_is_422(svc, path):
 
 def test_gateway_forwards_radio_link_unchanged(gateway, science):
     assert gateway.post(RADIO["gateway"], RADIO_REQUEST).json == science.post(RADIO["science"], RADIO_REQUEST).json
+
+
+# --- celestial state (3D views) -------------------------------------------------------------
+
+CELESTIAL_REQUEST = load_json(SHARED_FIXTURES / "celestial-state-request.valid.json")
+
+
+def test_celestial_state_is_real_or_an_explicit_503(svc):
+    """Either SPICE output matching the contract, or 503 + envelope: never invented positions."""
+    _, client = svc
+    reply = client.post("/celestial/state", CELESTIAL_REQUEST)
+    if reply.status == 503:
+        assert schema_errors("error", reply.json_or_none()) == []
+        assert reply.json["error"]["code"] == "science_unavailable"
+        blocked(f"no ephemerides: {reply.json['error']['message'][:120]}")
+    assert reply.status == 200, f"HTTP {reply.status}: {reply.text[:300]}"
+    body = reply.json
+    assert schema_errors("celestial_response", body) == []
+    assert body["synthetic"] is False and body["model"]["provider"] == "spice"
+    moon, sun = body["moon_from_earth"], body["sun_from_earth"]
+    assert 3.56e8 < moon["distance_m"] < 4.07e8, "Earth-Moon distance outside perigee/apogee extremes"
+    assert 1.47e11 < sun["distance_m"] < 1.522e11, "Earth-Sun distance outside perihelion/aphelion"
+    for a, b, c in zip(body["moon_from_sun"]["position_m"], moon["position_m"], sun["position_m"], strict=True):
+        assert abs(a - (b - c)) < 1.0, "Sun->Moon is not Earth->Moon minus Earth->Sun"
+
+
+@pytest.mark.parametrize(
+    "path", sorted((SHARED_FIXTURES / "invalid-celestial-state-requests").glob("*.json")), ids=lambda p: p.stem
+)
+def test_celestial_state_invalid_request_is_422(svc, path):
+    _, client = svc
+    reply = client.post("/celestial/state", load_json(path))
+    assert reply.status == 422, f"HTTP {reply.status}, expected 422: {reply.text[:200]}"
+    assert schema_errors("error", reply.json_or_none()) == []
+
+
+def test_gateway_forwards_celestial_state_unchanged(gateway, science):
+    a, b = gateway.post("/celestial/state", CELESTIAL_REQUEST), science.post("/celestial/state", CELESTIAL_REQUEST)
+    assert a.status == b.status and a.json == b.json

@@ -69,30 +69,32 @@ const scaleTrack = (points: V3[], scale: number): V3[] => points.map((p) => eclT
 const times = (v: V3, k: number): V3 => [v[0] * k, v[1] * k, v[2] * k];
 
 // memo: props are constant per view, so play-mode ticks don't rebuild the dashed γ line.
-const EclipticFrameHints = memo(function EclipticFrameHints({ radius }: { radius: number }) {
+const EclipticFrameHints = memo(function EclipticFrameHints({ radius, j2000 }: { radius: number; j2000: boolean }) {
   return (
     <group>
       <polarGridHelper args={[radius, 12, 4, 96, "#2a3242", "#1c2230"]} />
       <Line points={[[0, 0, 0], [radius * 1.08, 0, 0]]} color="#6b7894" lineWidth={1} dashed dashSize={1.5} gapSize={1} />
       <Html position={[radius * 1.12, 0, 0]} center className="axis-label">
-        γ equinox of date
+        {j2000 ? "γ equinox J2000" : "γ equinox of date"}
       </Html>
     </group>
   );
 });
 
 function EarthMoonView({ state, earthTex, moonTex, earthOrientation, moonOrientation, day, bodyScale }: ViewProps & { bodyScale: number }) {
+  // Real (SPICE) states are in ECLIPJ2000; the mock is in the ecliptic of date.
+  const j2000 = !state.synthetic;
   const s = 1 / EARTH_MEAN_RADIUS_M;
   const moonPos = eclToThree(state.moon_from_earth.position_m, s);
   const sunDir = normalize(eclToThree(state.sun_from_earth.position_m));
   const sunRadius = (SUN_PROXY_DIST * SUN_RADIUS_M) / state.sun_from_earth.distance_m;
-  const track = useMemo(() => closeLoop(scaleTrack(getMoonTrack(new Date(day * DAY_MS)), s)), [day, s]);
+  const track = useMemo(() => closeLoop(scaleTrack(getMoonTrack(new Date(day * DAY_MS), j2000), s)), [day, s, j2000]);
 
   return (
     <>
       <ambientLight intensity={0.06} />
       <directionalLight position={times(sunDir, 100)} intensity={2.8} />
-      <EclipticFrameHints radius={70} />
+      <EclipticFrameHints radius={70} j2000={j2000} />
       <Line points={track} color="#7d8aa5" lineWidth={1} transparent opacity={0.55} />
       <Line points={[[0, 0, 0], moonPos]} color="#c9ced8" lineWidth={1} dashed dashSize={1.2} gapSize={0.8} />
       {/* Dashed line all the way to the (distance-compressed) Sun proxy, stopping at its limb. */}
@@ -109,20 +111,22 @@ function EarthMoonView({ state, earthTex, moonTex, earthOrientation, moonOrienta
 }
 
 function SolarView({ state, earthTex, moonTex, earthOrientation, moonOrientation, day }: ViewProps) {
+  // Real (SPICE) states are in ECLIPJ2000; the mock is in the ecliptic of date.
+  const j2000 = !state.synthetic;
   const earthScale = SOLAR.earthOrbit / AU_M;
   const moonScale = SOLAR.moonDist / MEAN_MOON_DIST_M;
   const earthPos = times(eclToThree(state.sun_from_earth.position_m, earthScale), -1);
   const moonRel = eclToThree(state.moon_from_earth.position_m, moonScale);
   const moonPos: V3 = [earthPos[0] + moonRel[0], earthPos[1] + moonRel[1], earthPos[2] + moonRel[2]];
   // Earth's orbit = −(Earth→Sun track).
-  const earthOrbit = useMemo(() => scaleTrack(getSunTrack(new Date(day * DAY_MS)), -earthScale), [day, earthScale]);
-  const moonTrack = useMemo(() => closeLoop(scaleTrack(getMoonTrack(new Date(day * DAY_MS)), moonScale)), [day, moonScale]);
+  const earthOrbit = useMemo(() => scaleTrack(getSunTrack(new Date(day * DAY_MS), j2000), -earthScale), [day, earthScale, j2000]);
+  const moonTrack = useMemo(() => closeLoop(scaleTrack(getMoonTrack(new Date(day * DAY_MS), j2000), moonScale)), [day, moonScale, j2000]);
 
   return (
     <>
       <ambientLight intensity={0.06} />
       <pointLight position={[0, 0, 0]} intensity={3} decay={0} />
-      <EclipticFrameHints radius={SOLAR.earthOrbit * 1.15} />
+      <EclipticFrameHints radius={SOLAR.earthOrbit * 1.15} j2000={j2000} />
       <Line points={earthOrbit} color="#5aa9ff" lineWidth={1} transparent opacity={0.45} />
       {/* The Moon's geocentric trace, drawn around Earth's current position. */}
       <group position={earthPos}>
@@ -181,17 +185,21 @@ export const CelestialScene = memo(function CelestialScene({ state, view, enlarg
             <>
               <b>Earth–Moon, distances to scale</b> (1 unit = 1 Earth radius);{" "}
               {enlargeBodies ? <b className="warn-text">Earth &amp; Moon radii enlarged ×{BODY_ENLARGEMENT}.</b> : <>Earth &amp; Moon at true size.</>} The Sun is drawn at a compressed distance with its true
-              angular size; lighting follows the mock Sun direction. Grey trace: mock Moon path over one sidereal month (27.3 d); the real path does not quite close (solar perturbations), the small residual is spread along the trace for display.
+              angular size; lighting follows the {state.synthetic ? "mock" : "SPICE"} Sun direction. Grey trace: low-precision Moon path (browser formulae, illustrative) over one sidereal month (27.3 d); the real path does not quite close (solar perturbations), the small residual is spread along the trace for display.
             </>
           ) : (
             <>
-              <b>Sun–Earth–Moon, schematic — NOT to scale.</b> Directions follow the mock state; distances are compressed and radii
+              <b>Sun–Earth–Moon, schematic — NOT to scale.</b> Directions follow the {state.synthetic ? "mock" : "SPICE (DE440, geometric)"} state; distances are compressed and radii
               exaggerated. Earth–Moon distance shown ×{Math.round((SOLAR.moonDist / MEAN_MOON_DIST_M) / (SOLAR.earthOrbit / AU_M))}{" "}
               relative to the Sun–Earth distance.
             </>
           )}{" "}
-          Ecliptic plane grid, +X = equinox of date. Moon orientation: mean near side toward Earth (libration ignored). Earth
-          rotation from GMST + obliquity. Shadows/eclipses are not rendered.{" "}
+          {state.synthetic ? (
+            <>Ecliptic plane grid, +X = equinox of date. Moon orientation: mean near side toward Earth (libration ignored). Earth rotation from GMST + obliquity.</>
+          ) : (
+            <>Ecliptic plane grid, +X = equinox J2000. Moon orientation from SPICE (MOON_ME, librations included). Earth rotation: IAU model (texture only).</>
+          )}{" "}
+          Shadows/eclipses are not rendered.{" "}
           {earthTex && moonTex ? (
             <>Textures: NASA SVS Blue Marble (SVS 2915) &amp; LROC WAC colour mosaic (SVS 4720).</>
           ) : (

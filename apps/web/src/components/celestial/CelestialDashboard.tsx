@@ -184,7 +184,7 @@ export function CelestialDashboard({ active }: { active: boolean }) {
         </div>
 
         {state?.synthetic && (
-          <div className="sky-note">SYNTHETIC MOCK — low-precision formulae in the browser, not SPICE. Not for analysis.</div>
+          <div className="sky-note" title={state.warnings[0]}>SYNTHETIC MOCK — low-precision formulae in the browser, not SPICE. Not for analysis.</div>
         )}
         {error && <div className="error" role="alert">{error}</div>}
       </div>

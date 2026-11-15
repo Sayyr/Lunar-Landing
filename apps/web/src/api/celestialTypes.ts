@@ -1,5 +1,6 @@
-// DRAFT contract for a future `GET /celestial/state?utc=...` endpoint (not yet in
-// packages/contracts — add a JSON Schema there when the backend is implemented).
+// Mirror of packages/contracts/schemas/celestial-state-response.schema.json (`POST /celestial/state`,
+// status "computed", provider "spice"), widened with the browser's low-precision mock used as a
+// labelled fallback when the backend has no ephemerides (status "synthetic", "0.0.1-draft").
 // Public units follow CLAUDE.md: degrees, metres, UTC ISO 8601.
 
 export interface EclipticCoords {
@@ -16,7 +17,7 @@ export interface EclipticCoords {
 export type RelativePosition = EclipticCoords;
 
 export interface CelestialStateResponse {
-  schema_version: "0.0.1-draft";
+  schema_version: "0.1.0" | "0.0.1-draft";
   status: "synthetic" | "computed";
   synthetic: boolean;
   utc: string;
@@ -45,6 +46,8 @@ export interface CelestialStateResponse {
     provider: "mock_low_precision" | "spice";
     time_scale_note: string;
     nominal_accuracy: string;
+    /** SPICE kernels used (real provider only) */
+    kernel_set?: string[];
   };
   assumptions: string[];
   warnings: string[];
