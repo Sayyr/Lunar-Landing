@@ -505,3 +505,11 @@ button.primary { background: #2b6cb0; border-color: #2b6cb0; color: #fff; font-w
 .mission-try ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
 .mission-try li { display: flex; gap: 0.6rem; align-items: baseline; }
 .mission-try li button { flex: 0 0 auto; min-width: 10rem; }
+.mission-calc { margin-top: 0.6rem; padding: 0.6rem 0.8rem; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; line-height: 1.5; overflow-wrap: anywhere; }
+.mission-calc ol { margin: 0.4rem 0 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.mission-calc h4 { margin: 0 0 0.2rem; color: var(--text); }
+.mission-calc p { margin: 0.2rem 0; }
+.mission-calc ul { margin: 0.2rem 0; padding-left: 1.1rem; }
+.mission-calc code { background: var(--panel); padding: 0 0.25rem; border-radius: 3px; }
+.mission-calc a { color: var(--earth); }
+.mission-calc-example { border-left: 2px solid var(--sun); padding-left: 0.5rem; }

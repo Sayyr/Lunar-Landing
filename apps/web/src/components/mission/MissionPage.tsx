@@ -11,6 +11,7 @@ import { DEFAULT_RADIO_SETTINGS, formatDuration } from "../../lib/radio";
 import { formatLat, formatLon } from "../../lunar/geo";
 import { MISSION_PRESETS, type MissionPreset } from "../../lib/missionPresets";
 import { DateScanStrip } from "./DateScanStrip";
+import { MissionCalculations } from "./MissionCalculations";
 import { MissionTimeline, type PlaybackSpan } from "./MissionTimeline";
 
 /** Playback only: hours shown before the planned landing. No trajectory is modelled. */
@@ -78,6 +79,7 @@ export function MissionPage({ active, scenario, onScenario }: { active: boolean;
   const [preLoad, setPreLoad] = useState<number | null>(80);
   const [endPolicy, setEndPolicy] = useState<MissionSettings["endPolicy"]>("fixed_duration");
   const [synthetic, setSynthetic] = useState(false);
+  const [showCalc, setShowCalc] = useState(false);
 
   const [result, setResult] = useState<MissionResponse | null>(null);
   const [lastReq, setLastReq] = useState<MissionRequest | null>(null);
@@ -552,7 +554,11 @@ export function MissionPage({ active, scenario, onScenario }: { active: boolean;
 
               <div className="actions">
                 <button type="button" onClick={() => save(result)}>Save for comparison</button>
+                <button type="button" aria-expanded={showCalc} onClick={() => setShowCalc(!showCalc)}>
+                  {showCalc ? "Hide calculations" : "Show calculations"}
+                </button>
               </div>
+              {showCalc && <MissionCalculations result={result} />}
 
               <details className="small">
                 <summary>Assumptions, warnings and provenance</summary>
