@@ -163,6 +163,11 @@ export function CelestialDashboard({
   useEffect(() => {
     if (!playing) setMissionPlay(false);
   }, [playing]);
+  // The descent lasts ~2 h: slow to 1 h/s once it starts so the rocket can be seen landing.
+  useEffect(() => {
+    if (missionPlay && trajArrivalUtc && date.getTime() >= Date.parse(trajArrivalUtc) && speed > SPEEDS[0].hoursPerSecond)
+      setSpeed(SPEEDS[0].hoursPerSecond);
+  }, [missionPlay, trajArrivalUtc, date, speed]);
   const focusSeq = useRef(0);
   useEffect(() => {
     if (!focus || focus.seq === focusSeq.current) return;
