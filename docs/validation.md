@@ -36,6 +36,14 @@ Geometric visibility is **not** power availability and **not** a radio link. Eve
 - `clipped_start` / `clipped_end`: the window was already open at the first sample, or still open at the last one. Its true duration is unknown.
 - Known limitation: events shorter than one step can be missed. Planned fix: refine near sign changes (bisection or root-finding on the provider).
 
+## Terrain horizon: choices and limits (2026-11-15)
+
+- **Geometry**: for each of 720 bearings a ray is traced over the DEM along a great circle of the 1737.4 km sphere; the horizon is the largest `atan2((R+h_t)cos(d/R) − r_obs, (R+h_t)sin(d/R))`. Curvature is included; the observer stands on the DEM surface plus `observer_height_m`, and the ephemeris observer is placed at that radius.
+- **Frame**: the DEM is used in its own frame (`MEAN EARTH/POLAR AXIS OF DE421`), which `MOON_ME` of `moon_de440_250416.tf` is aligned with; no conversion is applied.
+- **Sampling**: 20 m to 3 km, 80 m to 25 km, 320 m to 150 km, point samples (not block maxima), ray step growing by 0.2 % of the distance. A narrow distant summit can be missed: the far horizon is a slight under-estimate. Not yet quantified by a resolution-sensitivity run (SCIENTIFIC_REFERENCE §14).
+- **Coverage**: `LDEM_85S_20M` stops at 85°S. Rays leaving it are reported (`truncated_bearing_fraction`, a warning): relief north of 85°S is not included and could raise the horizon. Sites closer than 50 km to the edge are refused.
+- **Visibility policy**: body centre above the horizon at its azimuth. Finite disks (the Sun's 0.27° radius, the Earth's 0.95°) are not modelled: near a grazing horizon the true partial visibility differs.
+
 ## Open scientific decisions (owner: Ephemerides workstream)
 
 1. **Body-fixed frame**: decided, MOON_ME (see table). Same frame as the LOLA DEM label.
@@ -63,6 +71,8 @@ Geometric visibility is **not** power availability and **not** a radio link. Eve
 | Analytic Earth direction at a lunar site vs SPICE | `spice_tests.cpp`: angular separation, same 8 sites × 3 dates as the team's script | expected ~0.1° (physical librations ≤ 0.04°, nutation, light time not modelled) | ✅ measured 2026-11-15: max 0.040° over 24 cases (test only asserts a gross bound < 1°). Radio-link windows still unverified against Horizons |
 | Link-budget formulas (`services/science/src/link.*`, engineering tier) | FSPL vs the independent form `32.44778 + 20log10(d_km) + 20log10(f_MHz)`, inverse-square scaling, C/N0 and Eb/N0 identities, Doppler sign | 1e-4 dB | ✅ automated (formulas only) |
 | Radio-link windows (`POST /radio/evaluate`) | sanity: sub-Earth equator always sees Earth, far side never, near-pole site ~half the time with multi-day outages, one station ≈ one pass/day, link ⊂ Earth ∩ ground windows, FSPL swing ≈ 1.1 dB | qualitative | ✅ automated (C++ suite + integration bench, live) |
+| DEM terrain horizon (`services/science/src/horizon.cpp`) on SYNTHETIC DEMs | ctest: smooth sphere gives the geometric dip `-acos(R/(R+h))` in every direction; a 1000 m wall at 10 km and a 2 km parabolic pit match the exact curved-geometry elevation; azimuth convention follows the request longitude; windows are exactly the samples above the horizon; sites outside the DEM, within 50 km of its edge or on no-data are refused | 0.002° (sphere), 0.06–0.08° (one 100 m pixel) | ✅ automated |
+| DEM terrain horizon on the real LOLA `LDEM_85S_20M` + SPICE | `spice_tests.cpp`, only when `SELENE_DEM_PATH` is set (not in CI): Shackleton floor (89.67°S, 129.8°E) at −2789 m, horizon ≥ 19.8° all around, Sun never visible over 30 days (known permanently shadowed region) while the ideal horizon says always lit; ridge point (89.45°S, 137.3°W) at +1955 m keeps the Sun 720 h of 720 | qualitative | ✅ executed 2026-11-15 (DEM SHA-256 `bbfd0295…9b7a`). Plausibility on known sites, **not a validation against published illumination maps** |
 | Celestial state for the 3D views (`POST /celestial/state`) | `spice_tests.cpp`: distance ranges, Sun->Moon = Earth->Moon - Earth->Sun, orientation matrices equal `pxform` and are proper rotations, Moon +X within the librations of the Earth direction, obliquity 23.44°, almanac new Moon 2026-11-09 07:02 UTC and full Moon 2026-11-24 14:53 UTC (longitude difference < 0.05°) | see left | ✅ automated (needs kernels). Geometric positions, **not compared with JPL Horizons** for this endpoint |
 | Web sky derived from that state (`moonSky`, compass, lighting) | vitest on the real fixture: unit vectors, Earth near +X, sub-solar latitude < 1.7° | qualitative | ✅ automated. Directions are from the Moon's centre (Earth parallax up to 0.26° at a site); the scenario evaluation is the reference |
 

@@ -20,7 +20,26 @@ export type ScenarioStatus = "computed" | "synthetic" | "not_ready";
 
 export interface Direction {
   azimuth_deg: number;
+  /** angle above the local horizontal plane */
   elevation_deg: number;
+  /** only with horizon_model "dem_terrain": terrain horizon at this body's azimuth; visible when elevation_deg > it */
+  horizon_elevation_deg?: number;
+}
+
+/** Terrain horizon profile seen from the site (horizon_model "dem_terrain", computed results only). */
+export interface TerrainHorizon {
+  /** elevation_deg[j] is the horizon at azimuth j × azimuth_step_deg (from north toward east) */
+  azimuth_step_deg: number;
+  elevation_deg: number[];
+  /** DEM height under the site, above the DEM reference sphere */
+  site_surface_height_m: number;
+  observer_radius_m: number;
+  max_range_m: number;
+  /** fraction of bearings whose ray leaves the DEM before max_range_m: terrain beyond is unknown */
+  truncated_bearing_fraction: number;
+  min_covered_range_m: number;
+  nodata_sample_fraction: number;
+  sampling: { max_range_m: number; pixel_m: number }[];
 }
 
 export interface Sample {
@@ -62,6 +81,7 @@ export interface ScenarioResponse {
   assumptions: string[];
   warnings: string[];
   samples: Sample[];
+  terrain_horizon?: TerrainHorizon;
   windows: { sun_visible: VisibilityWindow[]; earth_visible: VisibilityWindow[] };
 }
 

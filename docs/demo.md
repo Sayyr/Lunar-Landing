@@ -28,6 +28,9 @@ Sites below are **synthetic test points** (`packages/contracts/fixtures/sites.js
    *Ranked* orders them by stated criteria (no weighted score). From SYN-A on 2026-11-15, delays of +0, +1 and +14 days fail.
 4. **Another site.** Set B to −85°, −30°E and shift 0, compare again: more Earth, less Sun, different outages. Optional: B at
    0°, −180°E (far side) gives 0 % Earth and a 720 h outage over a 30-day span, a quick sanity check.
+   **Terrain.** Set *Horizon model* to *DEM terrain horizon* and evaluate the floor of Shackleton crater
+   (−89.67°, 129.8°E): the horizon profile shows walls 20° high all around and the Sun never rises (a permanently shadowed
+   region), while the ideal horizon says "always lit". A ridge point (−89.45°, −137.3°E) keeps the Sun the whole time.
 5. **Radio link** (engineering estimate). Open *Radio link to Earth*, *Compute radio windows*. Explain the three conditions
    (Earth above the lunar mask, a ground station sees the Moon, budget closes) and that it is not a link guarantee.
 6. **Terrain.** Switch to the ground view at the site to show the LOLA relief and the shadows (visual only); the slope check
@@ -35,8 +38,9 @@ Sites below are **synthetic test points** (`packages/contracts/fixtures/sites.js
 
 ## What to say about limits
 
-- Horizon is the **ideal geometric** one: terrain does not block the Sun or Earth in the numbers (`terrain_mode: dem` answers
-  `not_ready`). The ground view and its horizon are visualisations, not the scientific horizon.
+- With *Ideal geometric horizon*, terrain does not block the Sun or Earth. With *DEM terrain horizon* (needs the LOLA DEM,
+  sites within 85°S–90°S) the skyline is traced on the 20 m relief up to 150 km; relief beyond the DEM is unknown and said so.
+  The ground view is still a visualisation, not the scientific horizon.
 - Visibility is of body **centres**; finite Sun/Earth disks are not modelled.
 - Geometric Sun visibility is not power; geometric Earth visibility is not a radio link.
 - Ephemerides: CSPICE + DE440, cross-checked against the team's SpiceyPy script and against JPL Horizons on 48 cases

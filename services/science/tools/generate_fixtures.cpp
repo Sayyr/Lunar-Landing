@@ -38,6 +38,14 @@ int main() {
           tilted.handle("POST", "/terrain/slope/check", selene::testing::synthetic_fixture_request().dump()).body);
     json radio = json::parse(std::ifstream(FIXTURES / "radio-link-request.valid.json"));
     write("radio-link-response.computed.json", app.handle("POST", "/radio/evaluate", radio.dump()).body);
+    // terrain_mode "dem": SYNTHETIC ephemeris over a SYNTHETIC wall DEM (labelled synthetic).
+    const selene::App on_wall(std::nullopt, selene::testing::wall_dem());
+    json dem_request = json::parse(std::ifstream(FIXTURES / "scenario-request.valid.json"));
+    dem_request["site"]["latitude_deg"] = -90.0;
+    dem_request["terrain_mode"] = "dem";
+    dem_request["duration_hours"] = 48;
+    dem_request["step_minutes"] = 360;
+    write("scenario-response.synthetic-dem.json", on_wall.handle("POST", "/evaluate/synthetic", dem_request.dump()).body);
     // Needs real kernels (SELENE_KERNEL_DIR); skipped otherwise so the other fixtures still regenerate.
     const char* kernels = std::getenv("SELENE_KERNEL_DIR");
     const selene::App live(kernels && *kernels ? std::optional<fs::path>(kernels) : std::nullopt);

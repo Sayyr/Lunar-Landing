@@ -80,7 +80,12 @@ def test_real_route_never_returns_synthetic(request, svc, name):
     assert body["status"] in ("computed", "not_ready")
     assert body["synthetic"] is False
     if CASES["valid"][name].get("expect_not_ready"):
-        assert body["status"] == "not_ready", "DEM mode must be not_ready until a DEM is installed"
+        assert body["status"] == "not_ready", "this DEM-mode site cannot be served (no DEM, or on its edge)"
+    if CASES["valid"][name].get("dem"):
+        if body["status"] == "not_ready":
+            blocked(f"no terrain horizon: {body['message'][:120]}")
+        assert body["model"]["horizon_model"] == "dem_terrain" and "terrain_horizon" in body
+        assert any(d["kind"] == "dem" for d in body["data_provenance"]), "no DEM provenance"
 
 
 @pytest.mark.parametrize("name", VALID)
@@ -91,6 +96,8 @@ def test_synthetic_route_is_labelled_and_consistent(request, svc, name):
     body = _assert_good_response(client.post(ENDPOINTS[service]["synthetic"], sent), sent)
     if CASES["valid"][name].get("expect_not_ready"):
         assert body["status"] == "not_ready"
+    elif CASES["valid"][name].get("dem") and body["status"] == "not_ready":
+        blocked(f"no terrain horizon: {body['message'][:120]}")
     else:
         assert body["status"] == "synthetic" and body["synthetic"] is True
     if CASES["valid"][name].get("polar"):

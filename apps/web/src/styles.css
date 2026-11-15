@@ -371,3 +371,9 @@ details ul { padding-left: 1.1rem; margin: 0.3rem 0; }
 .delay-table .row-fail td, .delay-table .row-fail th { color: var(--bad); }
 .delay-table .row-na td, .delay-table .row-na th { color: var(--muted); }
 .delay-table .reasons { text-align: left; white-space: normal; min-width: 9rem; }
+
+/* DEM terrain horizon */
+.timeline .terrain { stroke-dasharray: 4 3; stroke-width: 1; opacity: 0.8; }
+.horizon-profile .ground { fill: #2a3242; stroke: var(--muted); stroke-width: 1; }
+.horizon-profile .dot-sun { fill: var(--sun); }
+.horizon-profile .dot-earth { fill: var(--earth); }

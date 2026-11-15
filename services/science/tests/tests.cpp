@@ -15,6 +15,7 @@
 #include "dem_label.hpp"
 #include "evaluate.hpp"
 #include "geometry.hpp"
+#include "horizon.hpp"
 #include "intervals.hpp"
 #include "link.hpp"
 #include "lunar_ephemeris.hpp"
@@ -510,6 +511,214 @@ static void test_radio_link() {
     CHECK(radio_near(run(valid).body, load(CONTRACTS / "fixtures/radio-link-response.computed.json")));
 }
 
+// ---------- DEM terrain horizon (SYNTHETIC DEMs) ----------
+
+static std::shared_ptr<const Dem> horizon_dem(const std::string& id, int n, double scale_m,
+                                              const std::function<double(double, double)>& z_m) {
+    return selene::testing::square_dem(id, n, scale_m, z_m);
+}
+
+static void test_terrain_horizon() {
+    const double R = 1737400.0;
+    const int N = 1201;  // 120 km square at 100 m: 60 km of terrain around the pole
+    const HorizonOptions opt{360, 55000.0, 50000.0};
+
+    // 1. Smooth sphere: the horizon is the geometric dip -acos(R / (R + h)), the same in every
+    //    direction (SCIENTIFIC_REFERENCE section 6), NOT 0.
+    auto flat = horizon_dem("SYNTHETIC_FLAT", N, 100.0, [](double, double) { return 0.0; });
+    for (double h_obs : {2.0, 100.0}) {
+        const HorizonProfile p = terrain_horizon(*flat, -90.0, 0.0, h_obs, opt);
+        const double dip = -rad_to_deg(std::acos(R / (R + h_obs)));
+        CHECK(p.elevation_deg.size() == 360);
+        for (double e : p.elevation_deg) CHECK_NEAR(e, dip, 2e-3);
+        CHECK(p.truncated_bearings == 0 && p.nodata_samples == 0);
+        CHECK_NEAR(p.site_surface_height_m, 0.0, 1e-9);
+        // the tangent point is at ground distance R * acos(R / (R + h))
+        CHECK_NEAR(p.horizon_range_m[0], R * std::acos(R / (R + h_obs)), 0.02 * R * std::acos(R / (R + h_obs)) + 100.0);
+    }
+
+    // 2. A wall 1000 m high beyond up >= 10 km (toward lon 0, which is azimuth 0 at the south
+    //    pole for a lon-0 request). Expected elevation of its foot-line crest from 2 m above the
+    //    pole, with curvature: atan2((R+H) cos(d/R) - (R+h), (R+H) sin(d/R)).
+    auto wall = selene::testing::wall_dem();
+    const HorizonProfile pw = terrain_horizon(*wall, -90.0, 0.0, 2.0, opt);
+    const double d_wall = 10000.0, delta = d_wall / R;
+    const double expected = rad_to_deg(std::atan2((R + 1000.0) * std::cos(delta) - (R + 2.0), (R + 1000.0) * std::sin(delta)));
+    CHECK_NEAR(pw.elevation_deg[0], expected, 0.06);  // one 100 m pixel of edge position ~ 0.05 deg
+    CHECK(expected > 5.45 && expected < 5.6);          // atan(998/10000) = 5.70 deg, minus 0.165 deg of curvature
+    CHECK_NEAR(pw.horizon_range_m[0], d_wall, 150.0);
+    // Facing away (azimuth 180) and sideways (90, 270) the wall is not seen or seen obliquely.
+    CHECK_NEAR(pw.elevation_deg[180], -rad_to_deg(std::acos(R / (R + 2.0))), 2e-3);
+    CHECK(pw.elevation_deg[60] > 0 && pw.elevation_deg[60] < pw.elevation_deg[0]);  // wall at 20 km along that bearing
+    CHECK_NEAR(pw.elevation_deg[60], rad_to_deg(std::atan2((R + 1000.0) * std::cos(20000.0 / R) - (R + 2.0),
+                                                           (R + 1000.0) * std::sin(20000.0 / R))), 0.06);
+    // Symmetry about the wall's normal.
+    for (int a : {10, 30, 60, 85}) CHECK_NEAR(pw.elevation_deg[a], pw.elevation_deg[360 - a], 0.02);
+    // Interpolation between bearings and wrap-around.
+    CHECK_NEAR(horizon_elevation_deg(pw, 0.5), (pw.elevation_deg[0] + pw.elevation_deg[1]) / 2, 1e-12);
+    CHECK_NEAR(horizon_elevation_deg(pw, 359.5), (pw.elevation_deg[359] + pw.elevation_deg[0]) / 2, 1e-12);
+    CHECK_NEAR(horizon_elevation_deg(pw, 360.0), pw.elevation_deg[0], 1e-12);
+    CHECK_NEAR(horizon_elevation_deg(pw, -90.0), pw.elevation_deg[270], 1e-12);
+
+    // 3. The azimuth convention follows the request longitude: the same wall seen from the pole
+    //    with a lon 90 E request sits at azimuth 270 (north = meridian 90 E, the wall is toward lon 0).
+    const HorizonProfile pr = terrain_horizon(*wall, -90.0, 90.0, 2.0, opt);
+    CHECK_NEAR(pr.elevation_deg[270], pw.elevation_deg[0], 0.02);
+
+    // 4. Bowl: observer at the bottom of a 2 km deep, 20 km wide parabolic pit sees its rim all
+    //    around; the surface height under the site is the pit floor. (Smooth on purpose: the
+    //    bilinear DEM interpolation is then accurate; a cone's apex is not representable.)
+    auto bowl = horizon_dem("SYNTHETIC_BOWL", N, 100.0, [](double x, double y) {
+        return std::min(0.0, -2000.0 + 2e-5 * (x * x + y * y));  // 0 m beyond 10 km
+    });
+    const HorizonProfile pb = terrain_horizon(*bowl, -90.0, 0.0, 2.0, opt);
+    CHECK_NEAR(pb.site_surface_height_m, -2000.0, 15.0);
+    // Expected = max over the wall of the exact curved-geometry elevation (reached at the rim).
+    double wall_max = -90.0;
+    for (double dist = 100.0; dist <= 10000.0; dist += 10.0) {
+        const double rt = R - 2000.0 + 2e-5 * dist * dist;
+        wall_max = std::max(wall_max, rad_to_deg(std::atan2(rt * std::cos(dist / R) - (R - 2000.0 + 2.0), rt * std::sin(dist / R))));
+    }
+    for (double e : pb.elevation_deg) CHECK_NEAR(e, wall_max, 0.08);
+    CHECK(wall_max > 11.0 && wall_max < 11.31);  // atan(2000/10000) = 11.31 deg, minus curvature and the 2 m
+
+    // 5. Off-pole observer on the flat sphere: still the dip in every direction (the great-circle
+    //    ray geometry does not depend on where the site is).
+    const HorizonProfile po = terrain_horizon(*flat, -89.9, 37.0, 2.0, HorizonOptions{360, 20000.0, 20000.0});
+    for (double e : po.elevation_deg) CHECK_NEAR(e, -rad_to_deg(std::acos(R / (R + 2.0))), 2e-3);
+
+    // 6. Coverage and no-data are never filled in.
+    //    Site outside the grid, and a site too close to its edge, are refused.
+    CHECK_THROWS(terrain_horizon(*flat, -80.0, 0.0, 2.0, opt), HorizonError);
+    CHECK_THROWS(terrain_horizon(*flat, -88.5, 0.0, 2.0, opt), HorizonError);  // 45 km from the pole: 15 km to the edge
+    //    Declared coverage limit (like 85 S on LDEM_85S_20M) stops the rays too.
+    {
+        DemInfo d = flat->info();
+        d.max_latitude_deg = -89.0;  // 30.3 km around the pole
+        std::vector<float> h(static_cast<std::size_t>(N) * N, 0.0f);
+        auto limited = Dem::in_memory(std::move(d), std::move(h));
+        CHECK_THROWS(terrain_horizon(*limited, -90.0, 0.0, 2.0, opt), HorizonError);  // 30 km < 50 km needed
+        const HorizonProfile pl = terrain_horizon(*limited, -90.0, 0.0, 2.0, HorizonOptions{360, 55000.0, 25000.0});
+        CHECK(pl.truncated_bearings == 360);
+        CHECK(pl.min_covered_range_m > 29000.0 && pl.min_covered_range_m < 30400.0);
+    }
+    //    No data under the site.
+    auto hole = horizon_dem("SYNTHETIC_HOLE", N, 100.0, [](double x, double y) {
+        return std::hypot(x, y) < 300.0 ? std::nan("") : 0.0;
+    });
+    CHECK_THROWS(terrain_horizon(*hole, -90.0, 0.0, 2.0, opt), HorizonError);
+    //    A no-data patch away from the site is skipped and counted, not treated as terrain.
+    auto patch = horizon_dem("SYNTHETIC_PATCH", N, 100.0, [](double x, double y) {
+        return std::hypot(x - 5000.0, y) < 1000.0 ? std::nan("") : 0.0;
+    });
+    const HorizonProfile pp = terrain_horizon(*patch, -90.0, 0.0, 2.0, opt);
+    CHECK(pp.nodata_samples > 0);
+    for (double e : pp.elevation_deg) CHECK_NEAR(e, -rad_to_deg(std::acos(R / (R + 2.0))), 2e-3);
+
+    // 7. Cache: same site hits, another site or DEM misses.
+    HorizonCache cache(2);
+    auto a1 = cache.get(*wall, -90.0, 0.0, 2.0, opt), a2 = cache.get(*wall, -90.0, 0.0, 2.0, opt);
+    CHECK(a1 == a2 && cache.stats().hits == 1 && cache.stats().misses == 1);
+    cache.get(*wall, -90.0, 0.0, 3.0, opt);
+    cache.get(*flat, -90.0, 0.0, 2.0, opt);
+    CHECK(cache.stats().misses == 3 && cache.stats().size == 2);
+}
+
+// terrain_mode "dem" through the app: windows follow the terrain horizon, labels are honest.
+static void test_evaluate_with_terrain() {
+    const json valid = load(CONTRACTS / "fixtures/scenario-request.valid.json");
+    json req = valid;
+    req["site"]["latitude_deg"] = -90.0;
+    req["terrain_mode"] = "dem";
+    req["duration_hours"] = 240;
+    req["step_minutes"] = 30;
+
+    // No DEM: not_ready with the reason, no numbers.
+    HttpResponse r = post("/evaluate/synthetic", req);
+    CHECK(r.body["status"] == "not_ready" && r.body["samples"].empty() && !r.body.contains("terrain_horizon"));
+    CHECK(r.body["message"].get<std::string>().find("SELENE_DEM_PATH not set") != std::string::npos);
+
+    // Flat synthetic DEM under the synthetic ephemeris: every sample carries the horizon (the dip
+    // of a 2 m observer), and a body is in a window exactly when elevation > horizon.
+    auto flat = horizon_dem("SYNTHETIC_FLAT", 1201, 100.0, [](double, double) { return 0.0; });
+    const App on_flat(std::nullopt, flat);
+    r = on_flat.handle("POST", "/evaluate/synthetic", req.dump());
+    CHECK(r.status == 200);
+    CHECK(r.body["status"] == "synthetic" && r.body["synthetic"] == true);
+    CHECK(r.body["model"]["horizon_model"] == "dem_terrain");
+    const json& th = r.body["terrain_horizon"];
+    CHECK(th["elevation_deg"].size() == 720 && th["azimuth_step_deg"] == 0.5);
+    CHECK_NEAR(th["observer_radius_m"].get<double>(), 1737402.0, 1e-6);
+    const double dip = -rad_to_deg(std::acos(1737400.0 / 1737402.0));
+    for (const auto& s : r.body["samples"]) {
+        CHECK_NEAR(s["sun"]["horizon_elevation_deg"].get<double>(), dip, 2e-3);
+        CHECK_NEAR(s["earth"]["horizon_elevation_deg"].get<double>(), dip, 2e-3);
+    }
+    bool dem_listed = false, synthetic_dem_warning = false;
+    for (const auto& p : r.body["data_provenance"]) dem_listed = dem_listed || p["name"] == "SYNTHETIC_FLAT";
+    for (const auto& w : r.body["warnings"])
+        synthetic_dem_warning = synthetic_dem_warning || w.get<std::string>().find("SYNTHETIC DEM") != std::string::npos;
+    CHECK(dem_listed && synthetic_dem_warning);
+
+    // Windows == runs of samples with elevation > horizon (sample-level check, both bodies).
+    auto check_windows = [&](const json& body, const char* who, const char* key) {
+        for (const auto& s : body["samples"]) {
+            const int64_t t = parse_utc(s["utc"]);
+            const bool above = s[who]["elevation_deg"].get<double>() > s[who]["horizon_elevation_deg"].get<double>();
+            bool inside = false;
+            for (const auto& w : body["windows"][key])
+                inside = inside || (parse_utc(w["start_utc"]) <= t && t <= parse_utc(w["end_utc"]));
+            if (above != inside) {
+                // a sample exactly on a window edge may fall on either side of the interpolation
+                bool on_edge = false;
+                for (const auto& w : body["windows"][key])
+                    on_edge = on_edge || std::llabs(parse_utc(w["start_utc"]) - t) < 1000 || std::llabs(parse_utc(w["end_utc"]) - t) < 1000;
+                CHECK(on_edge);
+            }
+        }
+    };
+    check_windows(r.body, "sun", "sun_visible");
+    check_windows(r.body, "earth", "earth_visible");
+
+    // A 20 km-wide, 2 km-deep pit: rim at ~11.1 deg all around, above the synthetic waveforms
+    // (|elevation| <= 3.5 deg): nothing is ever visible, although the ideal horizon shows windows.
+    auto bowl = horizon_dem("SYNTHETIC_BOWL", 1201, 100.0, [](double x, double y) {
+        return std::min(0.0, -2000.0 + 2e-5 * (x * x + y * y));
+    });
+    const App in_bowl(std::nullopt, bowl);
+    r = in_bowl.handle("POST", "/evaluate/synthetic", req.dump());
+    CHECK(r.body["windows"]["sun_visible"].empty() && r.body["windows"]["earth_visible"].empty());
+    CHECK_NEAR(r.body["terrain_horizon"]["site_surface_height_m"].get<double>(), -2000.0, 15.0);
+    json ideal = req;
+    ideal["terrain_mode"] = "ideal";
+    HttpResponse ri = in_bowl.handle("POST", "/evaluate/synthetic", ideal.dump());
+    CHECK(!ri.body["windows"]["sun_visible"].empty());
+    CHECK(!ri.body.contains("terrain_horizon") && !ri.body["samples"][0]["sun"].contains("horizon_elevation_deg"));
+
+    // Live output still matches the generated contract fixture (SYNTHETIC wall DEM).
+    {
+        const App on_wall(std::nullopt, selene::testing::wall_dem());
+        json fx = valid;
+        fx["site"]["latitude_deg"] = -90.0;
+        fx["terrain_mode"] = "dem";
+        fx["duration_hours"] = 48;
+        fx["step_minutes"] = 360;
+        CHECK(json_near(on_wall.handle("POST", "/evaluate/synthetic", fx.dump()).body,
+                        load(CONTRACTS / "fixtures/scenario-response.synthetic-dem.json"), 1e-7));
+    }
+
+    // Site the DEM cannot serve: not_ready with the reason, no numbers.
+    json far = req;
+    far["site"]["latitude_deg"] = -80.0;
+    r = on_flat.handle("POST", "/evaluate/synthetic", far.dump());
+    CHECK(r.body["status"] == "not_ready" && r.body["samples"].empty());
+    CHECK(r.body["message"].get<std::string>().find("outside the coverage") != std::string::npos);
+    far["site"]["latitude_deg"] = -88.5;
+    r = on_flat.handle("POST", "/evaluate/synthetic", far.dump());
+    CHECK(r.body["status"] == "not_ready");
+    CHECK(r.body["message"].get<std::string>().find("too close to the edge") != std::string::npos);
+}
+
 // POST /celestial/state without kernels: validation works, and no position is ever invented.
 static void test_celestial_state_without_kernels() {
     const json valid = load(CONTRACTS / "fixtures/celestial-state-request.valid.json");
@@ -597,7 +806,7 @@ static void test_api() {
     // DEM mode not ready
     json dem = valid;
     dem["terrain_mode"] = "dem";
-    r = post("/evaluate/synthetic", dem);
+    r = post("/evaluate/synthetic", dem);  // this app has no DEM
     CHECK(r.body["status"] == "not_ready");
     CHECK(r.body["model"]["horizon_model"] == "dem_terrain");
     CHECK(r.body["samples"].empty());
@@ -1186,6 +1395,8 @@ int main() {
     test_link();
     test_lunar_ephemeris();
     test_radio_link();
+    test_terrain_horizon();
+    test_evaluate_with_terrain();
     test_celestial_state_without_kernels();
     test_time();
     test_api();

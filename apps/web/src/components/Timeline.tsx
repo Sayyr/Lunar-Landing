@@ -16,13 +16,15 @@ export function Timeline({ samples, sunWindows, earthWindows, watermark }: Props
   const t = samples.map((s) => Date.parse(s.utc));
   const t0 = t[0];
   const t1 = t[t.length - 1];
-  const els = samples.flatMap((s) => [s.sun.elevation_deg, s.earth.elevation_deg]);
+  const els = samples.flatMap((s) => [s.sun.elevation_deg, s.earth.elevation_deg, s.sun.horizon_elevation_deg ?? 0, s.earth.horizon_elevation_deg ?? 0]);
   const yMax = Math.max(1, ...els.map(Math.abs)) * 1.15;
 
   const x = (ms: number) => PAD.l + ((ms - t0) / (t1 - t0)) * (W - PAD.l - PAD.r);
   const y = (deg: number) => PAD.t + ((yMax - deg) / (2 * yMax)) * (H - PAD.t - PAD.b);
   const path = (pick: (s: Sample) => number) =>
     samples.map((s, i) => `${i ? "L" : "M"}${x(t[i]).toFixed(1)},${y(pick(s)).toFixed(1)}`).join("");
+  // DEM terrain horizon at each body's azimuth (present only with the terrain horizon model).
+  const hasTerrain = samples[0].sun.horizon_elevation_deg !== undefined;
   const band = (w: VisibilityWindow, cls: string, top: number, i: number) => {
     const a = x(Date.parse(w.start_utc));
     return <rect key={`${cls}${i}`} className={cls} x={a} y={top} width={x(Date.parse(w.end_utc)) - a} height={6} />;
@@ -49,6 +51,12 @@ export function Timeline({ samples, sunWindows, earthWindows, watermark }: Props
       ))}
       {sunWindows.map((w, i) => band(w, "band-sun", PAD.t, i))}
       {earthWindows.map((w, i) => band(w, "band-earth", PAD.t + 8, i))}
+      {hasTerrain && (
+        <>
+          <path className="line-sun terrain" d={path((s) => s.sun.horizon_elevation_deg ?? 0)} />
+          <path className="line-earth terrain" d={path((s) => s.earth.horizon_elevation_deg ?? 0)} />
+        </>
+      )}
       <path className="line-sun" d={path((s) => s.sun.elevation_deg)} />
       <path className="line-earth" d={path((s) => s.earth.elevation_deg)} />
     </svg>

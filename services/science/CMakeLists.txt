@@ -43,6 +43,7 @@ find_package(Threads REQUIRED)
 
 add_library(selene_science_core STATIC
   src/app.cpp src/celestial.cpp src/ephemeris.cpp src/ephemeris_spice.cpp src/evaluate.cpp src/geometry.cpp
+  src/horizon.cpp
   src/intervals.cpp src/link.cpp src/lunar_ephemeris.cpp src/models.cpp src/radio.cpp src/spice.cpp
   src/terrain.cpp)
 target_include_directories(selene_science_core PUBLIC src)

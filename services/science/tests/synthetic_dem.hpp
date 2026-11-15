@@ -45,6 +45,28 @@ inline std::shared_ptr<const Dem> synthetic_dem(const std::string& product_id,
     return Dem::in_memory(synthetic_info(product_id), std::move(h));
 }
 
+// Square SYNTHETIC DEM centred on the south pole, any size: n x n pixels of `scale_m`, heights in
+// metres from z_m(right_m, up_m) (right = +sample = lon 90 E, up = -line = lon 0). Used for the
+// terrain horizon, which needs tens of kilometres of terrain around the site.
+inline std::shared_ptr<const Dem> square_dem(const std::string& product_id, int n, double scale_m,
+                                             const std::function<double(double, double)>& z_m) {
+    DemInfo d = synthetic_info(product_id);
+    d.lines = d.samples = n;
+    d.proj.line_off = d.proj.sample_off = (n - 1) / 2.0;
+    d.proj.scale_m = scale_m;
+    std::vector<float> h(static_cast<std::size_t>(n) * n);
+    for (int l = 0; l < n; ++l)
+        for (int s = 0; s < n; ++s)
+            h[static_cast<std::size_t>(l) * n + s] = static_cast<float>(
+                z_m((s - d.proj.sample_off) * scale_m, -(l - d.proj.line_off) * scale_m) / 1000.0);
+    return Dem::in_memory(std::move(d), std::move(h));
+}
+
+// 120 km square at 100 m with a 1000 m high wall beyond 10 km toward lon 0 (fixture + tests).
+inline std::shared_ptr<const Dem> wall_dem() {
+    return square_dem("SYNTHETIC_WALL", 1201, 100.0, [](double, double up) { return up >= 10000.0 ? 1000.0 : 0.0; });
+}
+
 // Plane rising toward +sample with the given slope (degrees), 0 m at the pole.
 inline std::shared_ptr<const Dem> tilted_plane_dem(double slope_deg) {
     const double g = std::tan(slope_deg * 3.14159265358979323846 / 180.0);
