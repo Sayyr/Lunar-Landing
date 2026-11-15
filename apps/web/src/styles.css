@@ -34,6 +34,10 @@ h4 { margin: 0.8rem 0 0.3rem; font-size: 0.85rem; color: var(--muted); }
 .scenario-main > .lunar { flex: 1; height: auto; min-height: 0; border: 0; border-radius: 0; }
 .lunar-scenario { display: flex; flex-direction: column; gap: 0.8rem; }
 .lunar-scenario .form, .lunar-scenario .result { background: transparent; border: 0; padding: 0; }
+.lunar-scenario .form { display: flex; flex-direction: column; gap: 0.6rem; }
+.lunar-scenario .form label { display: flex; flex-direction: column; gap: 0.25rem; margin: 0; }
+.lunar-scenario .form input, .lunar-scenario .form select { width: 100%; min-width: 0; box-sizing: border-box; }
+.lunar-scenario .form .grid2, .lunar-scenario .form .actions { margin-top: 0; }
 .lunar-scenario .result.synthetic { border: 2px dashed var(--synthetic); padding: 0.6rem; }
 
 .status-row { display: flex; gap: 0.4rem; flex-wrap: wrap; }
@@ -50,6 +54,7 @@ h4 { margin: 0.8rem 0 0.3rem; font-size: 0.85rem; color: var(--muted); }
 .form input, .form select { background: var(--bg); color: var(--text); border: 1px solid var(--line);
   border-radius: 4px; padding: 0.4rem; font: inherit; font-size: 0.9rem; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-top: 0.6rem; }
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.6rem; }
 .actions { display: flex; gap: 0.6rem; margin-top: 1rem; flex-wrap: wrap; }
 button { background: #2b3546; color: var(--text); border: 1px solid #3b4760; border-radius: 2px;
   padding: 0.5rem 0.9rem; font: inherit; cursor: pointer; }
@@ -102,28 +107,29 @@ details ul { padding-left: 1.1rem; margin: 0.3rem 0; }
 .celestial-canvas { position: absolute; inset: 0; background: #000; }
 .celestial-canvas.placeholder { display: grid; place-items: center; color: var(--muted); }
 /* Scale / model disclaimer stays visible, small, bottom-left over the scene. */
-.celestial-canvas .caption { position: absolute; left: 1.25rem; bottom: 12px; z-index: 2; max-width: min(620px, calc(100% - 160px));
-  padding: 0; font-size: 11px; text-shadow: 0 1px 3px #000; pointer-events: none; }
+.celestial-footnote { position: absolute; left: 1.25rem; bottom: 12px; z-index: 2; max-width: min(480px, calc(100% - 160px));
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-shadow: 0 1px 3px #000; pointer-events: none; }
+.celestial-footnote .caption { padding: 0; font-size: 10px; }
 
-.dash-overlay { position: absolute; left: 1.25rem; top: 60px; z-index: 5; width: min(320px, calc(100% - 70px));
-  display: flex; flex-direction: column; gap: 8px; text-shadow: 0 1px 3px #000; }
-.dash-overlay .check { display: flex; align-items: center; gap: 0.35rem; font-size: 0.82rem; color: var(--muted); }
+.dash-overlay { position: absolute; left: 1.25rem; top: 60px; z-index: 5; width: min(300px, calc(100% - 70px));
+  display: flex; flex-direction: column; gap: 6px; text-shadow: 0 1px 3px #000; }
+.dash-overlay .check { display: flex; align-items: center; gap: 0.35rem; font-size: 11px; color: var(--muted); }
 .view-toggle { display: flex; gap: 6px; flex-wrap: wrap; }
-.view-toggle button, .step-buttons button, .play-row button { padding: 3px 8px; font-size: 12px; background: rgba(0, 0, 0, 0.45); }
+.view-toggle button, .step-buttons button, .play-row button { padding: 2px 6px; font-size: 11px; background: rgba(0, 0, 0, 0.45); }
 .view-toggle button.active, .play-row button.active { background: #2b3546; border-color: #5a75a6; }
 .date-input { width: 100%; background: rgba(0, 0, 0, 0.45); color: var(--text); border: 1px solid #3b4760; border-radius: 2px;
-  padding: 0.35rem 0.45rem; font: inherit; font-size: 13px; color-scheme: dark; }
+  padding: 0.2rem 0.35rem; font: inherit; font-size: 11px; color-scheme: dark; }
 .step-buttons { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
 .step-buttons button { padding: 3px 0; }
-.scrub { display: flex; flex-direction: column; gap: 0.2rem; font-size: 11px; color: var(--muted); }
+.scrub { display: flex; flex-direction: column; gap: 0.2rem; font-size: 10px; color: var(--muted); }
 .scrub b { color: var(--text); font-weight: 600; }
 .scrub input { width: 100%; accent-color: var(--earth); }
 .play-row { display: flex; gap: 6px; }
 .play-row button { min-width: 32px; }
 .play-row select { background: rgba(0, 0, 0, 0.45); color: var(--text); border: 1px solid #3b4760; border-radius: 2px;
-  padding: 0.2rem 0.3rem; font: inherit; font-size: 12px; }
+  padding: 0.1rem 0.25rem; font: inherit; font-size: 11px; }
 .phase-row { display: flex; align-items: center; gap: 0.8rem; }
-.big { font-size: 1.05rem; font-weight: 600; }
+.big { font-size: 0.95rem; font-weight: 600; }
 
 .dash-panel { position: absolute; top: 0; right: 0; bottom: 0; z-index: 4; width: var(--d-panel-w); max-width: 100%;
   overflow-y: auto; padding: 14px 14px 16px; background: rgba(14, 16, 20, 0.88); border-left: 1px solid var(--d-line);
@@ -177,6 +183,7 @@ details ul { padding-left: 1.1rem; margin: 0.3rem 0; }
 .lunar.panel-collapsed .lunar-panel-toggle { right: 10px; }
 
 .lunar h2 { margin: 0 0 8px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.lunar h3 { margin: 12px 0 4px; font-size: 11px; font-weight: 600; color: var(--text); }
 .lunar section { padding: 12px 0; border-top: 1px solid var(--l-line); margin-top: 12px; }
 .lunar section.small { font-size: 12px; }
 .lunar section.small ul { padding-left: 16px; margin: 6px 0; }
@@ -221,7 +228,7 @@ details ul { padding-left: 1.1rem; margin: 0.3rem 0; }
   text-shadow: 0 1px 3px #000; }
 /* Compass: a disc lying on the site's horizon, rotated/tilted in 3D by LunarExplorer. */
 .sky-compass { display: flex; align-items: center; gap: 12px; }
-.sky-compass-stage { flex: none; width: 132px; height: 132px; perspective: 360px; }
+.sky-compass-stage { flex: none; width: 88px; height: 88px; perspective: 240px; }
 .sky-compass-disk { width: 100%; height: 100%; transform-style: preserve-3d; transition: transform 0.08s linear;
   filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.7)); }
 .sky-compass-disk svg { display: block; width: 100%; height: 100%; overflow: visible; }
@@ -230,25 +237,30 @@ details ul { padding-left: 1.1rem; margin: 0.3rem 0; }
 .sky-compass-read .earth { color: #4aa3ff; }
 .sky-compass-read small { color: var(--muted); font-size: 10px; }
 .sky-note { margin-top: 6px; font-size: 10.5px; color: var(--l-warn, #ffb347); }
-/* Scenario time: bottom-left, wide slider. */
-.sky-timebar { position: absolute; left: 1.25rem; bottom: 12px; z-index: 5; width: min(440px, calc(100% - 2.5rem));
-  padding: 6px 8px; background: rgba(0, 0, 0, 0.45); border: 1px solid #3b4760; border-radius: 2px; }
-.sky-time { display: flex; align-items: center; gap: 8px; }
-.sky-time input[type="range"] { flex: 1; margin: 0; }
-.sky-time button { padding: 2px 8px; min-width: 32px; }
-.sky-time output { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-/* View Earth / View Sun: top-right, under the ⋯ toggle, following it when the panel opens. */
+/* Scenario time: under the compass. */
+.sky-timebar { margin-top: 4px; width: 250px; max-width: 100%;
+  padding: 2px 4px; background: rgba(0, 0, 0, 0.45); }
+.sky-time { display: flex; align-items: center; gap: 5px; }
+.lunar .sky-time input[type="range"] { flex: 1; min-width: 0; height: 12px; margin: 0; padding: 0; appearance: none;
+  background: transparent; border: 0; }
+.sky-time input[type="range"]::-moz-range-track { height: 3px; background: #e0e0e0; border-radius: 2px; }
+.sky-time input[type="range"]::-webkit-slider-runnable-track { height: 3px; background: #e0e0e0; border-radius: 2px; }
+.sky-time input[type="range"]::-moz-range-thumb { width: 8px; height: 8px; border: 0; border-radius: 50%; background: #70747c; }
+.sky-time input[type="range"]::-webkit-slider-thumb { appearance: none; width: 8px; height: 8px; margin-top: -2.5px;
+  border: 0; border-radius: 50%; background: #70747c; }
+.lunar .sky-time button { padding: 0; border: 0; background: none; font-size: 9px; line-height: 16px; }
+.lunar .sky-now { margin-top: 2px; padding: 0 4px; font-size: 9px; line-height: 14px; }
+.sky-time output { font-size: 9.5px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Ground view / Slope filter: top-right, under the ⋯ toggle, following it when the panel opens. */
 .lunar .sky-view { position: absolute; top: 52px; right: calc(var(--l-panel-w) + 10px); z-index: 5; display: flex;
   flex-direction: column; gap: 6px; transition: right 0.25s ease; }
 .lunar.panel-collapsed .sky-view { right: 10px; }
 .lunar .sky-view button { padding: 4px 10px; font-size: 12px; background: rgba(0, 0, 0, 0.45); }
-@media (max-width: 900px) { .scale-bar { bottom: 64px; } }
 /* "Sun / Earth this way" pointers pinned to the screen edge (positioned by LunarExplorer). */
 .edge-ptr { position: absolute; left: 0; top: 0; z-index: 4; pointer-events: none; width: 0; height: 0; }
-.edge-ptr .edge-arrow { position: absolute; left: -9px; top: -11px; width: 18px; text-align: center; font-size: 18px;
-  line-height: 22px; transform-origin: 50% 50%; text-shadow: 0 0 6px currentColor; }
-.edge-ptr .edge-label { position: absolute; left: -30px; top: 12px; width: 60px; text-align: center; font-size: 11px;
-  text-shadow: 0 1px 3px #000; }
+.lunar .edge-ptr .edge-label { position: absolute; left: -30px; top: -8px; width: 60px; padding: 0; border: 0;
+  background: none; color: inherit; text-align: center; font-size: 11px; text-shadow: 0 0 6px currentColor; pointer-events: auto; }
+.lunar .edge-ptr .edge-label:hover { filter: brightness(1.4); }
 .edge-ptr.sun { color: #ffd400; }
 .edge-ptr.earth { color: #4aa3ff; }
 /* Repository link, bottom-right over the scene (under the ⋯ panel when it is open). */
@@ -256,11 +268,11 @@ details ul { padding-left: 1.1rem; margin: 0.3rem 0; }
   padding: 5px 9px; color: var(--muted); text-decoration: none; font-size: 12px; border: 1px solid #3b4760;
   border-radius: 2px; background: rgba(0, 0, 0, 0.45); }
 .repo-link:hover { color: var(--text); border-color: #5a75a6; }
-/* Scale bar, bottom-centre of both 3D views (valid at the view centre). */
-.scale-bar { position: absolute; left: 50%; bottom: 12px; z-index: 3; transform: translateX(-50%); display: flex;
-  flex-direction: column; align-items: center; gap: 2px; font-size: 12px; text-shadow: 0 1px 3px #000; pointer-events: none; }
+/* Scale bar, bottom-left footnote of both 3D views (valid at the view centre). */
+.scale-bar { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; font-size: 10px;
+  text-shadow: 0 1px 3px #000; pointer-events: none; }
 .scale-bar-line { height: 6px; border: 2px solid #fff; border-top: 0; }
-.scale-bar small { font-size: 10px; color: var(--muted); }
+.scale-bar small { font-size: 9px; color: var(--muted); }
 .lunar code, .dash-panel code { font-size: 0.9em; }
 /* ---- Ground view (standing at the site) ---- */
 .ground-view { position: absolute; inset: 0; z-index: 3; background: #000; }
@@ -269,12 +281,13 @@ details ul { padding-left: 1.1rem; margin: 0.3rem 0; }
 .ground-canvas canvas:active { cursor: grabbing; }
 .ground-hud-top { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 5; display: flex;
   flex-direction: column; align-items: center; gap: 2px; pointer-events: none; text-shadow: 0 1px 3px #000; }
-.heading-tape { max-width: calc(100vw - 120px); background: rgba(0, 0, 0, 0.35); }
+.heading-tape { width: min(380px, calc(100vw - 120px)); height: auto; background: rgba(0, 0, 0, 0.35); }
 .ground-readout { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .ground-buttons { position: absolute; top: 52px; right: 10px; z-index: 5; display: flex; flex-direction: column; gap: 6px; }
 .lunar:not(.panel-collapsed) .ground-buttons { right: calc(var(--l-panel-w) + 10px); }
 .ground-buttons button { padding: 4px 10px; font-size: 12px; background: rgba(0, 0, 0, 0.45); }
-.ground-note { max-width: min(560px, calc(100vw - 120px)); font-size: 10px; color: var(--muted); text-align: center; line-height: 1.4; }
+.ground-note { position: absolute; left: 1.25rem; bottom: 30px; z-index: 5; max-width: min(480px, calc(100% - 2.5rem)); font-size: 9px;
+  color: var(--muted); line-height: 1.4; text-shadow: 0 1px 3px #000; pointer-events: none; }
 .ground-visibility { display: flex; flex-direction: column; align-items: center; font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .ground-visibility .sun { color: #ffd400; }
 .ground-visibility .earth { color: #4aa3ff; }
@@ -333,3 +346,6 @@ details ul { padding-left: 1.1rem; margin: 0.3rem 0; }
 .status-engineering { background: #1b2a44; color: var(--earth); }
 .timeline .band-station { fill: var(--muted); opacity: 0.55; }
 .timeline .band-link { fill: var(--ok); opacity: 0.85; }
+.lunar-footnote { position: absolute; left: 1.25rem; bottom: 12px; z-index: 3; width: min(340px, calc(100% - 2.5rem));
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px; pointer-events: none; text-shadow: 0 1px 3px #000; }
+.lunar-footnote .sky-note { margin-top: 0; font-size: 9px; color: #a8876a; }

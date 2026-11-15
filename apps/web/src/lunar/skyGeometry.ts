@@ -21,6 +21,7 @@ export interface MoonSky {
   earth: Vec3;
   /** Earth body-fixed → Moon body-fixed, row-major 3×3 (texture orientation only) */
   earthToBody: number[];
+  eclToBody: number[];
 }
 
 const unit = (v: Vec3): Vec3 => {
@@ -50,7 +51,8 @@ export function moonSky(state: CelestialStateResponse): MoonSky {
   const E = state.earth_orientation;
   const earthToBody: number[] = [];
   for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) earthToBody.push(M[r] * E[c] + M[3 + r] * E[3 + c] + M[6 + r] * E[6 + c]);
-  return { sun: unit(transposeApply(M, toSun)), earth: unit(transposeApply(M, toEarth)), earthToBody };
+  const eclToBody = [M[0], M[3], M[6], M[1], M[4], M[7], M[2], M[5], M[8]];
+  return { sun: unit(transposeApply(M, toSun)), earth: unit(transposeApply(M, toEarth)), earthToBody, eclToBody };
 }
 
 export interface AzEl {
@@ -111,9 +113,16 @@ export function azElToEnu({ azimuthDeg, elevationDeg }: AzEl): Vec3 {
  * of the Earth seen from the ground, visualization only).
  */
 export function earthToEnu(sky: MoonSky, latDeg: number, lonDeg: number): number[] {
+  return bodyToEnu(sky.earthToBody, latDeg, lonDeg);
+}
+
+export function eclToEnu(sky: MoonSky, latDeg: number, lonDeg: number): number[] {
+  return bodyToEnu(sky.eclToBody, latDeg, lonDeg);
+}
+
+function bodyToEnu(m: number[], latDeg: number, lonDeg: number): number[] {
   const { east, north, up } = enuBasis(latDeg, lonDeg);
   const rows = [east, north, up];
-  const m = sky.earthToBody;
   const out: number[] = [];
   for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) out.push(rows[r][0] * m[c] + rows[r][1] * m[3 + c] + rows[r][2] * m[6 + c]);
   return out;

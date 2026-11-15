@@ -1,12 +1,13 @@
 import { Html, Line, OrbitControls } from "@react-three/drei";
-import { Canvas, useFrame } from "@react-three/fiber";
-import { memo, useMemo, useRef } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { memo, type ReactNode, useEffect, useMemo, useRef } from "react";
 import { type Matrix4, type PerspectiveCamera, type Texture } from "three";
 
 import { getMoonTrack, getSunTrack } from "../../api/celestial";
 import type { CelestialStateResponse } from "../../api/celestialTypes";
 import { AU_M, EARTH_MEAN_RADIUS_M, MOON_RADIUS_KM, SUN_RADIUS_M } from "../../lib/constants";
 import { bodyRotationToThree, closeLoop, eclToThree, normalize, type V3 } from "../../lib/sceneFrame";
+import { disposeStarField, makeStarField } from "../../lib/stars";
 import { DATA_BASE, SETUP_HINT } from "../../lunar/loaders";
 import { Earth, Moon, Sun } from "./Bodies";
 import { useOptionalTexture } from "./useOptionalTexture";
@@ -32,6 +33,8 @@ interface Props {
   active: boolean;
   /** km per pixel at the orbit target (Earth–Moon view); null in the schematic view. Must be stable. */
   onScale?: (kmPerPx: number | null) => void;
+  footnote?: ReactNode;
+  offsetX?: number;
 }
 
 /**
@@ -136,7 +139,7 @@ function SolarView({ state, earthTex, moonTex, earthOrientation, moonOrientation
 }
 
 // memo: the dashboard re-renders on every date change before the new state arrives.
-export const CelestialScene = memo(function CelestialScene({ state, view, enlargeBodies, active, onScale }: Props) {
+export const CelestialScene = memo(function CelestialScene({ state, view, enlargeBodies, active, onScale, footnote, offsetX = 0 }: Props) {
   const earthTex = useOptionalTexture(`${DATA_BASE}earth_bluemarble_2048.png`);
   const moonTex = useOptionalTexture(`${DATA_BASE}moon_color.jpg`);
   const earthOrientation = useMemo(() => bodyRotationToThree(state.earth_orientation), [state.earth_orientation]);
@@ -160,6 +163,8 @@ export const CelestialScene = memo(function CelestialScene({ state, view, enlarg
         frameloop={active ? "always" : "never"}
       >
         <color attach="background" args={["#000000"]} />
+        <StarField />
+        <ViewShift x={offsetX} />
         {view === "earth-moon" ? (
           <>
             <EarthMoonView {...viewProps} bodyScale={enlargeBodies ? BODY_ENLARGEMENT : 1} />
@@ -169,28 +174,52 @@ export const CelestialScene = memo(function CelestialScene({ state, view, enlarg
           <SolarView {...viewProps} />
         )}
       </Canvas>
-      <p className="caption">
-        {view === "earth-moon" ? (
-          <>
-            <b>Earth–Moon, distances to scale</b> (1 unit = 1 Earth radius);{" "}
-            {enlargeBodies ? <b className="warn-text">Earth &amp; Moon radii enlarged ×{BODY_ENLARGEMENT}.</b> : <>Earth &amp; Moon at true size.</>} The Sun is drawn at a compressed distance with its true
-            angular size; lighting follows the mock Sun direction. Grey trace: mock Moon path over one sidereal month (27.3 d); the real path does not quite close (solar perturbations), the small residual is spread along the trace for display.
-          </>
-        ) : (
-          <>
-            <b>Sun–Earth–Moon, schematic — NOT to scale.</b> Directions follow the mock state; distances are compressed and radii
-            exaggerated. Earth–Moon distance shown ×{Math.round((SOLAR.moonDist / MEAN_MOON_DIST_M) / (SOLAR.earthOrbit / AU_M))}{" "}
-            relative to the Sun–Earth distance.
-          </>
-        )}{" "}
-        Ecliptic plane grid, +X = equinox of date. Moon orientation: mean near side toward Earth (libration ignored). Earth
-        rotation from GMST + obliquity. Shadows/eclipses are not rendered.{" "}
-        {earthTex && moonTex ? (
-          <>Textures: NASA SVS Blue Marble (SVS 2915) &amp; LROC WAC colour mosaic (SVS 4720).</>
-        ) : (
-          <span className="warn-text">Textures not installed — {SETUP_HINT}.</span>
-        )}
-      </p>
+      <div className="celestial-footnote">
+        {footnote}
+        <p className="caption">
+          {view === "earth-moon" ? (
+            <>
+              <b>Earth–Moon, distances to scale</b> (1 unit = 1 Earth radius);{" "}
+              {enlargeBodies ? <b className="warn-text">Earth &amp; Moon radii enlarged ×{BODY_ENLARGEMENT}.</b> : <>Earth &amp; Moon at true size.</>} The Sun is drawn at a compressed distance with its true
+              angular size; lighting follows the mock Sun direction. Grey trace: mock Moon path over one sidereal month (27.3 d); the real path does not quite close (solar perturbations), the small residual is spread along the trace for display.
+            </>
+          ) : (
+            <>
+              <b>Sun–Earth–Moon, schematic — NOT to scale.</b> Directions follow the mock state; distances are compressed and radii
+              exaggerated. Earth–Moon distance shown ×{Math.round((SOLAR.moonDist / MEAN_MOON_DIST_M) / (SOLAR.earthOrbit / AU_M))}{" "}
+              relative to the Sun–Earth distance.
+            </>
+          )}{" "}
+          Ecliptic plane grid, +X = equinox of date. Moon orientation: mean near side toward Earth (libration ignored). Earth
+          rotation from GMST + obliquity. Shadows/eclipses are not rendered.{" "}
+          {earthTex && moonTex ? (
+            <>Textures: NASA SVS Blue Marble (SVS 2915) &amp; LROC WAC colour mosaic (SVS 4720).</>
+          ) : (
+            <span className="warn-text">Textures not installed — {SETUP_HINT}.</span>
+          )}
+        </p>
+      </div>
     </div>
   );
 });
+
+function StarField() {
+  const stars = useMemo(() => makeStarField(4000), []);
+  useEffect(() => () => disposeStarField(stars), [stars]);
+  useFrame(({ camera }) => stars.position.copy(camera.position));
+  return <primitive object={stars} />;
+}
+
+function ViewShift({ x }: { x: number }) {
+  const camera = useThree((s) => s.camera) as PerspectiveCamera;
+  const width = useThree((s) => s.size.width);
+  const height = useThree((s) => s.size.height);
+  useEffect(() => {
+    camera.setViewOffset(width, height, -x, 0, width, height);
+    camera.updateProjectionMatrix();
+    return () => {
+      camera.clearViewOffset();
+    };
+  }, [camera, width, height, x]);
+  return null;
+}

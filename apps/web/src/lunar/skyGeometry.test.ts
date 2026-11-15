@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { mockCelestialState } from "../mock/celestialMock";
-import { azElToEnu, enuBasis, localAzEl, moonSky, type Vec3 } from "./skyGeometry";
+import { azElToEnu, eclToEnu, enuBasis, localAzEl, moonSky, type Vec3 } from "./skyGeometry";
 
 const close = (a: number, b: number, eps = 1e-9) => expect(Math.abs(a - b)).toBeLessThan(eps);
 
@@ -86,6 +86,34 @@ describe("enuBasis / azElToEnu", () => {
       const back = localAzEl(body, lat, lon);
       close(back.azimuthDeg, azel.azimuthDeg, 1e-9);
       close(back.elevationDeg, azel.elevationDeg, 1e-9);
+    }
+  });
+});
+
+describe("eclToBody / eclToEnu", () => {
+  const state = mockCelestialState(new Date("2026-11-15T00:00:00Z"));
+  const sky = moonSky(state);
+  const apply = (m: number[], v: Vec3): Vec3 => [
+    m[0] * v[0] + m[1] * v[1] + m[2] * v[2],
+    m[3] * v[0] + m[4] * v[1] + m[5] * v[2],
+    m[6] * v[0] + m[7] * v[1] + m[8] * v[2],
+  ];
+  const moon = state.moon_from_earth.position_m;
+  const sun = state.sun_from_earth.position_m;
+  const raw: Vec3 = [sun[0] - moon[0], sun[1] - moon[1], sun[2] - moon[2]];
+  const r = Math.hypot(...raw);
+  const sunEcl: Vec3 = [raw[0] / r, raw[1] / r, raw[2] / r];
+
+  it("eclToBody takes the ecliptic Sun direction to sky.sun", () => {
+    const b = apply(sky.eclToBody, sunEcl);
+    for (let i = 0; i < 3; i++) close(b[i], sky.sun[i], 1e-12);
+  });
+
+  it("eclToEnu agrees with localAzEl, also at the south pole", () => {
+    for (const [lat, lon] of [[0, 0], [-89.5, 0], [-90, 0], [45, 120]]) {
+      const enu = apply(eclToEnu(sky, lat, lon), sunEcl);
+      const ref = azElToEnu(localAzEl(sky.sun, lat, lon));
+      for (let i = 0; i < 3; i++) close(enu[i], ref[i], 1e-9);
     }
   });
 });
