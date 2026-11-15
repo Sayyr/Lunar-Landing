@@ -411,3 +411,20 @@ details ul { padding-left: 1.1rem; margin: 0.3rem 0; }
 .sites-slope output { color: var(--text); margin-left: 0.3rem; }
 .sites-slope input { width: 11rem; }
 .sites-legend { align-self: center; }
+
+/* South-pole grid page (#/grid) */
+.grid-page { max-width: 1250px; margin: 0 auto; }
+.grid-page h2 { margin: 0 0 0.3rem; font-size: 1.3rem; }
+.grid-page pre { white-space: pre-wrap; background: var(--panel); padding: 0.6rem; border-radius: 6px; }
+.grid-toggle { flex-direction: row !important; align-items: center; gap: 0.35rem !important; color: var(--text) !important; }
+.grid-legend { margin-bottom: 0.8rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.grid-ramp { display: inline-block; width: 7rem; height: 0.7rem; border-radius: 3px;
+  background: linear-gradient(90deg, rgb(229,83,75), rgb(242,193,78), rgb(47,200,90)); }
+.grid-layout { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; }
+.grid-canvas-wrap { flex: 1 1 520px; min-width: 0; }
+.grid-canvas-wrap canvas { display: block; max-width: 100%; border-radius: 8px; cursor: crosshair; touch-action: none; }
+.grid-side { flex: 0 1 340px; min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 0.8rem; }
+.grid-side h3 { margin: 0.2rem 0 0.4rem; font-size: 0.95rem; }
+.grid-detail { margin-bottom: 0.8rem; padding-bottom: 0.8rem; border-bottom: 1px solid var(--line); }
+.grid-rank { margin: 0; padding-left: 1.4rem; font-size: 0.82rem; display: flex; flex-direction: column; gap: 0.3rem; }
+.grid-rank .link-btn.active { color: var(--text); font-weight: 600; }

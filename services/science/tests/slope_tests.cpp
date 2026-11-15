@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "slope_core.hpp"
+#include "slope_grid.hpp"
 
 using namespace selene::slope;
 
@@ -200,7 +201,62 @@ static void test_geographic_azimuth() {
     CHECK(ang_diff(geographic_azimuth_deg(p, 100, 100, 123), 123) < 1e-12);
 }
 
+// Disc grids (slope_grid.hpp).
+static void test_disc_grid() {
+    const double R = 1737400.0, step = 4000, r = 2000;
+    const double rho_max = rho_of_colat(5.0 / DEG, R);  // 85 S
+    CHECK_NEAR(rho_max, 151.73e3, 50.0);
+    auto g0 = grid_centres(0, step, r, rho_max, R), g1 = grid_centres(1, step, r, rho_max, R);
+    // ~ area / step^2 discs, all fully inside the coverage circle
+    CHECK(g0.size() > 4000 && g0.size() < 4600);
+    CHECK(g1.size() > 4000 && g1.size() < 4600);
+    for (const auto& c : g0) CHECK(std::hypot(c.x_m, c.y_m) + r * scale_factor(std::hypot(c.x_m, c.y_m), R) <= rho_max);
+    // grid 0 centre at the pole, grid 1 offset by half a step
+    bool pole = false;
+    for (const auto& c : g0) pole |= c.x_m == 0 && c.y_m == 0;
+    CHECK(pole);
+    CHECK(std::fmod(std::fabs(g1[0].x_m), step) == step / 2);
+    // grids 0 + 1 cover the plane: every point near the pole is within r of some centre
+    for (double x = -9000; x <= 9000; x += 137)
+        for (double y = -9000; y <= 9000; y += 151) {
+            double best = 1e18;
+            for (const auto* g : {&g0, &g1})
+                for (const auto& c : *g) best = std::min(best, std::hypot(x - c.x_m, y - c.y_m));
+            CHECK(best <= r + 1e-9);
+        }
+
+    // lat/lon of map points (validated LDEM signs: sign_y = 1)
+    Projection p;
+    p.radius_m = R;
+    CHECK_NEAR(south_polar_latlon(p, 0, 0, 0).lat_deg, -90, 1e-12);
+    CHECK_NEAR(south_polar_latlon(p, 0, 0, rho_max).lat_deg, -85, 1e-9);
+    CHECK_NEAR(south_polar_latlon(p, 0, 0, rho_max).lon_deg, 0, 1e-12);
+    CHECK_NEAR(south_polar_latlon(p, 0, 1000, 0).lon_deg, 90, 1e-12);
+    CHECK_NEAR(south_polar_latlon(p, 0, 0, -1000).lon_deg, -180, 1e-12);  // 180 wraps to -180
+
+    // disc statistics: 20 m grid, flat_proj-like sphere, slopes = column index * 0.1 deg
+    Projection q = flat_proj(20.0);
+    const int N = 401;
+    q.line_off = q.sample_off = 200;
+    std::vector<float> sl(static_cast<std::size_t>(N) * N);
+    for (int l = 0; l < N; ++l)
+        for (int s2 = 0; s2 < N; ++s2) sl[static_cast<std::size_t>(l) * N + s2] = static_cast<float>(s2 * 0.1);
+    sl[200 * N + 200] = std::nanf("");
+    const DiscStats d = disc_stats(sl.data(), N, N, q, {0, 0, 0}, 2000, 0.5, 121);
+    // pixels within 100 px of the centre: ~ pi * 100^2
+    CHECK(std::fabs(static_cast<double>(d.valid + d.nodata) - PI * 1e4) < 400);
+    CHECK(d.nodata == 1);
+    CHECK_NEAR(d.mean_deg, 20.0, 1e-3);  // symmetric about column 200 (20 deg)
+    CHECK_NEAR(d.max_deg, 30.0, 1e-5);   // column 300
+    std::uint64_t tot = 0;
+    for (auto h : d.hist) tot += h;
+    CHECK(tot == d.valid);
+    CHECK(d.hist[19] == 0 && d.hist[20] > 0 && d.hist[59] > 0);  // 10 deg (col 100-104) .. 29.5 deg (col 295-299)
+    CHECK(d.hist[61] == 0);                  // nothing above 30.5 deg
+}
+
 int main() {
+    test_disc_grid();
     test_flat();
     test_tilted_planes();
     test_scale_factor();

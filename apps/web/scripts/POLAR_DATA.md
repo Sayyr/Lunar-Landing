@@ -41,6 +41,26 @@ the **max** slope of the 2×2 children (conservative for hazard display). The 20
 lander-footprint (metre-scale) slope. Full conventions and provenance: `manifest.json` and
 `services/science/src/slope_core.hpp`.
 
+## 4 km disc slope grid (`public/data/polar_s_grid/grid_4km.json`, git-ignored)
+
+Used by the "South-pole grid" page. Generated offline from the same raw float32 file by
+`services/science/tools/slope_grid.cpp` (~2 s, 2.8 MB JSON):
+
+```sh
+cmake --build services/science/build --target slope-grid
+D=apps/web/data-raw/lola_polar
+services/science/build/slope-grid $D/ldem_85s_20m_float.img $D/ldem_85s_20m_float.lbl \
+  apps/web/public/data/polar_s_grid/grid_4km.json --source-sha256 "$(grep ' ldem_85s_20m_float\.img$' $D/SHA256SUMS | cut -d' ' -f1)"
+# options: --diameter-m 4000, --grids 2 (1-4 offset grids), --bin-deg 0.5, --max-deg 60
+```
+
+Same unquantised Horn 20 m slope as the tiles (`slope_core.hpp`). Disc centres on a square grid of step = diameter in
+polar-stereographic map coordinates; grid 2 is shifted by half a step in x and y, so grids 1 + 2 together cover the
+whole area (covering radius = disc radius). Disc radius is a ground distance (map radius × k). Only discs fully inside
+85°S. Per disc: 0.5° slope histogram, valid/no-data counts, mean, max. Check on 2026-11-15: share of pixels > 10° over
+all discs of a grid 42.0 % vs 42.4 % for the whole L0 tile set (the tiles also include the square's corners).
+Layout and conventions: `services/science/src/slope_grid.hpp` and the file's `method` block.
+
 The "Verify on server" button of the slope map does not use these tiles: it calls `POST /api/v1/terrain/slope/check`,
 which recomputes the same Horn slope (same code, `services/science/src/slope_core.hpp`) on the raw float32 file
 for every pixel of the zone (`SELENE_DEM_PATH`, see `data/README.md`). Spot check: server slopes at three worst
