@@ -1,0 +1,377 @@
+{
+  "schema_version": "0.1.0",
+  "status": "synthetic",
+  "synthetic": true,
+  "message": "SYNTHETIC: ephemerides or terrain are synthetic; these numbers do not describe a real mission.",
+  "request": {
+    "site": {
+      "latitude_deg": -89.5,
+      "longitude_deg": 0.0,
+      "observer_height_m": 2.0
+    },
+    "landing_utc": "2026-11-15T00:00:00Z",
+    "surface_hours": 72.0,
+    "step_minutes": 360.0,
+    "terrain_mode": "ideal",
+    "delay": {
+      "landing_delay_hours": 12.0,
+      "end_policy": "fixed_duration",
+      "pre_landing_net_load_w": 80.0
+    },
+    "power": null,
+    "radio": {
+      "min_earth_elevation_deg": 0.0,
+      "link": {
+        "frequency_hz": 2250000000.0,
+        "eirp_dbw": 13.0,
+        "rx_g_over_t_db_k": 30.0,
+        "other_losses_db": 3.0,
+        "data_rate_bps": 100000.0,
+        "required_ebn0_db": 4.0
+      },
+      "stations": [
+        {
+          "name": "Station A (illustrative, 35.4N 116.9W)",
+          "latitude_deg": 35.4,
+          "longitude_deg": -116.9,
+          "altitude_m": 1000.0,
+          "min_elevation_deg": 10.0
+        },
+        {
+          "name": "Station B (illustrative, 40.4N 4.2W)",
+          "latitude_deg": 40.4,
+          "longitude_deg": -4.2,
+          "altitude_m": 800.0,
+          "min_elevation_deg": 10.0
+        },
+        {
+          "name": "Station C (illustrative, 35.4S 149.0E)",
+          "latitude_deg": -35.4,
+          "longitude_deg": 149.0,
+          "altitude_m": 700.0,
+          "min_elevation_deg": 10.0
+        }
+      ]
+    },
+    "constraints": {
+      "min_battery_soc": null,
+      "max_earth_outage_hours": 48.0,
+      "min_contact_hours": 10.0,
+      "min_data_volume_mbit": 100.0,
+      "max_slope_deg": 10.0,
+      "min_slope_ok_fraction": 0.95
+    },
+    "search": {
+      "max_extra_delay_hours": 120.0,
+      "step_hours": 12.0
+    }
+  },
+  "model": {
+    "ephemeris_provider": "synthetic_fixture",
+    "horizon_model": "ideal_geometric",
+    "body_fixed_frame": null,
+    "time_scale_note": "Synthetic: UTC sample times only; no time-scale conversion performed.",
+    "kernel_set": [],
+    "radio_model": "analytic_meeus_truncated",
+    "energy_model": null
+  },
+  "data_provenance": [
+    {
+      "name": "SELENE synthetic waveform generator",
+      "kind": "synthetic",
+      "source": "services/science/src/ephemeris.cpp",
+      "version": "0.1.0",
+      "license": null,
+      "notes": "Arbitrary sinusoids. Not derived from any ephemeris, kernel or DEM."
+    },
+    {
+      "name": "Meeus, Astronomical Algorithms (2nd ed., 1998), ch. 12, 22, 47, 53",
+      "kind": "other",
+      "source": "services/science/src/lunar_ephemeris.cpp",
+      "version": null,
+      "license": null,
+      "notes": "Truncated ELP-2000/82 series and optical librations. No SPICE kernel, no DEM."
+    },
+    {
+      "name": "Link-budget formulas",
+      "kind": "other",
+      "source": "SCIENTIFIC_REFERENCE.md section 11; services/science/src/link.cpp",
+      "version": null,
+      "license": null,
+      "notes": "Free-space path loss, C/N0, Eb/N0. Hardware figures and ground stations are taken verbatim from the request."
+    }
+  ],
+  "assumptions": [
+    "SYNTHETIC: azimuth/elevation are arbitrary sinusoids (Sun period 36.0 h, Earth period 60.0 h) chosen only to exercise the UI. They do not represent the Sun or Earth.",
+    "SYNTHETIC: waveform phase depends on site longitude only so two scenarios look different; this dependence is not physical.",
+    "Horizon model: ideal geometric horizon (elevation 0 deg); local terrain is ignored.",
+    "Visibility = body centre above the horizon; finite apparent disks (partial Sun/Earth) are not modelled.",
+    "Window edges are linearly interpolated between samples; events shorter than the sampling step may be missed.",
+    "Geometric visibility only: Sun visibility is not a power guarantee and Earth visibility is not a radio-link guarantee.",
+    "Radio link: windows from the radio-link model (analytic low-precision ephemeris, ideal horizon plus the antenna mask, caller's link budget and stations). A closing budget is a necessary condition, not a link guarantee.",
+    "Energy not modelled (no power system given): no battery or array figures, no energy constraint. Sun visibility is still reported.",
+    "Corrections are re-simulated with the same models; 'go' means every applied constraint passes under these screening models, not a mission certification.",
+    "Landing slope: 20 m LOLA DEM slope (Horn 3x3) over a 4 km disc centred on the site; not lander-footprint slope."
+  ],
+  "warnings": [
+    "SYNTHETIC DATA: these numbers do not describe the real Sun or Earth.",
+    "|latitude| >= 89.0 deg: local north/azimuth is ill-conditioned near the pole (azimuths change quickly with small site moves); at the pole itself north is taken along the requested longitude's meridian.",
+    "|latitude| >= 89.0 deg: azimuth is ill-conditioned near the pole. Convention used: local north lies in the meridian plane of the request longitude.",
+    "During link windows the Earth is as low as 0.258 deg above the ideal horizon: real terrain can block it and lunar-surface multipath (not modelled) can cause deep fades."
+  ],
+  "pre_landing": {
+    "planned_landing_utc": "2026-11-15T00:00:00.000Z",
+    "landing_utc": "2026-11-15T12:00:00.000Z",
+    "landing_delay_hours": 12.0,
+    "end_policy": "fixed_duration",
+    "net_load_w": 80.0,
+    "energy_wh": null,
+    "soc_at_landing": null
+  },
+  "timeline": [
+    {
+      "utc": "2026-11-15T12:00:00.000Z",
+      "sun_visible": true,
+      "earth_visible": false,
+      "link_available": false,
+      "solar_w": null,
+      "battery_wh": null,
+      "soc": null
+    },
+    {
+      "utc": "2026-11-15T18:00:00.000Z",
+      "sun_visible": true,
+      "earth_visible": true,
+      "link_available": false,
+      "solar_w": null,
+      "battery_wh": null,
+      "soc": null
+    },
+    {
+      "utc": "2026-11-16T00:00:00.000Z",
+      "sun_visible": true,
+      "earth_visible": true,
+      "link_available": false,
+      "solar_w": null,
+      "battery_wh": null,
+      "soc": null
+    },
+    {
+      "utc": "2026-11-16T06:00:00.000Z",
+      "sun_visible": true,
+      "earth_visible": true,
+      "link_available": false,
+      "solar_w": null,
+      "battery_wh": null,
+      "soc": null
+    },
+    {
+      "utc": "2026-11-16T12:00:00.000Z",
+      "sun_visible": false,
+      "earth_visible": true,
+      "link_available": false,
+      "solar_w": null,
+      "battery_wh": null,
+      "soc": null
+    },
+    {
+      "utc": "2026-11-16T18:00:00.000Z",
+      "sun_visible": false,
+      "earth_visible": true,
+      "link_available": false,
+      "solar_w": null,
+      "battery_wh": null,
+      "soc": null
+    },
+    {
+      "utc": "2026-11-17T00:00:00.000Z",
+      "sun_visible": true,
+      "earth_visible": false,
+      "link_available": false,
+      "solar_w": null,
+      "battery_wh": null,
+      "soc": null
+    },
+    {
+      "utc": "2026-11-17T06:00:00.000Z",
+      "sun_visible": true,
+      "earth_visible": false,
+      "link_available": false,
+      "solar_w": null,
+      "battery_wh": null,
+      "soc": null
+    },
+    {
+      "utc": "2026-11-17T12:00:00.000Z",
+      "sun_visible": true,
+      "earth_visible": false,
+      "link_available": true,
+      "solar_w": null,
+      "battery_wh": null,
+      "soc": null
+    },
+    {
+      "utc": "2026-11-17T18:00:00.000Z",
+      "sun_visible": true,
+      "earth_visible": false,
+      "link_available": true,
+      "solar_w": null,
+      "battery_wh": null,
+      "soc": null
+    },
+    {
+      "utc": "2026-11-18T00:00:00.000Z",
+      "sun_visible": false,
+      "earth_visible": false,
+      "link_available": true,
+      "solar_w": null,
+      "battery_wh": null,
+      "soc": null
+    },
+    {
+      "utc": "2026-11-18T06:00:00.000Z",
+      "sun_visible": false,
+      "earth_visible": true,
+      "link_available": true,
+      "solar_w": null,
+      "battery_wh": null,
+      "soc": null
+    },
+    {
+      "utc": "2026-11-18T12:00:00.000Z",
+      "sun_visible": true,
+      "earth_visible": true,
+      "link_available": true,
+      "solar_w": null,
+      "battery_wh": null,
+      "soc": null
+    }
+  ],
+  "windows": {
+    "sun_visible": [
+      {
+        "start_utc": "2026-11-15T12:00:00.000Z",
+        "end_utc": "2026-11-16T07:09:16.921Z",
+        "clipped_start": true,
+        "clipped_end": false
+      },
+      {
+        "start_utc": "2026-11-16T22:50:43.078Z",
+        "end_utc": "2026-11-17T19:09:16.921Z",
+        "clipped_start": false,
+        "clipped_end": false
+      },
+      {
+        "start_utc": "2026-11-18T10:50:43.078Z",
+        "end_utc": "2026-11-18T12:00:00.000Z",
+        "clipped_start": false,
+        "clipped_end": true
+      }
+    ],
+    "earth_visible": [
+      {
+        "start_utc": "2026-11-15T12:00:00.000Z",
+        "end_utc": "2026-11-16T18:00:00.000Z",
+        "clipped_start": false,
+        "clipped_end": false
+      },
+      {
+        "start_utc": "2026-11-18T00:00:00.000Z",
+        "end_utc": "2026-11-18T12:00:00.000Z",
+        "clipped_start": false,
+        "clipped_end": true
+      }
+    ],
+    "link_available": [
+      {
+        "start_utc": "2026-11-17T07:33:08.758Z",
+        "end_utc": "2026-11-17T14:03:40.075Z",
+        "clipped_start": false,
+        "clipped_end": false
+      },
+      {
+        "start_utc": "2026-11-17T14:47:53.338Z",
+        "end_utc": "2026-11-18T12:00:00.000Z",
+        "clipped_start": false,
+        "clipped_end": true
+      }
+    ]
+  },
+  "inventory": {
+    "landing_utc": "2026-11-15T12:00:00.000Z",
+    "end_utc": "2026-11-18T12:00:00.000Z",
+    "surface_hours": 72.0,
+    "energy": {
+      "generated_wh": null,
+      "load_wh": null,
+      "unserved_wh": null,
+      "curtailed_wh": null,
+      "soc_at_landing": null,
+      "final_soc": null,
+      "min_soc": null,
+      "min_soc_utc": null,
+      "hours_below_reserve": null,
+      "sun_hours": 40.61880166666667,
+      "longest_sun_outage_hours": 15.690599166666669
+    },
+    "sizing": null,
+    "comms": {
+      "contact_basis": "radio_link",
+      "earth_visible_hours": 42.0,
+      "longest_earth_outage_hours": 30.0,
+      "link_hours": 27.71054972222223,
+      "longest_link_outage_hours": 43.55243277777778,
+      "data_volume_mbit": 9975.797900000001
+    },
+    "slope": {
+      "status": "dem_unavailable",
+      "verdict": "not_evaluated",
+      "radius_m": 2000.0,
+      "max_slope_deg": 10.0,
+      "fraction_ok": null,
+      "slope_max_deg": null,
+      "slope_mean_deg": null
+    }
+  },
+  "constraints": [
+    {
+      "id": "earth_outage",
+      "label": "Longest contact gap (radio link)",
+      "status": "pass",
+      "value": 43.55243277777778,
+      "limit": 48.0,
+      "first_violation_utc": null,
+      "note": "hours"
+    },
+    {
+      "id": "contact_hours",
+      "label": "Contact time (radio link)",
+      "status": "pass",
+      "value": 27.71054972222223,
+      "limit": 10.0,
+      "first_violation_utc": null,
+      "note": "hours over the stay"
+    },
+    {
+      "id": "data_volume",
+      "label": "Data volume to Earth",
+      "status": "pass",
+      "value": 9975.797900000001,
+      "limit": 100.0,
+      "first_violation_utc": null,
+      "note": "Mbit = link hours x data rate"
+    },
+    {
+      "id": "landing_slope",
+      "label": "Landing disc (4 km) share <= 10.0 deg (need 95 %)",
+      "status": "not_evaluated",
+      "value": null,
+      "limit": 0.95,
+      "first_violation_utc": null,
+      "note": "Slope check dem_unavailable / not_evaluated"
+    }
+  ],
+  "verdict": "incomplete",
+  "corrections": [],
+  "date_scan": null
+}

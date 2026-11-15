@@ -44,7 +44,7 @@ find_package(Threads REQUIRED)
 add_library(selene_science_core STATIC
   src/app.cpp src/celestial.cpp src/ephemeris.cpp src/ephemeris_spice.cpp src/evaluate.cpp src/geometry.cpp
   src/horizon.cpp
-  src/intervals.cpp src/link.cpp src/lunar_ephemeris.cpp src/models.cpp src/radio.cpp src/spice.cpp
+  src/intervals.cpp src/link.cpp src/lunar_ephemeris.cpp src/mission.cpp src/models.cpp src/radio.cpp src/spice.cpp
   src/terrain.cpp)
 target_include_directories(selene_science_core PUBLIC src)
 target_link_libraries(selene_science_core PUBLIC nlohmann_json::nlohmann_json)
@@ -119,6 +119,12 @@ if(SELENE_BUILD_TESTS)
   target_link_libraries(selene-science-tests PRIVATE selene_science_core)
   target_compile_definitions(selene-science-tests PRIVATE SELENE_CONTRACTS_DIR="${CONTRACTS_DIR}")
   add_test(NAME selene-science-tests COMMAND selene-science-tests)
+
+  # Mission simulation (mission.hpp): energy balance, parsing, full runs on the synthetic provider.
+  add_executable(mission-tests tests/mission_tests.cpp)
+  target_link_libraries(mission-tests PRIVATE selene_science_core)
+  target_compile_definitions(mission-tests PRIVATE SELENE_CONTRACTS_DIR="${CONTRACTS_DIR}")
+  add_test(NAME mission-tests COMMAND mission-tests)
 
   # Standalone CSPICE interface tests (spice.hpp) + port of test_validation_lunar_mission.py.
   # Uses only spice.hpp, so it builds everywhere; exits 77 (= skipped) without CSPICE or without

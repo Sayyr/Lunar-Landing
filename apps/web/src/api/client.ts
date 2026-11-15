@@ -1,4 +1,5 @@
 import type { CelestialStateResponse } from "./celestialTypes";
+import type { MissionRequest, MissionResponse } from "./missionTypes";
 import type {
   ErrorResponse,
   HealthResponse,
@@ -56,4 +57,10 @@ export const api = {
   /** Direct-to-Earth radio-link windows (engineering estimate, analytic ephemeris — not a link guarantee). */
   radioLink: (req: RadioLinkRequest) =>
     request<RadioLinkResponse>("/v1/scenarios/radio-link", { method: "POST", body: JSON.stringify(req) }),
+  /** Surface-stay mission simulation: energy, comms, slope, constraints and corrections (engineering tier). */
+  missionSimulate: (req: MissionRequest) =>
+    request<MissionResponse>("/v1/scenarios/simulate", { method: "POST", body: JSON.stringify(req) }),
+  /** The same on SYNTHETIC ephemerides — UI demo only, never for analysis. */
+  missionSimulateSynthetic: (req: MissionRequest) =>
+    request<MissionResponse>("/v1/demo/synthetic/simulate", { method: "POST", body: JSON.stringify(req) }),
 };

@@ -2,6 +2,7 @@
 
 #include "celestial.hpp"
 #include "evaluate.hpp"
+#include "mission.hpp"
 #include "radio.hpp"
 #include "spice.hpp"
 
@@ -46,7 +47,45 @@ HttpResponse App::handle(const std::string& method, const std::string& path,
         if (method != "POST") return {405, error_response("not_found", "Method Not Allowed")};
         return radio_route(body);
     }
+    if (path == "/mission/simulate" || path == "/mission/simulate/synthetic") {
+        if (method != "POST") return {405, error_response("not_found", "Method Not Allowed")};
+        return mission_route(path == "/mission/simulate" ? static_cast<const EphemerisProvider&>(spice_) : synthetic_,
+                             body);
+    }
     return {404, error_response("not_found", "Not Found")};
+}
+
+HttpResponse App::mission_route(const EphemerisProvider& provider, const std::string& body) const {
+    static const char* MISSION_INVALID = "Mission simulation request is invalid.";
+    if (body.empty()) return validation_error({{"", "Field required"}}, MISSION_INVALID);
+    json parsed = json::parse(body, nullptr, /*allow_exceptions=*/false);
+    if (parsed.is_discarded()) return validation_error({{"", "JSON decode error"}}, MISSION_INVALID);
+    MissionRequest req;
+    try {
+        req = parse_mission_request(parsed);
+    } catch (const ValidationError& e) {
+        return validation_error(e.details, MISSION_INVALID);
+    }
+    // Sample cap on the longest stay the request can produce (no delay shortens fixed_duration).
+    const ScenarioRequest longest{req.site, req.landing_utc, req.surface_hours, req.step_minutes, req.terrain_mode};
+    if (longest.sample_count() > MAX_SAMPLES)
+        return validation_error({{"step_minutes", std::to_string(longest.sample_count()) +
+                                                      " samples exceeds the maximum of " + std::to_string(MAX_SAMPLES)}},
+                                MISSION_INVALID);
+    static const int64_t LAST_US = parse_utc("9999-01-01T00:00:00Z");
+    const double horizon_h = req.landing_delay_hours + req.search_max_extra_delay_hours + req.surface_hours;
+    if (parse_utc(req.landing_utc) + static_cast<int64_t>(horizon_h * 3600e6) > LAST_US)
+        return validation_error({{"landing_utc", "mission (with delay and search) would end after 9999"}}, MISSION_INVALID);
+    MissionContext ctx;
+    ctx.provider = &provider;
+    ctx.terrain = TerrainContext{dem_.get(), dem_reason_, horizon_cache_.get()};
+    ctx.slope_dem = dem_.get();
+    ctx.slope_unavailable_reason = dem_reason_;
+    try {
+        return {200, simulate_mission(req, ctx)};
+    } catch (const std::exception& e) {  // DEM I/O failure: never a fabricated result
+        return {500, error_response("internal_error", std::string("Mission simulation failed: ") + e.what())};
+    }
 }
 
 HttpResponse App::slope_check_route(const std::string& body) const {

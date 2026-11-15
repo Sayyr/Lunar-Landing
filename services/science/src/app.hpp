@@ -35,6 +35,8 @@ public:
     //   POST /terrain/slope/check DEM slope check of a circular zone (terrain.hpp)
     //   POST /celestial/state     Sun/Earth/Moon geometric state at one UTC instant, for the 3D views (celestial.hpp)
     //   POST /radio/evaluate      direct-to-Earth radio-link windows, engineering tier (radio.hpp)
+    //   POST /mission/simulate    surface-stay mission simulation, engineering tier (mission.hpp)
+    //   POST /mission/simulate/synthetic  the same on the SYNTHETIC ephemeris provider (UI development only)
     HttpResponse handle(const std::string& method, const std::string& path,
                         const std::string& body) const;
 
@@ -45,6 +47,7 @@ private:
     HttpResponse slope_check_route(const std::string& body) const;
     HttpResponse radio_route(const std::string& body) const;
     HttpResponse celestial_route(const std::string& body) const;
+    HttpResponse mission_route(const EphemerisProvider& provider, const std::string& body) const;
 
     SpiceEphemerisProvider spice_;
     SyntheticEphemerisProvider synthetic_;

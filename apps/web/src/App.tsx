@@ -12,15 +12,16 @@ import { ComparePanel } from "./components/ComparePanel";
 import { DelaySweepPanel } from "./components/DelaySweepPanel";
 import { LandingSitesPage } from "./components/LandingSitesPage";
 import { SouthPoleGridPage } from "./components/SouthPoleGridPage";
+import { MissionPage } from "./components/mission/MissionPage";
 
 const CelestialDashboard = lazy(() =>
   import("./components/celestial/CelestialDashboard").then((m) => ({ default: m.CelestialDashboard })),
 );
 
-type Tab = "scenario" | "sky" | "sites" | "grid";
+type Tab = "scenario" | "sky" | "sites" | "grid" | "mission";
 const tabFromHash = (): Tab => {
   const h = window.location.hash;
-  return h === "#/sky" ? "sky" : h === "#/sites" ? "sites" : h === "#/grid" ? "grid" : "scenario";
+  return h === "#/sky" ? "sky" : h === "#/sites" ? "sites" : h === "#/grid" ? "grid" : h === "#/mission" ? "mission" : "scenario";
 };
 
 // Synthetic example from CLAUDE.md — not a recommended landing site.
@@ -88,6 +89,7 @@ export function App() {
           <a href="#/sky" className={tab === "sky" ? "active" : ""}>Sun · Earth · Moon</a>
           <a href="#/sites" className={tab === "sites" ? "active" : ""}>Landing sites</a>
           <a href="#/grid" className={tab === "grid" ? "active" : ""}>South-pole grid</a>
+          <a href="#/mission" className={tab === "mission" ? "active" : ""}>Mission</a>
         </nav>
       </header>
       {/* Both views stay mounted (hidden + paused) so switching tabs keeps the globe, its GPU data and state. */}
@@ -106,6 +108,9 @@ export function App() {
       </main>
       <main className="sites-main" hidden={tab !== "grid"}>
         <SouthPoleGridPage active={tab === "grid"} onShow={(lat, lon) => showOnGlobe(lat, lon)} />
+      </main>
+      <main className="sites-main" hidden={tab !== "mission"}>
+        <MissionPage active={tab === "mission"} scenario={request} onScenario={setRequest} />
       </main>
       <main className="scenario-main" hidden={tab !== "scenario"}>
         <LunarExplorer

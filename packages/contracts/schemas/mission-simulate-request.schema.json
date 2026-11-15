@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://selene.local/contracts/mission-simulate-request.schema.json",
+  "title": "MissionSimulateRequest",
+  "description": "Surface-stay mission simulation (ENGINEERING tier): Sun/Earth visibility (scenario evaluation), optional direct-to-Earth radio link, optional site slope check, a solar-array + battery energy balance, mission constraints and a landing delay. Every vehicle figure (panels, battery, loads, radio) is supplied by the caller; the services assume none. Angles in degrees, lengths in metres, power in W, energy in Wh, UTC ISO 8601 with a literal 'Z'.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["site", "landing_utc", "surface_hours", "step_minutes", "terrain_mode", "constraints"],
+  "properties": {
+    "site": { "$ref": "scenario-request.schema.json#/properties/site" },
+    "landing_utc": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$",
+      "description": "PLANNED landing time (before any delay)."
+    },
+    "surface_hours": { "type": "number", "exclusiveMinimum": 0, "maximum": 2160, "description": "Planned surface stay." },
+    "step_minutes": {
+      "type": "number", "minimum": 1, "maximum": 1440,
+      "description": "Simulation step. At most 20000 samples: floor(surface_hours*60/step)+1, on the PLANNED stay (an upper bound: a delay never lengthens it)."
+    },
+    "terrain_mode": { "type": "string", "enum": ["ideal", "dem"], "description": "Horizon for Sun/Earth visibility, as in ScenarioRequest." },
+    "delay": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Delay injected BEFORE landing (transit / orbit). Omitted = no delay.",
+      "required": ["landing_delay_hours", "end_policy"],
+      "properties": {
+        "landing_delay_hours": { "type": "number", "minimum": 0, "maximum": 720, "description": "Landing happens at landing_utc + this delay." },
+        "end_policy": {
+          "type": "string", "enum": ["fixed_duration", "fixed_end"],
+          "description": "'fixed_duration': the stay keeps surface_hours and ends later. 'fixed_end': the planned end time is kept (e.g. a fixed departure window), so the stay is shortened by the delay."
+        },
+        "pre_landing_net_load_w": {
+          "type": ["number", "null"], "minimum": 0, "maximum": 100000,
+          "description": "Net battery draw while waiting before landing (load minus any generation in flight). null = not modelled: the battery reaches the surface with its initial charge."
+        }
+      }
+    },
+    "power": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "description": "Solar array + battery. OPTIONAL (lowest priority): omitted or null = energy not modelled; energy fields of the response are null and min_battery_soc is not evaluated.",
+      "required": ["panel_area_m2", "panel_efficiency", "panel_pointing", "load_w", "battery_capacity_wh", "battery_initial_soc", "charge_efficiency", "discharge_efficiency"],
+      "properties": {
+        "panel_area_m2": { "type": "number", "minimum": 0, "maximum": 1000 },
+        "panel_efficiency": { "type": "number", "exclusiveMinimum": 0, "maximum": 1, "description": "End-to-end array efficiency (cells, temperature, wiring, regulation)." },
+        "panel_pointing": {
+          "type": "string", "enum": ["sun_tracking", "vertical", "horizontal"],
+          "description": "'sun_tracking': normal toward the Sun (cos i = 1). 'vertical': vertical panel turned toward the Sun's azimuth (cos i = cos elevation). 'horizontal': flat panel (cos i = sin elevation)."
+        },
+        "load_w": { "type": "number", "minimum": 0, "maximum": 100000, "description": "Constant surface load." },
+        "battery_capacity_wh": { "type": "number", "exclusiveMinimum": 0, "maximum": 10000000 },
+        "battery_initial_soc": { "type": "number", "minimum": 0, "maximum": 1, "description": "State of charge before the delay (and at landing without delay)." },
+        "charge_efficiency": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+        "discharge_efficiency": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }
+      }
+    },
+    "radio": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "description": "Direct-to-Earth link (as RadioLinkRequest). null/omitted = contact time is geometric Earth visibility only, and no data volume is computed.",
+      "required": ["min_earth_elevation_deg", "link", "stations"],
+      "properties": {
+        "min_earth_elevation_deg": { "$ref": "radio-link-request.schema.json#/properties/min_earth_elevation_deg" },
+        "link": { "$ref": "radio-link-request.schema.json#/properties/link" },
+        "stations": { "$ref": "radio-link-request.schema.json#/properties/stations" }
+      }
+    },
+    "constraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Go/no-go limits. null = not applied.",
+      "required": ["min_battery_soc", "max_earth_outage_hours", "min_contact_hours", "min_data_volume_mbit", "max_slope_deg", "min_slope_ok_fraction"],
+      "properties": {
+        "min_battery_soc": { "type": ["number", "null"], "minimum": 0, "maximum": 1, "description": "Battery reserve never to be crossed." },
+        "max_earth_outage_hours": { "type": ["number", "null"], "minimum": 0, "maximum": 2160, "description": "Longest allowed gap in contact (link if radio is given, else geometric Earth visibility)." },
+        "min_contact_hours": { "type": ["number", "null"], "minimum": 0, "maximum": 2160 },
+        "min_data_volume_mbit": { "type": ["number", "null"], "minimum": 0, "description": "Needs `radio`; otherwise not evaluated." },
+        "max_slope_deg": { "type": ["number", "null"], "minimum": 0, "maximum": 90, "description": "Slope limit for the landing zone (20 m DEM slope, 4 km disc)." },
+        "min_slope_ok_fraction": { "type": ["number", "null"], "minimum": 0, "maximum": 1, "description": "Share of the zone that must be <= max_slope_deg (default 1 when max_slope_deg is set)." }
+      }
+    },
+    "search": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Correction search (retime after the delay, and the two-sided date scan). Omitted = defaults.",
+      "properties": {
+        "max_extra_delay_hours": { "type": "number", "minimum": 0, "maximum": 720, "default": 360, "description": "How far to look: after the delayed landing (retime) and on each side of the planned landing (date scan)." },
+        "step_hours": { "type": "number", "minimum": 0.5, "maximum": 240, "default": 6 }
+      }
+    }
+  }
+}
