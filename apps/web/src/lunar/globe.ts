@@ -17,9 +17,11 @@ import { bodyRotationToThree } from "../lib/sceneFrame";
 import { makeStarField } from "../lib/stars";
 import { centreShift, easeInOutQuad, refitDistance } from "../lib/viewFit";
 import { latLonToUnit, MOON_RADIUS_KM, pointToUv, uvToLatLon } from "./geo";
+import { patchLunarLambert } from "./lunarLambert";
 import type { Heightmap } from "./heightmap";
 import { DATA_BASE } from "./loaders";
 import type { MoonSky, Vec3 } from "./skyGeometry";
+import { sampleImage } from "./tileGain";
 import { TILE_STENCIL, TileLayer, type TileStatus } from "./tileLayer";
 
 // Background bodies are drawn at SKY_DIST from the camera (always "at infinity": no parallax when
@@ -235,6 +237,10 @@ export class Globe {
     material.stencilWrite = true;
     material.stencilRef = TILE_STENCIL;
     material.stencilFunc = THREE.NotEqualStencilFunc;
+    material.onBeforeCompile = (shader) => {
+      shader.fragmentShader = patchLunarLambert(shader.fragmentShader);
+    };
+    material.customProgramCacheKey = () => "moon-lunar-lambert";
     this.mesh = new THREE.Mesh(geometry, material);
     this.mesh.renderOrder = 1;
     scene.add(this.mesh);
@@ -255,7 +261,8 @@ export class Globe {
     scene.add(this.siteMarker);
 
     // --- Streaming high-resolution imagery (NASA Moon Trek), over the base mesh ------------------
-    this.tiles = new TileLayer(heightmap, heightTex, renderer.capabilities.getMaxAnisotropy(), colorImage?.width ?? 0);
+    const reference = colorImage ? sampleImage(colorImage, 720, 360) : null;
+    this.tiles = new TileLayer(heightmap, heightTex, renderer.capabilities.getMaxAnisotropy(), colorImage?.width ?? 0, reference, colorTex);
     this.tiles.onChange = this.requestRender;
     scene.add(this.tiles.group);
 

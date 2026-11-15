@@ -16,6 +16,8 @@ import * as THREE from "three";
 
 import { latLonToUnit } from "./geo";
 import type { Heightmap } from "./heightmap";
+import { patchLunarLambert } from "./lunarLambert";
+import { type LuminanceGrid, meanLuminance, meanOverBox, sampleImage, tileGain } from "./tileGain";
 import {
   childTiles,
   firstUsefulLevel,
@@ -30,6 +32,14 @@ import {
   tileUrl,
 } from "./tileScheme";
 
+const TILE_BLEND_GLSL = `#include <map_fragment>
+  vec3 baseTexel = texture2D( tileBaseMap, vGlobalUv ).rgb;
+  vec3 lumaW = vec3( 0.2126, 0.7152, 0.0722 );
+  vec3 tinted = baseTexel * ( dot( diffuseColor.rgb, lumaW ) / max( dot( baseTexel, lumaW ), 1e-4 ) );
+  float distW = 1.0 - smoothstep( tileFade.x, tileFade.y, length( vViewPosition ) );
+  diffuseColor.rgb = mix( baseTexel, tinted, distW );`;
+const FADE_NEAR = 3;
+const FADE_FAR = 12;
 const SEGMENTS = 32; // per tile edge: ≤ base-mesh vertex spacing from the first useful level on
 const MAX_INFLIGHT = 6;
 const MAX_CACHED = 256; // ≈ 70 MB of GPU textures with mipmaps
@@ -61,6 +71,7 @@ export class TileLayer {
   private failures = 0;
   private frameNo = 0;
   private disposed = false;
+  private readonly fade = { value: new THREE.Vector2(Infinity, Infinity) };
   private enabled = true;
   private scale = 0;
   private bumpScale = 0;
@@ -74,6 +85,10 @@ export class TileLayer {
     private readonly heightTex: THREE.Texture | null,
     private readonly maxAnisotropy: number,
     baseTexturePx: number,
+    /** luminance of the base colour mosaic: tiles are scaled to its mean over their footprint */
+    private readonly reference: LuminanceGrid | null = null,
+    /** base colour mosaic: tiles take its tint and fade into it at their edges */
+    private readonly baseColor: THREE.Texture | null = null,
   ) {
     this.loader.setCrossOrigin("anonymous");
     this.minLevel = Math.max(1, firstUsefulLevel(baseTexturePx));
@@ -110,6 +125,8 @@ export class TileLayer {
   update(camera: THREE.PerspectiveCamera, viewportHeightPx: number): void {
     if (!this.enabled || this.disposed) return;
     this.frameNo++;
+    const altitude = Math.max(camera.position.length() - 1, 1e-6);
+    this.fade.value.set(FADE_NEAR * altitude, FADE_FAR * altitude);
     camera.updateMatrixWorld();
     this.projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     this.frustum.setFromProjectionMatrix(this.projView);
@@ -196,6 +213,8 @@ export class TileLayer {
           tex.anisotropy = this.maxAnisotropy;
           tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
           e.mesh = this.makeMesh(e.id, tex);
+          const sample = this.reference ? sampleImage(tex.image as CanvasImageSource, 16, 16) : null;
+          if (this.reference && sample) e.mesh.material.color.setScalar(tileGain(meanOverBox(this.reference, tileBounds(e.id)), meanLuminance(sample)));
           this.group.add(e.mesh);
           e.state = "ready";
           if (this.inflight === 0) this.setStatus("ok");
@@ -259,19 +278,32 @@ export class TileLayer {
       stencilFunc: THREE.AlwaysStencilFunc,
       stencilZPass: THREE.ReplaceStencilOp,
     });
-    if (this.heightTex) {
-      // Sample the GLOBAL raster at this tile's lon/lat: replace three's per-texture bump UV
-      // transform by a per-material one (no texture clone, so no re-upload of the raster).
-      const t = tileToGlobalUv(id);
-      const uv = new THREE.Matrix3().setUvTransform(t.offsetU, t.offsetV, t.scaleU, t.scaleV, 0, 0, 0);
-      m.onBeforeCompile = (shader) => {
-        shader.uniforms.tileBumpTransform = { value: uv };
-        shader.vertexShader =
-          "uniform mat3 tileBumpTransform;\n" +
-          shader.vertexShader.replace("bumpMapTransform * vec3( BUMPMAP_UV, 1 )", "tileBumpTransform * vec3( BUMPMAP_UV, 1 )");
-      };
-      m.customProgramCacheKey = () => "moon-tile-bump"; // one shader program for all tiles
-    }
+    // Sample the GLOBAL raster at this tile's lon/lat: replace three's per-texture bump UV
+    // transform by a per-material one (no texture clone, so no re-upload of the raster).
+    const t = tileToGlobalUv(id);
+    const bumpUv = new THREE.Matrix3().setUvTransform(t.offsetU, t.offsetV, t.scaleU, t.scaleV, 0, 0, 0);
+    const bump = this.heightTex !== null;
+    const baseColor = this.baseColor;
+    const fade = this.fade;
+    m.onBeforeCompile = (shader) => {
+      shader.fragmentShader = patchLunarLambert(shader.fragmentShader);
+      if (baseColor) {
+        shader.uniforms.tileBaseMap = { value: baseColor };
+        shader.uniforms.tileGlobalUv = { value: bumpUv };
+        shader.uniforms.tileFade = fade;
+        shader.vertexShader = shader.vertexShader
+          .replace("void main() {", "uniform mat3 tileGlobalUv;\nvarying vec2 vGlobalUv;\nvoid main() {\n  vGlobalUv = ( tileGlobalUv * vec3( uv, 1 ) ).xy;");
+        shader.fragmentShader = shader.fragmentShader
+          .replace("void main() {", `uniform sampler2D tileBaseMap;\nuniform vec2 tileFade;\nvarying vec2 vGlobalUv;\nvoid main() {`)
+          .replace("#include <map_fragment>", TILE_BLEND_GLSL);
+      }
+      if (!bump) return;
+      shader.uniforms.tileBumpTransform = { value: bumpUv };
+      shader.vertexShader =
+        "uniform mat3 tileBumpTransform;\n" +
+        shader.vertexShader.replace("bumpMapTransform * vec3( BUMPMAP_UV, 1 )", "tileBumpTransform * vec3( BUMPMAP_UV, 1 )");
+    };
+    m.customProgramCacheKey = () => `moon-tile${bump ? "-bump" : ""}${baseColor ? "-blend" : ""}`; // one shader program for all tiles
     const mesh = new THREE.Mesh(g, m);
     mesh.visible = false;
     return mesh;
