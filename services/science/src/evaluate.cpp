@@ -28,8 +28,9 @@ json warnings(const ScenarioRequest& request, const EphemerisProvider& provider)
         out.push_back("SYNTHETIC DATA: these numbers do not describe the real Sun or Earth.");
     if (std::fabs(request.site.latitude_deg) >= POLAR_WARNING_LAT_DEG)
         out.push_back(
-            "|latitude| >= 89.0 deg: local north/azimuth is ill-conditioned near the pole; the "
-            "deterministic polar azimuth convention is not implemented yet.");
+            "|latitude| >= 89.0 deg: local north/azimuth is ill-conditioned near the pole (azimuths change "
+            "quickly with small site moves); at the pole itself north is taken along the requested longitude's "
+            "meridian.");
     return out;
 }
 

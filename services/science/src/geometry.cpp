@@ -46,4 +46,14 @@ std::pair<double, double> azimuth_elevation_from_enu(const Vec3& enu) {
     return {azimuth, elevation};
 }
 
+EnuBasis enu_basis(double lat, double lon) {
+    const double sl = std::sin(lat), cl = std::cos(lat), so = std::sin(lon), co = std::cos(lon);
+    return {{-so, co, 0.0}, {-sl * co, -sl * so, cl}, {cl * co, cl * so, sl}};
+}
+
+Vec3 to_enu(const EnuBasis& b, const Vec3& v) {
+    auto dot = [&v](const Vec3& a) { return a[0] * v[0] + a[1] * v[1] + a[2] * v[2]; };
+    return {dot(b.east), dot(b.north), dot(b.up)};
+}
+
 }  // namespace selene

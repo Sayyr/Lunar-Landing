@@ -31,7 +31,7 @@ Build **SELENE**, a scientifically defensible, interactive lunar landing-site an
 ## Stack and boundaries
 - `apps/web`: React + TypeScript + Vite + React Three Fiber / Three.js; 3D, timelines, forms, side-by-side comparison. Use mock API fixtures until real services exist.
 - `services/api`: Rust + Axum + Serde + Tokio; validates inputs, orchestrates calls, caches responses, exposes stable REST contracts. **No astronomy math duplicated here.**
-- `services/science`: C++17 + CMake + cpp-httplib + nlohmann/json (CSPICE planned) + ctest; geometry, ephemerides, horizon, windows, optional scenario ranking.
+- `services/science`: C++17 + CMake + cpp-httplib + nlohmann/json + CSPICE (optional, `scripts/setup-spice.sh`) + ctest; geometry, ephemerides, horizon, windows, optional scenario ranking.
 - `services/sciencepy`: former Python implementation, kept for reference only. Not built, not tested, not deployed.
 - `packages/contracts`: JSON Schema and sample request/response fixtures shared by services.
 - `data/README.md`: external data provenance and acquisition instructions; data itself ignored.

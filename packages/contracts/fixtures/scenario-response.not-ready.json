@@ -2,7 +2,7 @@
   "schema_version": "0.1.0",
   "status": "not_ready",
   "synthetic": false,
-  "message": "Ephemerides not available: SPICE provider not implemented yet; CSPICE not linked into this build; SELENE_KERNEL_DIR not set",
+  "message": "Ephemerides not available: SELENE_KERNEL_DIR not set (see data/README.md, scripts/setup-spice.sh)",
   "request": {
     "site": {
       "latitude_deg": -89.5,
@@ -18,13 +18,13 @@
     "ephemeris_provider": "spice",
     "horizon_model": "ideal_geometric",
     "body_fixed_frame": null,
-    "time_scale_note": "UTC at the API boundary; ET (TDB) via LSK once implemented.",
+    "time_scale_note": "UTC at the API boundary; ET (TDB) via the leapseconds kernel once kernels are loaded.",
     "kernel_set": []
   },
   "data_provenance": [],
   "assumptions": [],
   "warnings": [
-    "|latitude| >= 89.0 deg: local north/azimuth is ill-conditioned near the pole; the deterministic polar azimuth convention is not implemented yet."
+    "|latitude| >= 89.0 deg: local north/azimuth is ill-conditioned near the pole (azimuths change quickly with small site moves); at the pole itself north is taken along the requested longitude's meridian."
   ],
   "samples": [],
   "windows": {

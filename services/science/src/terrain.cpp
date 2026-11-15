@@ -10,6 +10,7 @@
 #include <stdexcept>
 
 #include "dem_label.hpp"
+#include "sha256sums.hpp"
 
 namespace selene {
 
@@ -70,20 +71,6 @@ public:
 private:
     std::vector<float> h_;
 };
-
-// "<hex>  <name>" (sha256sum format, optional '*' binary marker). Returns the hash for `name`.
-std::optional<std::string> sha256_from_sums(const fs::path& sums, const std::string& name) {
-    std::ifstream f(sums);
-    std::string line;
-    while (std::getline(f, line)) {
-        std::istringstream ss(line);
-        std::string hex, file;
-        if (!(ss >> hex >> file)) continue;
-        if (!file.empty() && file[0] == '*') file.erase(0, 1);
-        if (file == name && hex.size() == 64) return hex;
-    }
-    return std::nullopt;
-}
 
 // Pixel centre -> unit vector on the reference sphere, plus planetocentric lat/lon (deg).
 struct Surface {

@@ -9,8 +9,19 @@ jobs:
   science:
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: services/science } }
+    env:
+      SELENE_KERNEL_DIR: ${{ github.workspace }}/data/kernels
     steps:
       - uses: actions/checkout@v4
+      # CSPICE + SPICE kernels (~88 MB from NAIF, SHA-256 checked), cached by script version.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            services/science/third_party
+            data/kernels
+          key: spice-${{ runner.os }}-${{ hashFiles('scripts/setup-spice.sh') }}
+      - run: scripts/setup-spice.sh
+        working-directory: .
       - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - run: cmake --build build -j
       - run: ctest --test-dir build --output-on-failure
@@ -19,6 +30,26 @@ jobs:
           cmake -S . -B build-asan -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSELENE_SANITIZE=ON
           cmake --build build-asan -j
           ctest --test-dir build-asan --output-on-failure
+
+  # Windows (MSVC): CSPICE compiled from the NAIF Windows package's sources by CMake.
+  science-windows:
+    runs-on: windows-latest
+    defaults: { run: { shell: bash, working-directory: services/science } }
+    env:
+      SELENE_KERNEL_DIR: ${{ github.workspace }}/data/kernels
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: |
+            services/science/third_party
+            data/kernels
+          key: spice-${{ runner.os }}-${{ hashFiles('scripts/setup-spice.sh') }}
+      - run: scripts/setup-spice.sh
+        working-directory: .
+      - run: cmake -S . -B build
+      - run: cmake --build build --config Release -j
+      - run: ctest --test-dir build -C Release --output-on-failure
 
   api:
     runs-on: ubuntu-latest

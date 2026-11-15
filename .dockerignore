@@ -7,3 +7,5 @@ services/api/target
 apps/web/public/data
 services/science/build*
 services/sciencepy
+services/science/third_party
+data

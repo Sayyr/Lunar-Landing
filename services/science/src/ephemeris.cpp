@@ -6,25 +6,6 @@
 
 namespace selene {
 
-ProviderStatus SpiceEphemerisProvider::status() const {
-    std::string reason = "SPICE provider not implemented yet; CSPICE not linked into this build";
-    if (!kernel_dir_)
-        reason += "; SELENE_KERNEL_DIR not set";
-    else if (!std::filesystem::is_directory(*kernel_dir_))
-        reason += "; kernel directory " + kernel_dir_->string() + " does not exist";
-    return {false, reason};
-}
-
-json SpiceEphemerisProvider::model_info() const {
-    return {
-        {"ephemeris_provider", "spice"},
-        {"horizon_model", "ideal_geometric"},
-        {"body_fixed_frame", nullptr},
-        {"time_scale_note", "UTC at the API boundary; ET (TDB) via LSK once implemented."},
-        {"kernel_set", json::array()},
-    };
-}
-
 json SyntheticEphemerisProvider::model_info() const {
     return {
         {"ephemeris_provider", "synthetic_fixture"},
