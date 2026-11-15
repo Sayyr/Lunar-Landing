@@ -111,6 +111,18 @@ if(WIN32)
   target_link_libraries(selene-science PRIVATE ws2_32)
 endif()
 
+if(SELENE_HAVE_CSPICE)
+  add_executable(vecteur-traj tools/vecteur_traj/vecteur_traj.cpp tools/vecteur_traj/scipy_port.cpp
+    tools/vecteur_traj/least_squares.cpp)
+  target_link_libraries(vecteur-traj PRIVATE selene_science_core)
+  target_include_directories(vecteur-traj SYSTEM PRIVATE "${SELENE_CSPICE_DIR}/include")
+  target_compile_definitions(vecteur-traj PRIVATE
+    SELENE_DEFAULT_KERNEL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../data/kernels")
+  if(NOT MSVC)
+    target_compile_options(vecteur-traj PRIVATE -ffp-contract=off)
+  endif()
+endif()
+
 if(SELENE_BUILD_TESTS)
   set(CONTRACTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../packages/contracts")
 
@@ -136,6 +148,18 @@ if(SELENE_BUILD_TESTS)
     SELENE_DEFAULT_KERNEL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../data/kernels")
   add_test(NAME spice-tests COMMAND spice-tests)
   set_tests_properties(spice-tests PROPERTIES SKIP_RETURN_CODE 77)
+
+  add_executable(vecteur-traj-tests tests/vecteur_traj_tests.cpp)
+  target_link_libraries(vecteur-traj-tests PRIVATE selene_science_core)
+  target_compile_definitions(vecteur-traj-tests PRIVATE
+    SELENE_VT_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/vecteur_traj"
+    SELENE_DEFAULT_KERNEL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../data/kernels")
+  if(SELENE_HAVE_CSPICE)
+    add_dependencies(vecteur-traj-tests vecteur-traj)
+    target_compile_definitions(vecteur-traj-tests PRIVATE VECTEUR_TRAJ_BIN="$<TARGET_FILE:vecteur-traj>")
+  endif()
+  add_test(NAME vecteur-traj-tests COMMAND vecteur-traj-tests)
+  set_tests_properties(vecteur-traj-tests PROPERTIES SKIP_RETURN_CODE 77)
 
   add_executable(generate-fixtures tools/generate_fixtures.cpp)
   target_link_libraries(generate-fixtures PRIVATE selene_science_core)
