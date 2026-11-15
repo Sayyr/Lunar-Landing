@@ -1,5 +1,5 @@
 // "Create mission" card on the Site scenario page: landing site (list, coordinates or a click on the globe),
-// planned landing date/time, vehicle mass and an optional solar array. Site and date edit the shared scenario;
+// mission name (required: it is saved under it), planned landing date/time, vehicle mass and an optional solar array. Site and date edit the shared scenario;
 // the rest goes to the Mission page, which runs the simulation (POST /scenarios/simulate).
 import { useState } from "react";
 
@@ -21,6 +21,7 @@ interface Props {
 const opt = (v: string) => (v.trim() === "" ? null : Number(v));
 
 export function CreateMission({ scenario, onScenario, sites, onFocus, onCreate, onClose }: Props) {
+  const [name, setName] = useState("");
   const [mass, setMass] = useState("");
   const [area, setArea] = useState("");
   const [eff, setEff] = useState("");
@@ -39,13 +40,17 @@ export function CreateMission({ scenario, onScenario, sites, onFocus, onCreate, 
         e.preventDefault();
         const a = opt(area);
         const pct = opt(eff);
-        onCreate({ vehicleMassKg: Number(mass), panelAreaM2: a, panelEfficiency: a === null || pct === null ? null : pct / 100 });
+        onCreate({ name: name.trim(), vehicleMassKg: Number(mass), panelAreaM2: a, panelEfficiency: a === null || pct === null ? null : pct / 100 });
       }}
     >
       <header>
         <h2>Create mission</h2>
         <button type="button" className="link-btn" onClick={onClose} aria-label="Close">✕</button>
       </header>
+      <label>
+        Mission name
+        <input type="text" required pattern=".*\S.*" title="A name, so the mission can be picked later" maxLength={60} placeholder="e.g. Shackleton rim, January" value={name} onChange={(e) => setName(e.target.value)} />
+      </label>
       <label>
         Landing site
         <SiteSelect

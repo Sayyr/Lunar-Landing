@@ -1,3 +1,4 @@
+import type { TrajectoryRequest, TrajectoryResponse } from "./trajectoryTypes";
 import type { CelestialStateResponse, CelestialTracksResponse } from "./celestialTypes";
 import type { MissionRequest, MissionResponse } from "./missionTypes";
 import type {
@@ -61,6 +62,9 @@ export const api = {
   radioLink: (req: RadioLinkRequest) =>
     request<RadioLinkResponse>("/v1/scenarios/radio-link", { method: "POST", body: JSON.stringify(req) }),
   /** Surface-stay mission simulation: energy, comms, slope, constraints and corrections (engineering tier). */
+  /** Earth→Moon transfer + descent (science service, vecteur-traj tool); takes a few seconds. */
+  trajectorySimulate: (req: TrajectoryRequest) =>
+    request<TrajectoryResponse>("/v1/trajectory/simulate", { method: "POST", body: JSON.stringify(req) }),
   missionSimulate: (req: MissionRequest) =>
     request<MissionResponse>("/v1/scenarios/simulate", { method: "POST", body: JSON.stringify(req) }),
   /** The same on SYNTHETIC ephemerides — UI demo only, never for analysis. */

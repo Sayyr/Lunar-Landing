@@ -48,6 +48,7 @@ Build **SELENE**, a scientifically defensible, interactive lunar landing-site an
 - `POST /celestial/tracks` (SPICE Moon/Sun orbit traces for the 3D views)
 - `POST /scenarios/radio-link` (engineering tier: direct-to-Earth radio-link windows; analytic ephemeris, not SPICE)
 - `POST /scenarios/simulate` (engineering tier: surface-stay mission simulation — energy balance, comms, landing slope, constraints, delay before landing, corrections)
+- `POST /trajectory/simulate` (engineering demonstration: Earth→Moon transfer + powered descent by the team's `vecteur-traj` tool, ECLIPJ2000 metres for the 3D view)
 - `GET /terrain/{site_id}` (after terrain availability)
 
 ### Minimum scenario input

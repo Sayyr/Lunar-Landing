@@ -22,6 +22,7 @@
 #include "models.hpp"
 #include "synthetic_dem.hpp"
 #include "terrain.hpp"
+#include "trajectory.hpp"
 
 using namespace selene;
 namespace fs = std::filesystem;
@@ -1503,6 +1504,30 @@ static void test_north_polar_grid() {
     CHECK(check_on(flat, slope_req(-89.99, 0.0, 300, 1))["status"] == "out_of_coverage");
 }
 
+// POST /trajectory/simulate: validation, frame rotation, not_ready without the tool (no tool run here).
+static void test_trajectory_route() {
+    // J2000 -> ECLIPJ2000: +X unchanged; the J2000 north pole tilts toward ecliptic -Y by the obliquity.
+    const auto x = j2000_km_to_eclip_m(1, 0, 0);
+    CHECK_NEAR(x[0], 1000, 1e-9);
+    CHECK_NEAR(x[1], 0, 1e-9);
+    const auto z = j2000_km_to_eclip_m(0, 0, 1);
+    const double eps = 84381.448 / 3600.0 * 3.14159265358979323846 / 180.0;
+    CHECK_NEAR(z[1], 1000 * std::sin(eps), 1e-9);
+    CHECK_NEAR(z[2], 1000 * std::cos(eps), 1e-9);
+    const auto y = j2000_km_to_eclip_m(0, 1, 0);
+    CHECK_NEAR(y[2], -1000 * std::sin(eps), 1e-9);
+
+    const App a(std::nullopt);
+    auto r = a.handle("POST", "/trajectory/simulate",
+                      R"({"site":{"latitude_deg":-95,"longitude_deg":0},"departure_utc":"2027-01-01","extra":1})");
+    CHECK(r.status == 422 && r.body["error"]["details"].size() == 3);
+    r = a.handle("POST", "/trajectory/simulate",
+                 R"({"site":{"latitude_deg":-85,"longitude_deg":-30},"departure_utc":"2027-01-01T00:00:00Z"})");
+    CHECK(r.status == 200 && r.body["status"] == "not_ready" && r.body["segments"].empty());
+    CHECK(r.body["request"]["transfer_days"] == 4.5 && r.body["request"]["site"]["altitude_km"] == 0);
+    CHECK(a.handle("GET", "/trajectory/simulate", "").status == 405);
+}
+
 int main() {
     test_geometry();
     test_enu_basis();
@@ -1520,6 +1545,7 @@ int main() {
     test_dem_file();
     test_cylindrical_mosaic();
     test_north_polar_grid();
+    test_trajectory_route();
     test_contracts();
     test_robustness();
     std::printf("%d checks, %d failures\n", g_checks, g_failures);

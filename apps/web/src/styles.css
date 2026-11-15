@@ -524,3 +524,12 @@ button.primary { background: #2b6cb0; border-color: #2b6cb0; color: #fff; font-w
 .create-mission h2 { margin: 0; font-size: 0.95rem; }
 .create-mission .grid2, .create-mission .actions, .create-mission p { margin: 0; }
 .create-mission input, .create-mission select { width: 100%; min-width: 0; box-sizing: border-box; }
+
+/* Earth→Moon trajectory box (Sun · Earth · Moon page) */
+.traj-box { display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.5rem; padding: 0.5rem 0.6rem;
+  border: 1px solid var(--line); border-radius: 4px; background: rgba(10, 12, 18, 0.75); max-width: 300px; }
+.traj-title { font-weight: 600; font-size: 0.85rem; }
+.traj-box input[type="number"] { width: 4.5em; }
+.mission-trajectory { margin-top: 0.75rem; padding: 0.6rem 0.75rem; border: 1px solid var(--line); border-radius: 4px; }
+.mission-trajectory h3 { margin: 0 0 0.3rem; font-size: 0.95rem; }
+.mission-trajectory input[type="number"] { width: 4.5em; }

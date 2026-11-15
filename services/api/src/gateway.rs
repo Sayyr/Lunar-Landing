@@ -12,6 +12,7 @@ use crate::radio::{RadioLinkRequest, RadioLinkResponse};
 use crate::scenario::{ScenarioRequest, ScenarioResponse};
 use crate::science::{Provider, ScienceClient};
 use crate::terrain::{SlopeCheckRequest, SlopeCheckResponse};
+use crate::trajectory::{TrajectorySimulateRequest, TrajectorySimulateResponse};
 
 pub const SITES_JSON: &str = include_str!("../../../packages/contracts/fixtures/sites.json");
 
@@ -152,4 +153,17 @@ pub async fn celestial_tracks(
 ) -> Result<Json<CelestialTracksResponse>, ApiError> {
     let req = parse_celestial(&body)?;
     Ok(Json(state.science.celestial_tracks(&req).await?))
+}
+
+/// Earth->Moon transfer and descent for the 3D views, computed by the science service (vecteur-traj
+/// tool). Validated here, forwarded unchanged; not_ready / no_solution come back as such.
+pub async fn trajectory_simulate(
+    State(state): State<AppState>,
+    body: Bytes,
+) -> Result<Json<TrajectorySimulateResponse>, ApiError> {
+    const INVALID: &str = "Trajectory request is invalid.";
+    let req: TrajectorySimulateRequest = serde_json::from_slice(&body)
+        .map_err(|e| ApiError::invalid(INVALID, vec![FieldIssue::new("body", &e.to_string())]))?;
+    req.validate().map_err(|d| ApiError::invalid(INVALID, d))?;
+    Ok(Json(state.science.trajectory_simulate(&req).await?))
 }

@@ -14,7 +14,8 @@ import { LandingSitesPage } from "./components/LandingSitesPage";
 import { SouthPoleGridPage } from "./components/SouthPoleGridPage";
 import { MissionPage } from "./components/mission/MissionPage";
 import { CreateMission } from "./components/mission/CreateMission";
-import type { MissionDraft } from "./lib/mission";
+import type { MissionDraft, SavedMission } from "./lib/mission";
+import type { TrajectoryView } from "./lib/trajectory";
 
 const CelestialDashboard = lazy(() =>
   import("./components/celestial/CelestialDashboard").then((m) => ({ default: m.CelestialDashboard })),
@@ -46,6 +47,11 @@ export function App() {
   const [skyOpened, setSkyOpened] = useState(tab === "sky");
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState<MissionDraft | null>(null);
+  // Earth→Moon trajectory, shared by the Mission page and the Sun · Earth · Moon page.
+  const [trajectory, setTrajectory] = useState<TrajectoryView | null>(null);
+  // Named missions (Mission page), picked by name on the Sun · Earth · Moon page.
+  const [missions, setMissions] = useState<SavedMission[]>([]);
+  const [skyFocus, setSkyFocus] = useState<{ utc: string; seq: number } | null>(null);
   if (tab === "sky" && !skyOpened) setSkyOpened(true);
 
   useEffect(() => {
@@ -100,7 +106,7 @@ export function App() {
       <main className="dash-main" hidden={tab !== "sky"}>
         {skyOpened && (
           <Suspense fallback={null}>
-            <CelestialDashboard active={tab === "sky"} />
+            <CelestialDashboard active={tab === "sky"} site={request.site} missions={missions} trajectory={trajectory} onTrajectory={setTrajectory} focus={skyFocus} />
           </Suspense>
         )}
       </main>
@@ -114,7 +120,21 @@ export function App() {
         <SouthPoleGridPage active={tab === "grid"} onShow={(lat, lon) => showOnGlobe(lat, lon)} />
       </main>
       <main className="sites-main" hidden={tab !== "mission"}>
-        <MissionPage active={tab === "mission"} scenario={request} onScenario={setRequest} draft={draft} />
+        <MissionPage
+          active={tab === "mission"}
+          scenario={request}
+          onScenario={setRequest}
+          draft={draft}
+          saved={missions}
+          onSaved={setMissions}
+          trajectory={trajectory}
+          onTrajectory={setTrajectory}
+          onShowTrajectory={(utc) => {
+            setSkyFocus((f) => ({ utc, seq: (f?.seq ?? 0) + 1 }));
+            setSkyOpened(true);
+            window.location.hash = "#/sky";
+          }}
+        />
       </main>
       <main className="scenario-main" hidden={tab !== "scenario"}>
         {creating ? (

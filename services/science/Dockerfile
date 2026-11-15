@@ -9,10 +9,13 @@ COPY scripts/setup-spice.sh scripts/setup-spice.sh
 RUN scripts/setup-spice.sh --cspice
 COPY services/science services/science
 RUN cmake -S services/science -B build -DCMAKE_BUILD_TYPE=Release -DSELENE_BUILD_TESTS=OFF \
-    && cmake --build build -j "$(nproc)" --target selene-science  # bare -j is unbounded with Make
+    && cmake --build build -j "$(nproc)" --target selene-science vecteur-traj  # bare -j is unbounded with Make
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 COPY --from=build /src/build/selene-science /usr/local/bin/selene-science
+# POST /trajectory/simulate runs this tool (CMD starts selene-science by bare name, so its path is given).
+COPY --from=build /src/build/vecteur-traj /usr/local/bin/vecteur-traj
+ENV SELENE_VECTEUR_TRAJ=/usr/local/bin/vecteur-traj
 EXPOSE 8000
 CMD ["selene-science", "--host", "0.0.0.0", "--port", "8000"]

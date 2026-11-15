@@ -5,6 +5,8 @@
 //   SELENE_SLDEM_DIR        directory of SLDEM2015 tiles (sldem2015_*_float.img + .lbl), 60S-60N
 //   SELENE_SLOPE_DEM_PATHS  ':'-separated further LOLA polar DEM images (e.g. ldem_60s_60m, ldem_60n_60m)
 // See scripts/setup-slope-dem.sh.
+// POST /trajectory/simulate runs the vecteur-traj executable: SELENE_VECTEUR_TRAJ, else the
+// `vecteur-traj` file next to this executable.
 
 #include <cstdio>
 #include <cstdlib>
@@ -71,9 +73,18 @@ int main(int argc, char** argv) {
         }
     }
     if (!dem && !slope_dems.empty()) dem_reason += " (other slope DEMs installed)";
+    std::optional<std::filesystem::path> traj_tool;
+    if (const char* t = std::getenv("SELENE_VECTEUR_TRAJ"); t && *t) {
+        traj_tool = std::filesystem::path(t);
+    } else {
+        std::error_code ec;
+        const auto self = std::filesystem::absolute(argv[0], ec);
+        if (!ec && std::filesystem::exists(self.parent_path() / "vecteur-traj")) traj_tool = self.parent_path() / "vecteur-traj";
+    }
+    std::printf("trajectory tool: %s\n", traj_tool ? traj_tool->c_str() : "(none: /trajectory/simulate not_ready)");
     const selene::App app(kernel_dir && *kernel_dir ? std::optional<std::filesystem::path>(kernel_dir)
                                                     : std::nullopt,
-                          dem, dem_reason, slope_dems);
+                          dem, dem_reason, slope_dems, traj_tool);
 
     httplib::Server server;
     server.set_payload_max_length(1 << 20);

@@ -29,8 +29,10 @@ public:
     // /terrain/slope/check answers status = dem_unavailable with dem_reason.
     explicit App(std::optional<std::filesystem::path> kernel_dir, std::shared_ptr<const Dem> dem = nullptr,
                  std::string dem_reason = "SELENE_DEM_PATH not set",
-                 std::vector<std::shared_ptr<const Dem>> slope_dems = {})
-        : spice_(std::move(kernel_dir)), dem_(std::move(dem)), dem_reason_(std::move(dem_reason)) {
+                 std::vector<std::shared_ptr<const Dem>> slope_dems = {},
+                 std::optional<std::filesystem::path> trajectory_tool = std::nullopt)
+        : kernel_dir_(kernel_dir), spice_(std::move(kernel_dir)), dem_(std::move(dem)), dem_reason_(std::move(dem_reason)),
+          trajectory_tool_(std::move(trajectory_tool)) {
         if (dem_) slope_dems_.push_back(dem_);
         for (auto& d : slope_dems)
             if (d) slope_dems_.push_back(std::move(d));
@@ -46,6 +48,7 @@ public:
     //   POST /radio/evaluate      direct-to-Earth radio-link windows, engineering tier (radio.hpp)
     //   POST /mission/simulate    surface-stay mission simulation, engineering tier (mission.hpp)
     //   POST /mission/simulate/synthetic  the same on the SYNTHETIC ephemeris provider (UI development only)
+    //   POST /trajectory/simulate Earth->Moon transfer + descent by the vecteur-traj tool (trajectory.hpp)
     HttpResponse handle(const std::string& method, const std::string& path,
                         const std::string& body) const;
 
@@ -57,7 +60,9 @@ private:
     HttpResponse radio_route(const std::string& body) const;
     HttpResponse celestial_route(const std::string& body, bool tracks) const;
     HttpResponse mission_route(const EphemerisProvider& provider, const std::string& body) const;
+    HttpResponse trajectory_route(const std::string& body) const;
 
+    std::optional<std::filesystem::path> kernel_dir_;
     SpiceEphemerisProvider spice_;
     SyntheticEphemerisProvider synthetic_;
     std::shared_ptr<const Dem> dem_;  // immutable; read_window() is thread-safe
@@ -72,6 +77,10 @@ private:
     std::shared_ptr<SlopeCache> slope_cache_ = std::make_shared<SlopeCache>(256);
     // Terrain horizon profiles per site (horizon.hpp); thread-safe.
     std::shared_ptr<HorizonCache> horizon_cache_ = std::make_shared<HorizonCache>(64);
+    // vecteur-traj executable (nullopt: POST /trajectory/simulate answers not_ready) and its results
+    // by normalized request (a run takes seconds; the result is deterministic for given kernels).
+    std::optional<std::filesystem::path> trajectory_tool_;
+    std::shared_ptr<SlopeCache> trajectory_cache_ = std::make_shared<SlopeCache>(32);
 };
 
 }  // namespace selene

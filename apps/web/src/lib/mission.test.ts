@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Correction, MissionRequest, MissionResponse } from "../api/missionTypes";
 import type { ScenarioRequest } from "../api/types";
-import { applyCorrection, bestIndex, buildMissionRequest, comparisonRows, draftPower, EXAMPLE_CONSTRAINTS, EXAMPLE_POWER, hoursBetween, toFormUtc, workedEnergyStep } from "./mission";
+import { applyCorrection, bestIndex, uniqueName, buildMissionRequest, comparisonRows, draftPower, EXAMPLE_CONSTRAINTS, EXAMPLE_POWER, hoursBetween, toFormUtc, workedEnergyStep } from "./mission";
 import { DEFAULT_RADIO_SETTINGS } from "./radio";
 
 const scenario: ScenarioRequest = {
@@ -126,7 +126,7 @@ describe("workedEnergyStep", () => {
 });
 
 describe("draftPower", () => {
-  const d = { vehicleMassKg: 1000, panelAreaM2: null, panelEfficiency: null, seq: 1 };
+  const d = { name: "t", vehicleMassKg: 1000, panelAreaM2: null, panelEfficiency: null, seq: 1 };
   it("no array area → energy not modelled", () => {
     expect(draftPower(d, EXAMPLE_POWER)).toBeNull();
     expect(draftPower({ ...d, panelEfficiency: 0.3 }, EXAMPLE_POWER)).toBeNull();
@@ -134,5 +134,14 @@ describe("draftPower", () => {
   it("area given → base values with that area; efficiency only when given", () => {
     expect(draftPower({ ...d, panelAreaM2: 5 }, EXAMPLE_POWER)).toEqual({ ...EXAMPLE_POWER, panel_area_m2: 5 });
     expect(draftPower({ ...d, panelAreaM2: 5, panelEfficiency: 0.3 }, EXAMPLE_POWER)).toEqual({ ...EXAMPLE_POWER, panel_area_m2: 5, panel_efficiency: 0.3 });
+  });
+});
+
+describe("uniqueName", () => {
+  it("keeps names distinct and never empty", () => {
+    expect(uniqueName("good run", [])).toBe("good run");
+    expect(uniqueName(" good run ", ["good run"])).toBe("good run (2)");
+    expect(uniqueName("good run", ["good run", "good run (2)"])).toBe("good run (3)");
+    expect(uniqueName("  ", [])).toBe("Mission");
   });
 });

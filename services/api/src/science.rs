@@ -14,6 +14,7 @@ use crate::mission::{MissionSimulateRequest, MissionSimulateResponse};
 use crate::radio::{RadioLinkRequest, RadioLinkResponse};
 use crate::scenario::{ScenarioRequest, ScenarioResponse};
 use crate::terrain::{SlopeCheckRequest, SlopeCheckResponse};
+use crate::trajectory::{TrajectorySimulateRequest, TrajectorySimulateResponse};
 
 #[derive(Clone)]
 pub struct ScienceClient {
@@ -106,6 +107,13 @@ impl ScienceClient {
         req: &CelestialStateRequest,
     ) -> Result<CelestialTracksResponse, ApiError> {
         self.post("/celestial/tracks", req).await
+    }
+
+    pub async fn trajectory_simulate(
+        &self,
+        req: &TrajectorySimulateRequest,
+    ) -> Result<TrajectorySimulateResponse, ApiError> {
+        self.post("/trajectory/simulate", req).await
     }
 
     async fn post<Req: Serialize, Resp: DeserializeOwned>(

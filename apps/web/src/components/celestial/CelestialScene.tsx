@@ -5,6 +5,8 @@ import { type Matrix4, type PerspectiveCamera, type Texture } from "three";
 
 import { getCelestialTracks } from "../../api/celestial";
 import type { CelestialStateResponse, CelestialTracksResponse } from "../../api/celestialTypes";
+import type { TrajectoryResponse } from "../../api/trajectoryTypes";
+import { positionAt, type TrajectoryPoint } from "../../lib/trajectory";
 import { AU_M, EARTH_MEAN_RADIUS_M, MOON_RADIUS_KM, SUN_RADIUS_M } from "../../lib/constants";
 import { bodyRotationToThree, closeLoop, eclToThree, normalize, type V3 } from "../../lib/sceneFrame";
 import { disposeStarField, makeStarField } from "../../lib/stars";
@@ -35,6 +37,10 @@ interface Props {
   onScale?: (kmPerPx: number | null) => void;
   footnote?: ReactNode;
   offsetX?: number;
+  /** computed Earth→Moon trajectory (vecteur-traj), drawn in the Earth–Moon view */
+  trajectory?: { response: TrajectoryResponse; points: TrajectoryPoint[] } | null;
+  /** SPICE Moon at the trajectory's arrival (ECLIPJ2000 m), drawn as a ghost before that instant */
+  arrivalMoon?: { utc: string; position_m: number[] } | null;
 }
 
 /**
@@ -63,6 +69,57 @@ interface ViewProps {
   moonOrientation: Matrix4;
   /** orbit traces from the API, fetched once per UTC day (null while loading or unavailable) */
   tracks: CelestialTracksResponse | null;
+  trajectory?: Props["trajectory"];
+  arrivalMoon?: Props["arrivalMoon"];
+}
+
+const SEGMENT_COLOUR = { transfer: "#3ddbd9", descent: "#ff8c42" } as const;
+
+/** Computed transfer + descent (geocentric, true scale) and the spacecraft at the scene's instant. */
+function TrajectoryPath({
+  trajectory,
+  utc,
+  scale,
+  arrivalMoon,
+  moonRadius,
+}: {
+  trajectory: NonNullable<Props["trajectory"]>;
+  utc: string;
+  scale: number;
+  arrivalMoon?: Props["arrivalMoon"];
+  moonRadius: number;
+}) {
+  const lines = useMemo(
+    () => trajectory.response.segments.map((seg) => ({ phase: seg.phase, pts: scaleTrack(seg.positions_m, scale) })),
+    [trajectory, scale],
+  );
+  const craft = positionAt(trajectory.points, Date.parse(utc));
+  const craftPos = craft ? eclToThree(craft.p, scale) : null;
+  // Before the arrival the real Moon is elsewhere on its orbit: show where it will be.
+  const ghost = arrivalMoon && Date.parse(utc) < Date.parse(arrivalMoon.utc) - 1_800_000 ? eclToThree(arrivalMoon.position_m, scale) : null;
+  return (
+    <group>
+      {ghost && (
+        <mesh position={ghost}>
+          <sphereGeometry args={[moonRadius, 32, 16]} />
+          <meshBasicMaterial color="#9aa3b5" wireframe transparent opacity={0.35} />
+          <Html center className="axis-label" position={[0, moonRadius + 1.2, 0]}>
+            Moon at arrival ({arrivalMoon!.utc.slice(5, 16).replace("T", " ")} UTC)
+          </Html>
+        </mesh>
+      )}
+      {lines.map((l) => l.pts.length > 1 && <Line key={l.phase} points={l.pts} color={SEGMENT_COLOUR[l.phase]} lineWidth={2} />)}
+      {craftPos && (
+        <mesh position={craftPos}>
+          <sphereGeometry args={[0.35, 12, 12]} />
+          <meshBasicMaterial color={SEGMENT_COLOUR[craft!.phase]} />
+          <Html center className="axis-label" position={[0, 1.2, 0]}>
+            spacecraft ({craft!.phase})
+          </Html>
+        </mesh>
+      )}
+    </group>
+  );
 }
 
 const scaleTrack = (points: V3[], scale: number): V3[] => points.map((p) => eclToThree(p, scale));
@@ -81,7 +138,7 @@ const EclipticFrameHints = memo(function EclipticFrameHints({ radius }: { radius
   );
 });
 
-function EarthMoonView({ state, earthTex, moonTex, earthOrientation, moonOrientation, tracks, bodyScale }: ViewProps & { bodyScale: number }) {
+function EarthMoonView({ state, earthTex, moonTex, earthOrientation, moonOrientation, tracks, trajectory, arrivalMoon, bodyScale }: ViewProps & { bodyScale: number }) {
   const s = 1 / EARTH_MEAN_RADIUS_M;
   const moonPos = eclToThree(state.moon_from_earth.position_m, s);
   const sunDir = normalize(eclToThree(state.sun_from_earth.position_m));
@@ -94,6 +151,9 @@ function EarthMoonView({ state, earthTex, moonTex, earthOrientation, moonOrienta
       <directionalLight position={times(sunDir, 100)} intensity={2.8} />
       <EclipticFrameHints radius={70} />
       {track && <Line points={track} color="#7d8aa5" lineWidth={1} transparent opacity={0.55} />}
+      {trajectory && (
+        <TrajectoryPath trajectory={trajectory} utc={state.utc} scale={s} arrivalMoon={arrivalMoon} moonRadius={MOON_RADIUS_KM * 1000 * s * bodyScale} />
+      )}
       <Line points={[[0, 0, 0], moonPos]} color="#c9ced8" lineWidth={1} dashed dashSize={1.2} gapSize={0.8} />
       {/* Dashed line all the way to the (distance-compressed) Sun proxy, stopping at its limb. */}
       <Line points={[[0, 0, 0], times(sunDir, SUN_PROXY_DIST - sunRadius)]} color="#f2c14e" lineWidth={1.2} dashed dashSize={2} gapSize={1.2} />
@@ -139,7 +199,7 @@ function SolarView({ state, earthTex, moonTex, earthOrientation, moonOrientation
 }
 
 // memo: the dashboard re-renders on every date change before the new state arrives.
-export const CelestialScene = memo(function CelestialScene({ state, view, enlargeBodies, active, onScale, footnote, offsetX = 0 }: Props) {
+export const CelestialScene = memo(function CelestialScene({ state, view, enlargeBodies, active, onScale, footnote, offsetX = 0, trajectory = null, arrivalMoon = null }: Props) {
   const earthTex = useOptionalTexture(`${DATA_BASE}earth_bluemarble_2048.png`);
   const moonTex = useOptionalTexture(`${DATA_BASE}moon_color.jpg`);
   const earthOrientation = useMemo(() => bodyRotationToThree(state.earth_orientation), [state.earth_orientation]);
@@ -157,7 +217,7 @@ export const CelestialScene = memo(function CelestialScene({ state, view, enlarg
       current = false;
     };
   }, [day]);
-  const viewProps: ViewProps = { state, earthTex, moonTex, earthOrientation, moonOrientation, tracks };
+  const viewProps: ViewProps = { state, earthTex, moonTex, earthOrientation, moonOrientation, tracks, trajectory, arrivalMoon };
 
   return (
     <div className="celestial-canvas">
@@ -188,6 +248,14 @@ export const CelestialScene = memo(function CelestialScene({ state, view, enlarg
               <b>Earth–Moon, distances to scale</b> (1 unit = 1 Earth radius);{" "}
               {enlargeBodies ? <b className="warn-text">Earth &amp; Moon radii enlarged ×{BODY_ENLARGEMENT}.</b> : <>Earth &amp; Moon at true size.</>} The Sun is drawn at a compressed distance with its true
               angular size; lighting follows the SPICE Sun direction. Grey trace: SPICE Moon path over one sidereal month (27.3 d) centred on the day; the real path does not quite close (solar perturbations), the small residual is spread along the trace for display.
+              {trajectory && (
+                <>
+                  {" "}
+                  <span style={{ color: SEGMENT_COLOUR.transfer }}>Cyan</span>: computed Earth→Moon transfer,{" "}
+                  <span style={{ color: SEGMENT_COLOUR.descent }}>orange</span>: powered descent (vecteur-traj, geocentric, true scale; wireframe Moon = SPICE Moon at the arrival instant
+                  {enlargeBodies ? "; the descent ends on the true-size Moon, inside the enlarged sphere" : ""}).
+                </>
+              )}
             </>
           ) : (
             <>

@@ -20,6 +20,7 @@ use lunar_landing::routes::gateway_router;
 use lunar_landing::scenario::{ScenarioRequest, ScenarioResponse, ScenarioStatus};
 use lunar_landing::science::ScienceClient;
 use lunar_landing::terrain::{SlopeCheckRequest, SlopeCheckResponse, SlopeStatus, SlopeVerdict};
+use lunar_landing::trajectory::{TrajectorySimulateRequest, TrajectorySimulateResponse};
 use serde_json::{json, Value};
 use tower::ServiceExt;
 
@@ -164,7 +165,12 @@ async fn mock_science() -> String {
     let tracks = load("fixtures/celestial-tracks-response.computed.json");
     let mission_not_ready = load("fixtures/mission-simulate-response.not-ready.json");
     let mission_synthetic = load("fixtures/mission-simulate-response.synthetic.json");
+    let trajectory = load("fixtures/trajectory-simulate-response.computed.json");
     let app = Router::new()
+        .route(
+            "/trajectory/simulate",
+            post(move || async move { Json(trajectory) }),
+        )
         .route(
             "/mission/simulate",
             post(move || async move { Json(mission_not_ready) }),
@@ -844,4 +850,44 @@ async fn mission_simulate_science_down_is_503() {
     .await;
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(body["error"]["code"], "science_unavailable");
+}
+
+// ---------- trajectory ----------
+
+#[test]
+fn trajectory_fixtures() {
+    let raw = load("fixtures/trajectory-simulate-request.valid.json");
+    assert_valid("trajectory-simulate-request.schema.json", &raw);
+    serde_json::from_value::<TrajectorySimulateRequest>(raw)
+        .unwrap()
+        .validate()
+        .unwrap();
+    let raw = load("fixtures/trajectory-simulate-response.computed.json");
+    assert_valid("trajectory-simulate-response.schema.json", &raw);
+    let typed: TrajectorySimulateResponse = serde_json::from_value(raw).unwrap();
+    assert_valid(
+        "trajectory-simulate-response.schema.json",
+        &serde_json::to_value(&typed).unwrap(),
+    );
+    assert_eq!(typed.status, "computed");
+    assert_eq!(typed.frame.unwrap().name, "ECLIPJ2000");
+    assert!(typed
+        .segments
+        .iter()
+        .all(|s| s.utc.len() == s.positions_m.len()));
+}
+
+#[tokio::test]
+async fn trajectory_forwards_science_result_and_validates_input() {
+    let url = mock_science().await;
+    let req = load("fixtures/trajectory-simulate-request.valid.json");
+    let (status, body) = call(app(&url), "POST", "/api/v1/trajectory/simulate", Some(req)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid("trajectory-simulate-response.schema.json", &body);
+
+    let bad =
+        json!({"site": {"latitude_deg": -95, "longitude_deg": 0}, "departure_utc": "2027-01-01"});
+    let (status, body) = call(app(&url), "POST", "/api/v1/trajectory/simulate", Some(bad)).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(body["error"]["details"].as_array().unwrap().len(), 2);
 }
