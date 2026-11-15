@@ -52,6 +52,9 @@ jobs:
           # ff-only: fails loudly instead of discarding commits or edits made on the server.
           git merge --ff-only "$1"
           git log -1 --oneline
+          # SPICE kernels into data/kernels (mounted read-only by compose): idempotent, SHA-256 checked.
+          # If NAIF is unreachable the deploy goes on and /scenarios/evaluate stays not_ready.
+          scripts/setup-spice.sh --kernels || echo "WARNING: SPICE kernels not installed; ephemerides stay not_ready"
           docker compose -f infra/compose.yaml up -d --build --remove-orphans --wait
           docker image prune -f
           EOF

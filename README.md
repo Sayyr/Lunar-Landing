@@ -50,7 +50,7 @@ One-time setup:
 # during the CMake build. Without it POST /scenarios/evaluate answers status "not_ready".
 scripts/setup-spice.sh
 cd services/science
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j --config Release
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j 8 --config Release
 cd ../..
 
 # api (downloads crates on first build)
@@ -85,7 +85,7 @@ Configuration: see `.env.example`. All variables are optional.
 ## Tests and checks
 
 ```bash
-cd services/science && cmake --build build -j && ctest --test-dir build --output-on-failure
+cd services/science && cmake --build build -j 8 && ctest --test-dir build --output-on-failure
 cd services/api     && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
 cd apps/web         && npm run typecheck && npm test && npm run build
 ```

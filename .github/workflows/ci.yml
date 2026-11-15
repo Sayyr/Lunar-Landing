@@ -23,12 +23,12 @@ jobs:
       - run: scripts/setup-spice.sh
         working-directory: .
       - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-      - run: cmake --build build -j
+      - run: cmake --build build -j 4   # bare -j is unbounded with Make (CSPICE: ~2200 C files)
       - run: ctest --test-dir build --output-on-failure
       - name: Tests under AddressSanitizer + UBSan
         run: |
           cmake -S . -B build-asan -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSELENE_SANITIZE=ON
-          cmake --build build-asan -j
+          cmake --build build-asan -j 4
           ctest --test-dir build-asan --output-on-failure
 
   # Windows (MSVC): CSPICE compiled from the NAIF Windows package's sources by CMake.

@@ -9,7 +9,7 @@ COPY scripts/setup-spice.sh scripts/setup-spice.sh
 RUN scripts/setup-spice.sh --cspice
 COPY services/science services/science
 RUN cmake -S services/science -B build -DCMAKE_BUILD_TYPE=Release -DSELENE_BUILD_TESTS=OFF \
-    && cmake --build build -j --target selene-science
+    && cmake --build build -j "$(nproc)" --target selene-science  # bare -j is unbounded with Make
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*

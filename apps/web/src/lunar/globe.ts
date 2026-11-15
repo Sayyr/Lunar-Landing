@@ -14,6 +14,8 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 import { bodyRotationToThree } from "../lib/sceneFrame";
+import { makeStarField } from "../lib/stars";
+import { centreShift, easeInOutQuad, refitDistance } from "../lib/viewFit";
 import { latLonToUnit, MOON_RADIUS_KM, pointToUv, uvToLatLon } from "./geo";
 import type { Heightmap } from "./heightmap";
 import { DATA_BASE } from "./loaders";
@@ -23,6 +25,8 @@ import { TILE_STENCIL, TileLayer, type TileStatus } from "./tileLayer";
 // Background bodies are drawn at SKY_DIST from the camera (always "at infinity": no parallax when
 // orbiting) with their true mean angular radii as seen from the Moon.
 const SKY_DIST = 60;
+const STAR_DIST = 90;
+const FREE_AREA_MS = 900;
 const EARTH_ANG_RADIUS = Math.atan(6371 / 384_400); // ≈ 0.95°
 const SUN_ANG_RADIUS = Math.atan(695_700 / 149_597_871); // ≈ 0.27°
 // Sun–Moon–camera angle i on load: lit fraction of the disc k = (1 + cos i) / 2 = 0.8 → i ≈ 53.1°
@@ -80,12 +84,15 @@ export class Globe {
   private readonly textures: THREE.Texture[] = [];
   private readonly resizeObserver: ResizeObserver;
   private ring: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial> | null = null;
-  private flight: { from: THREE.Vector3; to: THREE.Vector3; d0: number; d1: number; t0: number; dur: number } | null = null;
+  private flight: { from: THREE.Vector3; to: THREE.Vector3; d0: number; d1: number; t0: number; dur: number; lift?: number } | null = null;
   private readonly sunLight: THREE.DirectionalLight;
   private readonly sunBody: THREE.Group;
   private readonly earthBody: THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial>;
+  private readonly stars = makeStarField(STAR_DIST);
   private sky: { sun: THREE.Vector3; earth: THREE.Vector3 } | null = null;
   private framedOnSun = false;
+  private freeArea: { left: number; right: number } | null = null;
+  private shift = { from: 0, to: 0, t0: 0, dur: 0 };
   private readonly tiles: TileLayer;
   private readonly heightTex: THREE.DataTexture | null;
   private readonly overlays = new Set<SurfaceOverlay>();
@@ -161,6 +168,9 @@ export class Globe {
     this.earthBody.matrixAutoUpdate = false;
     this.earthBody.visible = false;
     scene.add(this.earthBody);
+    this.stars.matrixAutoUpdate = false;
+    this.stars.visible = false;
+    scene.add(this.stars);
     // Optional texture (installed by scripts/setup-data.sh); plain blue sphere otherwise.
     new THREE.TextureLoader().load(`${DATA_BASE}earth_bluemarble_2048.png`, (tex) => {
       if (!this.renderer.domElement.isConnected) return tex.dispose(); // globe disposed meanwhile
@@ -269,6 +279,39 @@ export class Globe {
     this.renderer.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    this.applyViewOffset(this.shiftAt(performance.now()));
+    this.requestRender();
+  }
+
+  setFreeArea(left: number, right: number): void {
+    const w = this.container.clientWidth;
+    const now = performance.now();
+    const prev = this.freeArea;
+    this.freeArea = { left, right };
+    this.shift = { from: this.shiftAt(now), to: centreShift(left, right), t0: now, dur: prev ? FREE_AREA_MS : 0 };
+    this.applyViewOffset(this.shiftAt(now));
+    const oldFree = prev ? w - prev.left - prev.right : 0;
+    const newFree = w - left - right;
+    if (!prev || oldFree <= 0 || newFree <= 0 || this.flight || Math.abs(newFree / oldFree - 1) < 0.02) return;
+    const from = this.camera.position.clone();
+    const d0 = from.length();
+    const d1 = THREE.MathUtils.clamp(refitDistance(d0, newFree / oldFree), this.controls.minDistance, this.controls.maxDistance);
+    this.flight = { from, to: from.clone().normalize(), d0, d1, t0: now, dur: FREE_AREA_MS, lift: 0.15 * Math.max(d0, d1) };
+  }
+
+  private shiftAt(now: number): number {
+    const { from, to, t0, dur } = this.shift;
+    const k = dur > 0 ? Math.min(1, (now - t0) / dur) : 1;
+    return from + (to - from) * easeInOutQuad(k);
+  }
+
+  private applyViewOffset(x: number): void {
+    const w = this.container.clientWidth;
+    const h = this.container.clientHeight;
+    if (w === 0 || h === 0) return;
+    if (x === 0) this.camera.clearViewOffset();
+    else this.camera.setViewOffset(w, h, -x, 0, w, h);
+    this.camera.updateProjectionMatrix();
     this.requestRender();
   }
 
@@ -302,6 +345,20 @@ export class Globe {
   /** Radius of the displayed surface (scene units) at lat/lon. */
   surfaceRadius(lat: number, lon: number): number {
     return 1 + (this.heightmap ? this.heightmap.sampleKm(lat, lon) * this.scale : 0);
+  }
+
+  bodyAt(clientX: number, clientY: number): "sun" | "earth" | null {
+    if (!this.sky) return null;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const pxPerRad = rect.height / THREE.MathUtils.degToRad(this.camera.fov);
+    for (const [which, angRadius] of [["earth", EARTH_ANG_RADIUS], ["sun", SUN_ANG_RADIUS]] as const) {
+      const p = this.camera.position.clone().addScaledVector(this.sky[which], SKY_DIST).project(this.camera);
+      if (p.z > 1) continue;
+      const x = rect.left + ((p.x + 1) / 2) * rect.width;
+      const y = rect.top + ((1 - p.y) / 2) * rect.height;
+      if (Math.hypot(x - clientX, y - clientY) <= Math.max(12, angRadius * pxPerRad)) return which;
+    }
+    return null;
   }
 
   /**
@@ -438,7 +495,7 @@ export class Globe {
    * the illustrative fixed light, bodies hidden.
    */
   setSky(sky: MoonSky | null): void {
-    this.sunBody.visible = this.earthBody.visible = sky !== null;
+    this.sunBody.visible = this.earthBody.visible = this.stars.visible = sky !== null;
     this.requestRender();
     if (!sky) {
       this.sky = null;
@@ -455,6 +512,7 @@ export class Globe {
       this.camera.lookAt(0, 0, 0);
     }
     this.earthBody.userData.rotation = bodyRotationToThree(sky.earthToBody);
+    this.stars.userData.rotation = bodyRotationToThree(sky.eclToBody);
   }
 
   /**
@@ -501,7 +559,7 @@ export class Globe {
    * angle (degrees clockwise from screen-up). `onScreen` = inside the view (it may still be hidden
    * behind the Moon). null before setSky().
    */
-  edgePointer(which: "sun" | "earth", marginPx = 36): { x: number; y: number; angle: number; onScreen: boolean } | null {
+  edgePointer(which: "sun" | "earth", marginPx = 36): { x: number; y: number; onScreen: boolean } | null {
     if (!this.sky) return null;
     const w = this.container.clientWidth;
     const h = this.container.clientHeight;
@@ -516,7 +574,6 @@ export class Globe {
       ny = -ny;
     }
     const onScreen = !behind && Math.abs(nx) <= 1 && Math.abs(ny) <= 1;
-    const angle = THREE.MathUtils.radToDeg(Math.atan2(nx * w, ny * h));
     if (!onScreen) {
       // Slide along the centre → target ray until it touches the margin box.
       const mx = 1 - (2 * marginPx) / w;
@@ -525,7 +582,7 @@ export class Globe {
       nx *= k;
       ny *= k;
     }
-    return { x: ((nx + 1) / 2) * w, y: ((1 - ny) / 2) * h, angle, onScreen };
+    return { x: ((nx + 1) / 2) * w, y: ((1 - ny) / 2) * h, onScreen };
   }
 
   /**
@@ -630,13 +687,16 @@ export class Globe {
   }
 
   /** Turns the camera toward lat/lon (spherical interpolation; distance kept or reduced). */
-  flyTo(lat: number, lon: number, radiusKm = 50): void {
+  flyTo(lat: number, lon: number, radiusKm = 50, arc = false): void {
     const u = latLonToUnit(lat, lon);
     const to = new THREE.Vector3(u.x, u.y, u.z).normalize();
     const from = this.camera.position.clone();
     // Target distance: the feature fills about a third of the field of view.
     const want = THREE.MathUtils.clamp(1 + (radiusKm / MOON_RADIUS_KM) * 6, 1.25, 4);
-    this.flight = { from, to, d0: from.length(), d1: want, t0: performance.now(), dur: 1400 };
+    const d0 = from.length();
+    const peak = Math.min(this.controls.maxDistance, Math.max(1 + 1.5 * from.angleTo(to), 1.25 * Math.max(d0, want)));
+    const lift = arc ? Math.max(0, peak - (d0 + want) / 2) : 0;
+    this.flight = { from, to, d0, d1: want, t0: performance.now(), dur: lift > 0 ? 2200 : 1400, lift };
     this.requestRender();
   }
 
@@ -671,13 +731,17 @@ export class Globe {
     this.frameId = 0;
     if (!this.active) return;
     const before = this.camera.position.clone();
+    if (this.shift.dur > 0) {
+      this.applyViewOffset(this.shiftAt(now));
+      if (now - this.shift.t0 >= this.shift.dur) this.shift.dur = 0;
+    }
     if (this.flight) {
-      const { from, to, d0, d1, t0, dur } = this.flight;
+      const { from, to, d0, d1, t0, dur, lift = 0 } = this.flight;
       const k = Math.min(1, (now - t0) / dur);
-      const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2; // easeInOutQuad
+      const e = easeInOutQuad(k);
       const q = new THREE.Quaternion().setFromUnitVectors(from.clone().normalize(), to);
       const dir = from.clone().normalize().applyQuaternion(new THREE.Quaternion().slerp(q, e));
-      this.camera.position.copy(dir.multiplyScalar(d0 + (d1 - d0) * e));
+      this.camera.position.copy(dir.multiplyScalar(d0 + (d1 - d0) * e + lift * Math.sin(Math.PI * e)));
       this.camera.lookAt(0, 0, 0);
       if (k >= 1) this.flight = null;
     }
@@ -693,9 +757,12 @@ export class Globe {
         .copy(this.earthBody.userData.rotation as THREE.Matrix4)
         .setPosition(cam.clone().addScaledVector(this.sky.earth, SKY_DIST));
       this.earthBody.matrixWorldNeedsUpdate = true; // matrixAutoUpdate is off: refresh matrixWorld
+      this.stars.matrix.copy(this.stars.userData.rotation as THREE.Matrix4).setPosition(cam);
+      this.stars.matrixWorldNeedsUpdate = true;
     }
     this.renderer.render(this.scene, this.camera);
-    if (this.flight || this.ring || this.dragging || this.camera.position.distanceToSquared(before) > CAMERA_MOVE_EPS_SQ) this.requestRender();
+    const shifting = now - this.shift.t0 < this.shift.dur;
+    if (this.flight || this.ring || this.dragging || shifting || this.camera.position.distanceToSquared(before) > CAMERA_MOVE_EPS_SQ) this.requestRender();
   }
 
   /**

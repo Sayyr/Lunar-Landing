@@ -286,28 +286,28 @@ export function GroundViewPanel(props: Props) {
             <span className="earth">{status("Earth", sky.earth)}</span>
           </div>
         )}
-        <div className="ground-note">
-          {dem?.ready && siteDem && <>LOLA 5 m site DEM ({siteDem.manifest.source}, PGDA) near the observer · then </>}
-          {dem?.ready && polarDem ? (
-            <>
-              Terrain: LOLA 20 m polar DEM ({polarDem.manifest.source}, {polarDem.manifest.frame}) to{" "}
-              {POLAR_MAX_M / 1000} km, each distance at the resolution matching the mesh spacing — then {heightmap?.label ?? "—"} to 400 km,
-              true scale with curvature
-            </>
-          ) : dem ? (
-            <>Loading {siteDem ? "5 m + 20 m" : "20 m"} polar relief around the site: {dem.done}/{dem.total} tiles… (meanwhile {heightmap?.label ?? "—"}, ≈ 1.9 km/px)</>
-          ) : (
-            <>
-              Terrain: LOLA {heightmap?.label ?? "—"} at true scale (≈ {heightmap ? heightmap.kmPerPixel.toFixed(1) : "—"} km/px, smoothed up
-              close), out to 400 km with curvature
-            </>
-          )}{" "}
-          · cast shadows (GPU, ±30 km around the line to the Sun) · colour:{" "}
-          {colorImage ? "LROC WAC mosaic (≈ 2.7 km/px, real)" : "uniform"} × regolith grain, small craters, normal &amp; roughness maps
-          (procedural, ILLUSTRATIVE — not data), metalness 0
-          {fill ? " · fill light ON (visual aid, not physical)" : " · Sun light only"} · terrain horizon read from the rendered mesh
-          (estimate, not the science computation) · dashed line = ideal horizon 0° · drag to look, wheel to zoom
-        </div>
+      </div>
+      <div className="ground-note">
+        {dem?.ready && siteDem && <>LOLA 5 m site DEM ({siteDem.manifest.source}, PGDA) near the observer · then </>}
+        {dem?.ready && polarDem ? (
+          <>
+            Terrain: LOLA 20 m polar DEM ({polarDem.manifest.source}, {polarDem.manifest.frame}) to{" "}
+            {POLAR_MAX_M / 1000} km, each distance at the resolution matching the mesh spacing — then {heightmap?.label ?? "—"} to 400 km,
+            true scale with curvature
+          </>
+        ) : dem ? (
+          <>Loading {siteDem ? "5 m + 20 m" : "20 m"} polar relief around the site: {dem.done}/{dem.total} tiles… (meanwhile {heightmap?.label ?? "—"}, ≈ 1.9 km/px)</>
+        ) : (
+          <>
+            Terrain: LOLA {heightmap?.label ?? "—"} at true scale (≈ {heightmap ? heightmap.kmPerPixel.toFixed(1) : "—"} km/px, smoothed up
+            close), out to 400 km with curvature
+          </>
+        )}{" "}
+        · cast shadows (GPU, ±30 km around the line to the Sun) · colour:{" "}
+        {colorImage ? "LROC WAC mosaic (≈ 2.7 km/px, real)" : "uniform"} × regolith grain, small craters, normal &amp; roughness maps
+        (procedural, ILLUSTRATIVE — not data), metalness 0
+        {fill ? " · fill light ON (visual aid, not physical)" : " · Sun light only"} · terrain horizon read from the rendered mesh
+        (estimate, not the science computation) · dashed line = ideal horizon 0° · drag to look, wheel to zoom
       </div>
       <div className="ground-buttons">
         <button type="button" onClick={() => lookAt(sky?.sun)} disabled={!sky}>
