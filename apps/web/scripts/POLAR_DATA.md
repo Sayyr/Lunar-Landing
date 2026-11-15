@@ -61,11 +61,10 @@ whole area (covering radius = disc radius). Disc radius is a ground distance (ma
 all discs of a grid 42.0 % vs 42.4 % for the whole L0 tile set (the tiles also include the square's corners).
 Layout and conventions: `services/science/src/slope_grid.hpp` and the file's `method` block.
 
-Docker / server: automatic. The science image contains `slope-grid`; at container start
-`services/science/docker-entrypoint.sh` generates `apps/web/public/data/polar_s_grid/grid_4km.json` (mounted at
-`/data/grid`) from the mounted raw DEM when the file is missing or older than the DEM (a few seconds, ~2 GB RAM), and
-`infra/compose.yaml` mounts the same directory read-only into nginx. Nothing is downloaded: without the raw
-`LDEM_85S_20M` (`setup-polar-dem.sh` on the host) the step is skipped and the page reports "not installed".
+Docker / server: automatic, at image build. The "grid" stage of `apps/web/Dockerfile` downloads the raw
+`LDEM_85S_20M` (920 MB, size and SHA-256 checked; a cached Docker layer, so only on the first build), compiles
+`slope-grid`, and copies only the resulting `grid_4km.json` (~2.8 MB) into the web image. Nothing to install on the
+server; `infra/compose.yaml` must NOT mount a host `polar_s_grid` directory over it.
 
 The "Verify on server" button of the slope map does not use these tiles: it calls `POST /api/v1/terrain/slope/check`,
 which recomputes the same Horn slope (same code, `services/science/src/slope_core.hpp`) on the raw float32 file
